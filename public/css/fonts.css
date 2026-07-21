@@ -1,0 +1,8 @@
+/* Spinnaker is bundled locally under the SIL Open Font License 1.1. */
+@font-face {
+    font-family: 'Spinnaker';
+    src: url('/fonts/spinnaker/Spinnaker-Regular.ttf') format('truetype');
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+}

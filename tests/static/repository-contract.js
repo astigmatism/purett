@@ -43,9 +43,20 @@ try {
     'database/schema.sql', 'database/seed-cards.sql', 'database/seed-reference.sql', 'database/seed.sql',
     'application/controllers/AuthController.php', 'application/controllers/AccountController.php',
     'application/controllers/IndexController.php', 'application/controllers/PurchaseController.php',
-    'library/Standalone/Controller/Action.php', 'public/js/gh.platform.js'
+    'library/Standalone/Controller/Action.php', 'public/js/gh.platform.js',
+    'public/css/fonts.css', 'public/fonts/spinnaker/Spinnaker-Regular.ttf',
+    'public/fonts/spinnaker/OFL.txt'
   ];
   for (const file of required) assert(fs.existsSync(path.join(root, file)), `required standalone file is missing: ${file}`);
+
+  const fontCss = read('public/css/fonts.css');
+  const standaloneLayout = read('application/views/layouts/standalone.phtml');
+  const spinnakerFont = fs.readFileSync(path.join(root, 'public/fonts/spinnaker/Spinnaker-Regular.ttf'));
+  assert(/@font-face/.test(fontCss), 'local font stylesheet has no font-face definition');
+  assert(/font-family:\s*['"]Spinnaker['"]/.test(fontCss), 'local font stylesheet does not define Spinnaker');
+  assert(/url\(['"]?\/fonts\/spinnaker\/Spinnaker-Regular\.ttf['"]?\)/.test(fontCss), 'Spinnaker does not use the bundled font file');
+  assert(spinnakerFont.length > 10000 && spinnakerFont.subarray(0, 4).toString('hex') === '00010000', 'bundled Spinnaker file is not a valid TrueType font');
+  assert(standaloneLayout.includes('/css/fonts.css'), 'standalone layout does not load the local font stylesheet');
 
   const activeCode = [
     ...walk('application', ['.php', '.phtml', '.ini']),
@@ -141,4 +152,3 @@ try {
   console.error(`not ok - repository contract: ${error.message}`);
   process.exitCode = 1;
 }
-

@@ -267,6 +267,42 @@ async function placeCardThroughUi(page, pageErrors) {
   return response.json();
 }
 
+test('bundled Spinnaker renders without a third-party request', async ({page, baseURL}) => {
+  const externalRequests = [];
+  const baseOrigin = new URL(baseURL).origin;
+  page.on('request', request => {
+    const url = request.url();
+    if (/^(data|blob|about):/.test(url)) return;
+    if (new URL(url).origin !== baseOrigin) externalRequests.push(url);
+  });
+
+  await page.goto('/auth/login');
+  await page.locator('input[name="username"]').fill('demo');
+  await page.locator('input[name="password"]').fill('TripleTriad!');
+  await Promise.all([
+    page.waitForURL(url => url.pathname === '/'),
+    page.locator('button[type="submit"]').click()
+  ]);
+
+  const typography = await page.evaluate(async () => {
+    await document.fonts.ready;
+    return {
+      available: document.fonts.check('13px "Spinnaker"', 'Pure Triple Triad'),
+      bodyFamily: getComputedStyle(document.body).fontFamily,
+      titleFamily: getComputedStyle(document.querySelector('#title')).fontFamily,
+      fetched: performance.getEntriesByType('resource').some(entry => (
+        new URL(entry.name).pathname === '/fonts/spinnaker/Spinnaker-Regular.ttf'
+      ))
+    };
+  });
+
+  expect(typography.available, 'Spinnaker is not available to the document').toBeTruthy();
+  expect(typography.bodyFamily).toContain('Spinnaker');
+  expect(typography.titleFamily).toContain('Spinnaker');
+  expect(typography.fetched, 'browser did not fetch the bundled Spinnaker face').toBeTruthy();
+  expect(externalRequests, `unexpected third-party requests: ${externalRequests.join(', ')}`).toEqual([]);
+});
+
 test('standalone player journey works without third-party requests', async ({page, baseURL}) => {
   const externalRequests = [];
   const pageErrors = [];

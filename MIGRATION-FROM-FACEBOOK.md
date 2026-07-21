@@ -42,7 +42,7 @@ This is the migration disposition for every known integration point in the forme
 | Hosted uninstall/deauthorization callback | Password-confirmed local account deletion |
 | Leaderboard identity enrichment through a graph API | Three-day SQL aggregation over local accounts; Redis caches the complete browser-ready result |
 | Replay URLs containing a caller-supplied user identity | Session-derived identity plus database authorization of the game-history record |
-| Classic analytics and remote font/CDN assets | Removed; bundled scripts/assets and system font fallbacks are used |
+| Classic analytics and remote font/CDN assets | Remote requests removed; the original Spinnaker face is bundled locally and system fallbacks remain available |
 | Browser-triggered optimizer and arbitrary file list | Removed from the request path; source assets are served from a fixed local set |
 | Application IDs, secrets, Canvas URLs, and platform configuration sent to JavaScript | Removed; browser boot data contains only game state, local profile fields, coins, turns, CSRF token, and leaderboard data |
 | WordPress social-connection code | The unrelated `public/wordpress/` archive is excluded from the image and explicitly denied by Apache |
@@ -89,7 +89,7 @@ Fresh registration is one transaction that creates the user and account, a 200-c
 - Remote profile images
 - Real-money or hosted-credit payments and signed callbacks
 - Deauthorization webhooks
-- Classic analytics and third-party fonts/CDNs
+- Classic analytics and remote third-party font/CDN requests
 - Browser-invoked asset optimization, debug, phpinfo, card-grant, and static-code admin endpoints
 
 None of these has been replaced with a no-op `FB` or `gh.facebook` compatibility object. Their active call sites and layouts were replaced with local concepts.

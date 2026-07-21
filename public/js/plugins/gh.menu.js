@@ -88,7 +88,7 @@ gh.menu.prototype = {
         // the recovered tutorials or the local coin shop.
         $(me.ul).append('<li class="shop">SHOP</li><li class="tutorials">TUTORIALS</li>');
         if (gh.data.latestReplay) {
-            $(me.ul).append('<li class="replay">LATEST REPLAY</li>');
+            $(me.ul).append('<li class="replay">REPLAY</li>');
         }
         if (gh.data.deckcount > 0 && !gh.data.ingame) {
             $(me.ul).append('<li class="deck">DECK</li>');

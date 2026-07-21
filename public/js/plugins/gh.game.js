@@ -1203,7 +1203,9 @@ gh.game.prototype = {
             newhand:    gameoverdetails.hand,
             deckcount:  gameoverdetails.deckcount,
             nextrules:  gameoverdetails.nextrules,
-            own:        gameoverdetails.own
+            own:        gameoverdetails.own,
+            coinsAwarded: gameoverdetails.coinsAwarded,
+            coins:      gameoverdetails.coins
         };
         
         //console.log(details);

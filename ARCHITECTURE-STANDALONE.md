@@ -108,11 +108,12 @@ Turn policy is coherent across registration, requests, and scheduled work:
 
 ## Local economy
 
-The currency is test-only. A purchase request carries a catalog type, item ID, and idempotency key—not a trusted price or user ID. The server locks the authenticated user's wallet, looks up/calculates price, verifies funds, grants the card/color/turns, updates the balance, and writes both purchase result and coin ledger entry in one transaction. A repeated order key for the same account returns its original stored result instead of granting twice.
+The local currency is earned through play. Accounts start with 3 coins, and a win awards the winner's score above five: 6–4 earns 1 coin through 10–0 earning 5. Draws and losses earn none. Match awards lock the wallet and use the game ID as an idempotent ledger reference so replayed completion work cannot pay twice.
+
+A purchase request carries a catalog type, item ID, and idempotency key—not a trusted price or user ID. The server locks the authenticated user's wallet, looks up/calculates price, verifies funds, grants the card/color/turns, updates the balance, and writes both purchase result and coin ledger entry in one transaction. A repeated order key for the same account returns its original stored result instead of granting twice.
 
 Cards cost twice their level. The seeded color catalog includes green, purple, orange, black, and white; the seeded turn catalog includes 5, 10, 20, 50, and 100-turn bundles. `PURETT_FREE_ECONOMY=1` is an explicit development-only mode that grants catalog items without deducting coins while still recording the transaction.
 
 ## Leaderboard
 
 The leaderboard covers completed games from the preceding three days. MariaDB aggregates wins, losses, draws, games played, and average player score per enabled local account, calculates a stable score, sorts deterministically, and returns the first five with rank and local initials. Redis caches that complete result; the browser never needs a profile service.
-

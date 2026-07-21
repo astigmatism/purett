@@ -1452,6 +1452,18 @@ class PureTripleTriad_Game {
         
         //add the game to the gamehistory
         $this->db->setGameHistory($this->p1->userid, $this->gameid, $this->p1score, $this->p2score);
+
+        $coinsAwarded = self::getCoinReward($this->p1score, $this->p2score);
+        $coinBalance = $this->db->getWalletBalance($this->p1->userid);
+        if ($coinsAwarded > 0) {
+            $coinResult = $this->db->awardMatchCoins(
+                $this->p1->userid,
+                $this->gameid,
+                $coinsAwarded,
+                'Victory ' . $this->p1score . '-' . $this->p2score
+            );
+            $coinBalance = (int) $coinResult['balance'];
+        }
         
         //create vars for player's game cards and return to client
         $given = array();       //when deck/hand count below 5
@@ -1586,7 +1598,9 @@ class PureTripleTriad_Game {
             'hand'      => $this->p1->hand,                 //player's new hand for display on main menu
             'deckcount' => count($this->p1->deck) + $this->victoryclaim,          //used to show "deck" menu command
             'nextrules' => $rules,                          //a preview of next game's rules to display on the client
-            'own'       => $this->getOwnershipCountOfOpponentsCards()
+            'own'       => $this->getOwnershipCountOfOpponentsCards(),
+            'coinsAwarded' => $coinsAwarded,
+            'coins'     => $coinBalance
         );
         
         //if this is a closed game, return the contents of p2's hand. we cannot rely on the client because not all cards are shown yet!
@@ -1614,7 +1628,17 @@ class PureTripleTriad_Game {
             throw $e;
         }
     }
-    
+
+    public static function getCoinReward($p1score, $p2score)
+    {
+        $p1score = (int) $p1score;
+        $p2score = (int) $p2score;
+        if ($p1score <= $p2score) {
+            return 0;
+        }
+        return min(5, max(0, $p1score - 5));
+    }
+
     public function setVictoryClaim($value) {
         $this->victoryclaim = $value;
         $this->db->setVictoryClaim($this->gameid, $value);

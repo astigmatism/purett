@@ -51,6 +51,8 @@ class PurettFixtureDatabase
     public $suddenDeath = false;
     public $cardUpdates = array();
     public $committed = false;
+    public $balance = 3;
+    public $matchAwards = array();
 
     public function beginTransaction() {}
     public function rollBack() {}
@@ -65,6 +67,17 @@ class PurettFixtureDatabase
     public function setGameCard($gamecardid, $position, $captured)
     {
         $this->cardUpdates[] = array($gamecardid, $position, $captured);
+    }
+    public function getWalletBalance($userid) { return $this->balance; }
+    public function awardMatchCoins($userid, $gameid, $amount, $details)
+    {
+        $reference = 'match:' . (int) $gameid;
+        if (isset($this->matchAwards[$reference])) {
+            return array('amount' => $this->matchAwards[$reference], 'balance' => $this->balance, 'idempotent' => true);
+        }
+        $this->matchAwards[$reference] = (int) $amount;
+        $this->balance += (int) $amount;
+        return array('amount' => (int) $amount, 'balance' => $this->balance, 'idempotent' => false);
     }
 }
 
@@ -164,4 +177,3 @@ function purettVictoryFixture($ruleName, $p1score, $p2score)
     $game->gamecards = $cards;
     return array($game, $database, $player);
 }
-

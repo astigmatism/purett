@@ -4,12 +4,14 @@ class AuthController extends Gamehouse_Controller_Action
 {
     private $session;
     private $database;
+    private $gameConfig;
 
     public function init()
     {
         parent::init();
         $this->session = new Zend_Session_Namespace('purett');
         $this->database = new PureTripleTriad_Database();
+        $this->gameConfig = new Zend_Config_Ini(APPLICATION_PATH . '/configs/game.ini');
         if (!isset($this->session->csrf) || !is_string($this->session->csrf)) {
             $this->session->csrf = $this->newToken();
         }
@@ -96,7 +98,7 @@ class AuthController extends Gamehouse_Controller_Action
                 $displayName,
                 password_hash($password, PASSWORD_DEFAULT),
                 $email,
-                200
+                (int) $this->gameConfig->startingCoins
             );
             session_regenerate_id(true);
             $this->session->userid = (int) $account['userid'];

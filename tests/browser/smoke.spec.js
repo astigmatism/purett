@@ -353,6 +353,7 @@ test('standalone player journey works without third-party requests', async ({pag
   // hand while leaving replacements in the collection. Rebuild the required
   // five-card hand through the real deck UI before starting the next game.
   await ensurePlayableHand(page);
+  const coinsBeforeGame = await page.evaluate(() => Number(gh.data.coins));
 
   const gameRequest = page.waitForResponse(response =>
     response.url().includes('/index/game') && response.request().method() === 'POST'
@@ -394,6 +395,11 @@ test('standalone player journey works without third-party requests', async ({pag
   expect(aiMoves, 'AI never responded').toBeGreaterThanOrEqual(1);
   expect(humanMoves, 'no human turns were submitted').toBeGreaterThanOrEqual(4);
   expect(initialTurns - humanMoves, 'turn counter did not decrease once per human move').toBeGreaterThanOrEqual(0);
+  expect(Number(completion.coinsAwarded)).toBeGreaterThanOrEqual(0);
+  expect(Number(completion.coinsAwarded)).toBeLessThanOrEqual(5);
+  expect(Number(completion.coins)).toBe(coinsBeforeGame + Number(completion.coinsAwarded));
+  await expect.poll(() => page.evaluate(() => Number(gh.data.coins))).toBe(Number(completion.coins));
+  await expect(page.locator('#coins .coin-balance')).toHaveText(String(completion.coins));
 
   if (completion && Number(completion.claim || 0) > 0) {
     state[fields.claim] = Number(completion.claim);

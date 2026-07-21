@@ -108,6 +108,9 @@ try {
   assert(database.includes('FOR UPDATE'), 'economy/turn paths do not lock rows for atomic changes');
   assert(database.includes('reference_key'), 'coin transaction idempotency is absent');
   assert(database.includes('NATURAL_TURN_CAP = 30'), 'natural turn cap is not explicit and consistent');
+  assert(/startingCoins\s*=\s*3/.test(read('application/configs/game.ini')), 'new accounts do not start with three coins');
+  assert(/gameConfig->startingCoins/.test(read('application/controllers/AuthController.php')), 'registration bypasses the configured starting balance');
+  assert(/transaction_type'\s*=>\s*'match_reward'/.test(database), 'completed-match coin rewards are not recorded in the ledger');
 
   const game = read('library/PureTripleTriad/Game.php');
   assert(game.includes('GAMEHISTORY_PATH'), 'replays are not stored under the dedicated runtime path');
@@ -115,6 +118,7 @@ try {
   assert(/getAuthorizedGameHistory/.test(game), 'replay ownership authorization is absent');
   assert(/tutorials\/\[1245\]/.test(game), 'replay path allowlist does not constrain tutorial files');
   assert(/elementbonus\s*\*\s*-1/.test(game), 'negative Elemental mismatch modifier is absent');
+  assert(/p1score\s*-\s*5/.test(game), 'victory coin rewards do not measure score above five');
 
   const schema = read('database/schema.sql');
   for (const table of ['users', 'local_accounts', 'wallets', 'coin_transactions', 'user_turns', 'cards', 'usercards', 'games', 'gamerules', 'rules', 'gamecards', 'gamehistory', 'purchases', 'options', 'useroptions', 'shopitems']) {

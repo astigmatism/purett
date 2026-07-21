@@ -5,6 +5,7 @@ require dirname(__FILE__) . '/bootstrap.php';
 // The browser smoke test is deliberately repeatable against the documented
 // demo identity. Restore only that seeded fixture; never touch other accounts.
 $database = new PureTripleTriad_Database();
+$gameConfig = new Zend_Config_Ini(APPLICATION_PATH . '/configs/game.ini');
 $account = $database->getLocalAccountByUsername('demo');
 
 if ($account) {
@@ -17,7 +18,7 @@ $account = $database->createLocalAccount(
     'Demo Player',
     password_hash('TripleTriad!', PASSWORD_DEFAULT),
     'demo@example.invalid',
-    200
+    (int) $gameConfig->startingCoins
 );
 
 if (!$account || $account['username'] !== 'demo') {

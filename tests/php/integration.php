@@ -49,7 +49,7 @@ $test->test('local registration hashes the password and grants exactly five star
         'Integration Player',
         $hash,
         'integration@example.invalid',
-        200
+        3
     );
     $userid = (int) $account['userid'];
     $state['userid'] = $userid;
@@ -63,7 +63,7 @@ $test->test('local registration hashes the password and grants exactly five star
     foreach ($cards as $card) {
         PurettTestHarness::assertSame(1, (int) $card['inhand'], 'every starting card should be in hand');
     }
-    PurettTestHarness::assertSame(200, $state['database']->getWalletBalance($userid), 'starting coin balance is wrong');
+    PurettTestHarness::assertSame(3, $state['database']->getWalletBalance($userid), 'starting coin balance is wrong');
     PurettTestHarness::assertSame(30, $state['database']->getTurns($userid), 'starting turn balance is wrong');
 });
 
@@ -159,6 +159,7 @@ $test->test('daily shop inventory is deterministic and bounded', function () use
 $test->test('card purchase is server-priced, atomic, protected, and idempotent', function () use (&$state) {
     $database = $state['database'];
     $userid = $state['userid'];
+    $database->grantCoins($userid, 100, 'test:shop-funds:' . sha1(uniqid('', true)));
     $stock = PureTripleTriad_User::getShopStock(new PureTripleTriad_User($userid), 10);
     PurettTestHarness::assertTrue(count($stock) > 0, 'daily shop has no purchasable card');
     $cardid = (int) $stock[0]->cardid;
@@ -190,6 +191,24 @@ $test->test('card purchase is server-priced, atomic, protected, and idempotent',
         array($userid, 'purchase:' . $order)
     );
     PurettTestHarness::assertSame(1, $ledgerCount, 'purchase ledger was not idempotent');
+});
+
+$test->test('match coin awards are wallet-locked and idempotent by game', function () use (&$state) {
+    $database = $state['database'];
+    $userid = $state['userid'];
+    $gameid = 900000000 + mt_rand(1, 999999);
+    $before = $database->getWalletBalance($userid);
+    $first = $database->awardMatchCoins($userid, $gameid, 2, 'Victory 7-3');
+    $second = $database->awardMatchCoins($userid, $gameid, 2, 'Victory 7-3');
+
+    PurettTestHarness::assertSame(2, (int) $first['amount'], 'match award amount is wrong');
+    PurettTestHarness::assertSame($before + 2, (int) $first['balance'], 'match award balance is wrong');
+    PurettTestHarness::assertTrue((bool) $second['idempotent'], 'repeat match award was not marked idempotent');
+    PurettTestHarness::assertSame($before + 2, $database->getWalletBalance($userid), 'repeat match award credited twice');
+    PurettTestHarness::assertSame(1, (int) $database->db->fetchOne(
+        'SELECT COUNT(*) FROM coin_transactions WHERE userid = ? AND reference_key = ?',
+        array($userid, 'match:' . $gameid)
+    ), 'match award ledger contains duplicate references');
 });
 
 $test->test('color and turn-bundle purchases grant the authoritative catalog item', function () use (&$state) {
@@ -343,15 +362,37 @@ $test->test('Sudden Death clears the board and returns captured cards to the cor
 
 $test->test('Take One preserves protected cards on a loss and creates a claim on a win', function () {
     list($lossGame, $lossDatabase, $lossPlayer) = purettVictoryFixture('take one', 4, 6);
-    purettInvokePrivate($lossGame, 'gameover', array());
+    $lossResult = purettInvokePrivate($lossGame, 'gameover', array());
     PurettTestHarness::assertCount(1, $lossPlayer->removed, 'Take One loss did not remove exactly one card');
     PurettTestHarness::assertFalse(in_array(1, $lossPlayer->removed, true), 'Take One removed the protected card');
     PurettTestHarness::assertTrue($lossDatabase->deleted, 'completed Take One loss did not close the game');
+    PurettTestHarness::assertSame(0, (int) $lossResult['coinsAwarded'], 'loss awarded coins');
 
     list($winGame, $winDatabase, $winPlayer) = purettVictoryFixture('take one', 6, 4);
-    purettInvokePrivate($winGame, 'gameover', array());
+    $winResult = purettInvokePrivate($winGame, 'gameover', array());
     PurettTestHarness::assertSame(1, $winDatabase->victoryClaim, 'Take One win did not persist a one-card claim');
     PurettTestHarness::assertFalse($winDatabase->deleted, 'claimable game was deleted before the claim');
+    PurettTestHarness::assertSame(1, (int) $winResult['coinsAwarded'], '6-4 win did not award one coin');
+    PurettTestHarness::assertSame(4, (int) $winResult['coins'], 'win payload did not include the updated coin balance');
+});
+
+$test->test('victory coin rewards measure the winning score above a draw', function () {
+    $expectations = array(
+        array(5, 5, 0),
+        array(4, 6, 0),
+        array(6, 4, 1),
+        array(7, 3, 2),
+        array(8, 2, 3),
+        array(9, 1, 4),
+        array(10, 0, 5)
+    );
+    foreach ($expectations as $expectation) {
+        PurettTestHarness::assertSame(
+            $expectation[2],
+            PureTripleTriad_Game::getCoinReward($expectation[0], $expectation[1]),
+            'unexpected reward for ' . $expectation[0] . '-' . $expectation[1]
+        );
+    }
 });
 
 $test->test('Take Direct transfers captured cards while preserving protected losses', function () {
@@ -395,6 +436,7 @@ $test->test('a complete game persists results, consumes turns, responds with AI 
         'last_regenerated_at' => gmdate('Y-m-d H:i:s')
     ), array('userid = ?' => $userid));
     $database->setUserRecord($userid, 0, 0, 0);
+    $balanceBeforeGame = $database->getWalletBalance($userid);
 
     $user = new PureTripleTriad_User($userid);
     PurettTestHarness::assertCount(5, $user->hand, 'test account no longer has a valid five-card hand');
@@ -444,6 +486,12 @@ $test->test('a complete game persists results, consumes turns, responds with AI 
         }
         PurettTestHarness::assertTrue($humanMoves <= 5, 'game did not terminate after the 3x3 board filled');
     }
+    $completion = array();
+    if (!empty($response['ppqoowoieoiqpoipieoicojqpojuu']['gameover'])) {
+        $completion = $response['ppqoowoieoiqpoipieoicojqpojuu']['gameover'];
+    } elseif (!empty($response['ppqoowoieoiqpoipieoicojqpojow']['gameover'])) {
+        $completion = $response['ppqoowoieoiqpoipieoicojqpojow']['gameover'];
+    }
     PurettTestHarness::assertTrue($aiMoves >= 4, 'AI did not answer human turns');
     PurettTestHarness::assertFalse((bool) $database->getGame($userid), 'completed basic game remained active');
     PurettTestHarness::assertSame(30 - $humanMoves, (int) $database->db->fetchOne('SELECT turns FROM user_turns WHERE userid = ?', array($userid)), 'human moves did not consume exactly one turn each');
@@ -451,6 +499,10 @@ $test->test('a complete game persists results, consumes turns, responds with AI 
     $history = $database->getGameHistory($state['gameid']);
     PurettTestHarness::assertTrue((bool) $history, 'game result was not written to history');
     PurettTestHarness::assertSame($userid, (int) $history['userid'], 'game history belongs to the wrong account');
+    $expectedCoins = PureTripleTriad_Game::getCoinReward($history['p1score'], $history['p2score']);
+    PurettTestHarness::assertSame($expectedCoins, (int) $completion['coinsAwarded'], 'completion payload has the wrong coin award');
+    PurettTestHarness::assertSame($balanceBeforeGame + $expectedCoins, $database->getWalletBalance($userid), 'completed game stored the wrong coin balance');
+    PurettTestHarness::assertSame($database->getWalletBalance($userid), (int) $completion['coins'], 'completion payload omitted the current balance');
     $log = $projectRoot . '/var/gamehistory/' . $history['log_path'];
     PurettTestHarness::assertTrue(is_file($log), 'owned replay log was not written');
     $logText = file_get_contents($log);

@@ -338,6 +338,10 @@ gh.load(['util', ['game'], 'cover', 'menu', ['dialog'], ['jquerytools'], 'audio'
             gh.data.hand = options.newhand;
             gh.data.nextrules = options.nextrules;
             gh.data.deckcount = options.deckcount;
+            if (typeof options.coins !== 'undefined') {
+                gh.data.coins = parseInt(options.coins, 10);
+                $('.coin-balance').text(gh.data.coins);
+            }
 
             var latestReplay = parseInt(options.gameid, 10);
             if (latestReplay > 0) {

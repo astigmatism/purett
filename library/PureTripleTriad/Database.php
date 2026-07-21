@@ -714,6 +714,64 @@ class PureTripleTriad_Database
         return ($balance === false) ? 0 : (int) $balance;
     }
 
+    public function awardMatchCoins($userid, $gameid, $amount, $details)
+    {
+        $userid = (int) $userid;
+        $gameid = (int) $gameid;
+        $amount = (int) $amount;
+        if ($userid < 2 || $gameid < 1 || $amount < 1 || $amount > 5) {
+            throw new InvalidArgumentException('Match coin award is invalid.');
+        }
+
+        $reference = 'match:' . $gameid;
+        $this->beginTransaction();
+        try {
+            // Lock the wallet first so purchases and repeated completion work
+            // serialize on one account balance.
+            $wallet = $this->db->fetchRow('SELECT * FROM wallets WHERE userid = ? FOR UPDATE', array($userid));
+            if (!$wallet) {
+                throw new RuntimeException('Wallet not found.');
+            }
+
+            $existing = $this->db->fetchRow(
+                'SELECT amount FROM coin_transactions WHERE userid = ? AND reference_key = ?',
+                array($userid, $reference)
+            );
+            if ($existing) {
+                $this->commit();
+                return array(
+                    'amount' => (int) $existing['amount'],
+                    'balance' => (int) $wallet['balance'],
+                    'idempotent' => true
+                );
+            }
+
+            $balance = (int) $wallet['balance'] + $amount;
+            $this->db->update('wallets', array(
+                'balance' => $balance,
+                'updated_at' => new Zend_Db_Expr('UTC_TIMESTAMP()')
+            ), array('userid = ?' => $userid));
+            $this->db->insert('coin_transactions', array(
+                'userid' => $userid,
+                'amount' => $amount,
+                'balance_after' => $balance,
+                'transaction_type' => 'match_reward',
+                'reference_key' => $reference,
+                'details' => substr((string) $details, 0, 255)
+            ));
+
+            $this->commit();
+            return array(
+                'amount' => $amount,
+                'balance' => $balance,
+                'idempotent' => false
+            );
+        } catch (Exception $e) {
+            $this->rollBack();
+            throw $e;
+        }
+    }
+
     public function grantCoins($userid, $amount, $reference)
     {
         $userid = (int) $userid;

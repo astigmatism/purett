@@ -9,22 +9,18 @@ gh.load(['util', ['game'], 'cover', 'menu', ['dialog'], ['jquerytools'], 'audio'
         endgame:    null,
         deck:       null,
         shop:       null,
-        turns:      null,
         
         erroroverlay:   null,
         contextmenu:    null,
         bugoverlay:     null,
         feedbackoverlay:null,
         coloroverlay:   null,
-        nomoreturnsoverlay: null,
         
         isloading:      false,
         
         snow:       null,
         snowDelay:  60000,
         snowTimer:  null,
-        
-        lowerTurnLimit: 30,  //also remember to change this value in the cron job!
         
         initialize: function() {
             var me = this;
@@ -40,21 +36,7 @@ gh.load(['util', ['game'], 'cover', 'menu', ['dialog'], ['jquerytools'], 'audio'
                     
                     $('#content-wrapper').show();
                     
-                    //turn count
-                    me.turns = gh.data.turns;
-                    $('#turn-count').text(me.turns);
                     $('.coin-balance').text(gh.data.coins);
-                    $('#lowerTurnLimit').text(me.lowerTurnLimit);
-                    
-                    //start turn give timer
-                    me.startTurnCounter(gh.data.more);
-                    
-                    $('#turn-wrapper').tooltip({
-                        effect: 'slide',
-                        position: 'bottom center',
-                        offset: [3, -51],
-                        tipClass: 'turntip'
-                    });
                     
                     //init overlays
                     me.initOverlays();
@@ -122,25 +104,6 @@ gh.load(['util', ['game'], 'cover', 'menu', ['dialog'], ['jquerytools'], 'audio'
                 },
                 onBeforeClose: function() {
                     me.loading(false);
-                }
-            });
-            
-            //nomoreturns
-            me.nomoreturnsoverlay = $('#nomoreturns').overlay({
-                top: 225,
-                onBeforeLoad: function() {
-                    me.loading(true);
-                },
-                onBeforeClose: function() {
-                    me.loading(false);
-                }
-            });
-            
-            $('#nomoreturns div.shop').click(function() {
-                if (gh.defined(me.game.earlyexit, 'function')) {
-                    $(me.nomoreturnsoverlay).overlay().close();
-                    $('#title').unbind('click').css('cursor','default');
-                    me.game.earlyexit('turns');
                 }
             });
             
@@ -238,9 +201,8 @@ gh.load(['util', ['game'], 'cover', 'menu', ['dialog'], ['jquerytools'], 'audio'
                 }
             });
         },
-        gameearlyexit: function(destination) {
+        gameearlyexit: function() {
             var me = this;
-            //destination is the location to send the player from game
             
             //audio
             gh.audio.crossfade(gh.audio.game, gh.audio.mainmenu);
@@ -249,16 +211,7 @@ gh.load(['util', ['game'], 'cover', 'menu', ['dialog'], ['jquerytools'], 'audio'
             $('#contextmenu li.main').removeClass('enabled');
             me.cover.close(function() {
                 $('#game-wrapper').hide();
-                switch (destination) {
-                    case 'turns':
-                        me.goshop('turns');
-                        break;
-                    case 'main':
-                    default:
-                        //main menu
-                        me.gomain();
-                        break;
-                }
+                me.gomain();
             });
         },
         gamestart: function() {
@@ -290,8 +243,8 @@ gh.load(['util', ['game'], 'cover', 'menu', ['dialog'], ['jquerytools'], 'audio'
                         if (gh.util.hasProperty(response, 'ewoicujonadsincoqinokcnvbzkak')) {
                             me.game.build(response, function(options) {
                                 ongameover(options);
-                            }, function(destination) {
-                                me.gameearlyexit(destination);
+                            }, function() {
+                                me.gameearlyexit();
                             },{
                                 claim: true
                             });
@@ -300,8 +253,8 @@ gh.load(['util', ['game'], 'cover', 'menu', ['dialog'], ['jquerytools'], 'audio'
                             //otherwise start normal game
                             me.game.build(response, function(options) {
                                 ongameover(options);
-                            }, function(destination) {
-                                me.gameearlyexit(destination);
+                            }, function() {
+                                me.gameearlyexit();
                             });
                             
                             me.cover.open();
@@ -398,7 +351,7 @@ gh.load(['util', ['game'], 'cover', 'menu', ['dialog'], ['jquerytools'], 'audio'
                 me.buildmain();
             });
         },
-        goshop: function(startat) {
+        goshop: function() {
             var me = this;
             me.menu.hide();
             me.getShop(function(response) {
@@ -407,10 +360,7 @@ gh.load(['util', ['game'], 'cover', 'menu', ['dialog'], ['jquerytools'], 'audio'
                         me.shop = new gh.shop($('#content'));
                     }
                     me.stopSnow();
-                    me.shop.go({
-                        stock: response,
-                        start: null || startat
-                    }, function() {
+                    me.shop.go({stock: response}, function() {
                         me.gomain();
                     });
                 });
@@ -572,8 +522,8 @@ gh.load(['util', ['game'], 'cover', 'menu', ['dialog'], ['jquerytools'], 'audio'
                         });
                         me.cover.close();
                         me.startSnow(me.snowDelay); //screensaver : 
-                    },function(destination) {
-                        me.gameearlyexit(destination);
+                    },function() {
+                        me.gameearlyexit();
                     },{
                         replay: true
                     });
@@ -582,46 +532,6 @@ gh.load(['util', ['game'], 'cover', 'menu', ['dialog'], ['jquerytools'], 'audio'
                     me.stopSnow();
                 }
             });
-        },
-        incrementTurn: function(change) {
-            var me = this;
-            
-            me.turns = me.turns + change;
-            me.game.turnchange(me.turns);
-            
-            $('#turn-count').text(me.turns);
-            
-            if (me.turns < me.lowerTurnLimit) {
-                $('#morein-wrapper').show();
-            } else {
-                $('#morein-wrapper').hide();
-            }
-        },
-        startTurnCounter: function(init) {
-            var me = this;
-            me.turncount = init;
-            
-            if (me.turns < me.lowerTurnLimit) {
-                $('#morein-wrapper').show();
-            }
-            
-            me.turncounter = setInterval(function() {
-                me.turncount--;
-                var minutes = Math.floor(me.turncount/60);
-                var seconds = ((me.turncount % 60) < 10) ? '0' + (me.turncount % 60) : (me.turncount % 60);
-                if (me.turncount === 0) {
-                    //the timer still runs but does not increment after 40
-                    if (me.turns < me.lowerTurnLimit) {
-                        me.incrementTurn(1);
-                        $('#morein-wrapper').show();
-                    } else {
-                        $('#morein-wrapper').hide();
-                    }
-                    
-                    me.turncount = gh.data.turninterval;
-                }
-                $('#turncounter').text(minutes + ':' + seconds);
-            }, 1000);
         },
         submitfeedback: function(type, details) {
             var me = this;

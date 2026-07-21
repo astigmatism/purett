@@ -24,7 +24,7 @@ The standalone shell adds login, account, coin, replay, and logout controls. Rem
 
 The 110-card catalog, including directional ranks, level, element, image key, name, and derived strength, was recovered from the archived read-only MDF reference and exported into `database/seed-cards.sql`. It is not inferred placeholder data. All 110 seeded image keys resolve in each of the 14 retained color/protected-card variant directories (1,540 catalog images). The runtime has no MDF, SQL Server, ASP.NET, or `purettv2/` dependency.
 
-The thirteen rule rows and the color/turn catalogs are seeded separately. Rule IDs remain fixed because they are part of the client/game protocol. Card image variants are preserved as opaque legacy filenames; changing those names would break the existing renderer.
+The thirteen rule rows and deck-color catalog are seeded separately. Rule IDs remain fixed because they are part of the client/game protocol. Card image variants are preserved as opaque legacy filenames; changing those names would break the existing renderer.
 
 The four public tutorials use separately sanitized fixture logs. They preserve moves needed to explain Basic, Same, Plus, and Elemental play, but historical account/session identifiers are deliberately not preserved. Consequently they are behaviorally faithful demonstrations, not byte-for-byte archival replays.
 
@@ -33,8 +33,7 @@ The four public tutorials use separately sanitized fixture logs. They preserve m
 - The historical `purchased` field remains in database and client payloads for compatibility. It now means locally acquired/protected; coins have no cash value.
 - Daily shop stock is deterministic per UTC date and player eligibility but may contain fewer than ten cards for a very small eligible catalog.
 - The three-day leaderboard is intentionally local and includes only completed games linked to enabled local accounts. Seeded tutorial rows do not appear as human competitors.
-- Redis is a disposable leaderboard cache rather than authoritative turn storage. This differs internally from the former architecture but preserves the user-facing turn policy and improves restart consistency.
-- Natural turns cap at 30. Bought bundles can exceed the cap and suppress natural regeneration until play returns below it.
+- Redis is a disposable leaderboard cache; account, game, and economy state remain authoritative in MariaDB.
 - Account deletion permanently cascades local relational data and removes that account's new runtime replay files. There is no undo, export, soft-delete recovery UI, or cross-store atomic rollback.
 - Feedback is stored in the local database. SMTP delivery and an administrative feedback UI are not configured.
 - There is no historical-user import path by design.

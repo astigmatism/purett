@@ -1,4 +1,4 @@
-.rulestip, .shoptip, .turntip, .decktip, .topplayertip {
+.rulestip, .shoptip, .decktip, .topplayertip {
     display:none;
     background-color: #444;
     padding:10px 10px;
@@ -20,7 +20,7 @@
     
     overflow: hidden;
 }
-.shoptip, .turntip, .decktip, .topplayertip {
+.shoptip, .decktip, .topplayertip {
     background-color: #DDD;
     color: #000;
 }
@@ -34,19 +34,7 @@
 .decktip {
     width: 150px;
 }
-.turntip {
-    margin-top: 0px;
-    text-align: right;
-}
-#morein-wrapper {
-    padding-bottom: 5px;
-}
-#turncounter {
-    font-size: 22px;
-    color: red;
-}
-
-#contextmenu, #error, #reportbug, #feedback, #changecolor, #nomoreturns {
+#contextmenu, #error, #reportbug, #feedback, #changecolor {
 
     display:none;
     z-index:900;
@@ -69,7 +57,7 @@
     /* For IE 5.5 - 7 */
     filter: progid:DXImageTransform.Microsoft.Shadow(Strength=10, Direction=135, Color='#000000');
 }
-#error, #reportbug, #feedback, #changecolor, #nomoreturns {
+#error, #reportbug, #feedback, #changecolor {
     width: 400px;
     min-height:200px;
     text-align: center;
@@ -82,22 +70,8 @@
     text-align: left;
     color: #000;
 }
-#changecolor, #nomoreturns {
+#changecolor {
     color: #000;
-}
-#nomoreturns {
-    width: 300px;
-    height: 150px;
-    min-height: 100px;
-}
-#nomoreturns div.title {
-    padding: 10px 0px;
-    font-size: 22px;
-}
-#nomoreturns div.shop {
-    cursor: pointer;
-    padding: 15px 0px 10px 0px;
-    font-size: 16px;
 }
 #changecolor div.colorselect {
     margin: 50px 0px;
@@ -121,7 +95,7 @@
     text-align: right;
     font-size: 15px;
 }
-#contextmenu div.close, #reportbug div.close, #feedback div.close, #changecolor div.close, #nomoreturns div.close {
+#contextmenu div.close, #reportbug div.close, #feedback div.close, #changecolor div.close {
     height: 13px;
     width: 13px;
     background: transparent url('/images/close_button.png') no-repeat center center;

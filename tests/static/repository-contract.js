@@ -105,9 +105,10 @@ try {
   const database = read('library/PureTripleTriad/Database.php');
   assert(!/SELECT\s+MAX\s*\(\s*idgames\s*\)/i.test(database), 'game creation still uses SELECT MAX race');
   assert(database.includes('lastInsertId'), 'game/account creation does not use connection insert IDs');
-  assert(database.includes('FOR UPDATE'), 'economy/turn paths do not lock rows for atomic changes');
+  assert(database.includes('FOR UPDATE'), 'economy paths do not lock rows for atomic changes');
   assert(database.includes('reference_key'), 'coin transaction idempotency is absent');
-  assert(database.includes('NATURAL_TURN_CAP = 30'), 'natural turn cap is not explicit and consistent');
+  assert(!database.includes('user_turns'), 'removed turn balances remain in the database layer');
+  assert(!database.includes('decrementTurn'), 'gameplay can still consume a turn balance');
   assert(/startingCoins\s*=\s*3/.test(read('application/configs/game.ini')), 'new accounts do not start with three coins');
   assert(/gameConfig->startingCoins/.test(read('application/controllers/AuthController.php')), 'registration bypasses the configured starting balance');
   assert(/transaction_type'\s*=>\s*'match_reward'/.test(database), 'completed-match coin rewards are not recorded in the ledger');
@@ -119,11 +120,20 @@ try {
   assert(/tutorials\/\[1245\]/.test(game), 'replay path allowlist does not constrain tutorial files');
   assert(/elementbonus\s*\*\s*-1/.test(game), 'negative Elemental mismatch modifier is absent');
   assert(/p1score\s*-\s*5/.test(game), 'victory coin rewards do not measure score above five');
+  assert(!game.includes('ppqowifoqneocmoqiiowuoieiw'), 'game payload still exposes a turn balance');
+
+  const shop = read('public/js/plugins/gh.shop.js');
+  assert(shop.includes('DECK COLORS'), 'store does not label deck-wide colors clearly');
+  assert(!shop.includes('class="turns"'), 'turns remain visible in the store menu');
+  assert(!shop.includes("purchase('turn'"), 'store can still submit turn purchases');
 
   const schema = read('database/schema.sql');
-  for (const table of ['users', 'local_accounts', 'wallets', 'coin_transactions', 'user_turns', 'cards', 'usercards', 'games', 'gamerules', 'rules', 'gamecards', 'gamehistory', 'purchases', 'options', 'useroptions', 'shopitems']) {
+  for (const table of ['users', 'local_accounts', 'wallets', 'coin_transactions', 'cards', 'usercards', 'games', 'gamerules', 'rules', 'gamecards', 'gamehistory', 'purchases', 'options', 'useroptions', 'shopitems']) {
     assert(new RegExp(`CREATE TABLE ${table}\\b`, 'i').test(schema), `schema table is missing: ${table}`);
   }
+  assert(!/CREATE TABLE user_turns\b/i.test(schema), 'fresh schema still creates turn balances');
+  assert(!/\bgrant_amount\b/i.test(schema), 'turn-bundle grant storage remains in the fresh schema');
+  assert(!/['"]turn['"]/.test(read('database/seed-reference.sql')), 'reference seed still includes turn bundles');
   assert(/AUTO_INCREMENT=2/.test(schema), 'human user allocation is not reserved above computer ID 1');
   assert(/UNIQUE KEY uq_coin_transactions_reference/.test(schema), 'coin ledger reference is not unique');
 

@@ -63,10 +63,7 @@ body::before {
 #mute-icon.muted {
     background-position: 0px -16px;
 }
-#turn-wrapper {
-    cursor: default;
-}
-#turns, #turns span, #coins, #coins span {
+#coins, #coins span {
     font-family: 'Spinnaker', sans-serif;
     font-size: 16px;
     color: #777;
@@ -156,12 +153,12 @@ body::before {
     padding: 1px 4px;
     text-align: right;
 }
-#shop div.buybar, #shop div.colorbuybar, #shop div.turnbuybar {
+#shop div.buybar, #shop div.colorbuybar {
     position: absolute;
     height: 25px;
     width: 90px;
 }
-#shop div.buybar div.price, #shop div.colorbuybar div.price, #shop div.turnbuybar div.price {
+#shop div.buybar div.price, #shop div.colorbuybar div.price {
     float: left;
     font-family: 'Spinnaker', sans-serif;
     font-size: 13px;
@@ -171,7 +168,7 @@ body::before {
     height: 25px;
     line-height: 25px;
 }
-#shop div.buybar div.buy, #shop div.colorbuybar div.buy, #shop div.turnbuybar div.buy {
+#shop div.buybar div.buy, #shop div.colorbuybar div.buy {
     float: right;
     font-family: 'Spinnaker', sans-serif;
     font-size: 13px;

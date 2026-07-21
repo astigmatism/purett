@@ -11,7 +11,6 @@ VALUES (2, 'demo', 'Demo Player', '$2y$10$OItwlyCiZHbrJmM6obtY3et6ooSeA.NvLvvtQd
 INSERT INTO wallets (userid, balance) VALUES (2, 3);
 INSERT INTO coin_transactions (userid, amount, balance_after, transaction_type, reference_key, details)
 VALUES (2, 3, 3, 'initial_grant', 'seed:demo', 'Standalone demo balance');
-INSERT INTO user_turns (userid, turns, last_regenerated_at) VALUES (2, 30, UTC_TIMESTAMP());
 
 INSERT INTO usercards (userid, cardid, notes, inhand, strengthrank, purchased)
 SELECT 2, idcards, 'Standalone starting hand.', 1, strength, 0

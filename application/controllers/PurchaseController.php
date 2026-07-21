@@ -9,7 +9,7 @@ class PurchaseController extends Standalone_Controller_Action
             $type = strtolower(trim((string) $this->_getParam('type', '')));
             $itemid = $this->_getParam('id', '');
             $orderid = (string) $this->_getParam('idempotency_key', '');
-            if (!in_array($type, array('card', 'color', 'turn'), true)) {
+            if (!in_array($type, array('card', 'color'), true)) {
                 throw new InvalidArgumentException('Catalog type is invalid.');
             }
             if (!ctype_digit((string) $itemid) || (int) $itemid < 1) {

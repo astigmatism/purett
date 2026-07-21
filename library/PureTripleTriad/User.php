@@ -50,14 +50,6 @@ class PureTripleTriad_User {
         $this->buildCards();
     }
     
-    public function getTurns() {
-        return $this->db->getTurns($this->userid);
-    }
-    
-    public function decrementTurn() {
-        return $this->db->decrementTurn($this->userid);
-    }
-    
     private function buildCards() {
         $this->deck = array();
         $this->hand = array();

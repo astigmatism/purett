@@ -27,7 +27,7 @@ Demo account:
 - Username: `demo`
 - Password: `TripleTriad!`
 
-The demo account starts with five cards in its active hand, 30 turns, and 3 coins. The credentials are intentionally public demo data; do not reuse the password for another account or service.
+The demo account starts with five cards in its active hand and 3 coins. The credentials are intentionally public demo data; do not reuse the password for another account or service.
 
 ### Direct Docker Compose launch
 
@@ -106,7 +106,7 @@ docker compose down        # stop services; preserve named data volumes
 ./run-local.sh             # rebuild/start again
 ```
 
-`scheduler` runs bounded turn regeneration once per minute and refreshes the genuine three-day leaderboard cache hourly.
+`scheduler` refreshes the genuine three-day leaderboard cache hourly.
 
 ## Resetting local data
 

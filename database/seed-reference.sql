@@ -17,19 +17,14 @@ INSERT INTO rules (idrules, name, description) VALUES
     (11, 'Take Difference', 'Subtract the losing score from the winning score; this is how many cards the winner will take from their opponent''s hand.'),
     (12, 'Take All', 'The winner takes all cards from their opponent''s hand.');
 
--- IDs and prices come from the legacy shop catalog. The additional grant fields
--- make fulfillment server-authoritative in the standalone implementation.
-INSERT INTO shopitems (idshopitems, item_type, name, price, grant_amount, catalog_value, active) VALUES
-    (1, 'color', 'Green Deck', 20, 0, 'green', 1),
-    (2, 'color', 'Purple Deck', 20, 0, 'purple', 1),
-    (3, 'color', 'Orange Deck', 20, 0, 'orange', 1),
-    (4, 'color', 'Black Deck', 50, 0, 'black', 1),
-    (5, 'color', 'White Deck', 50, 0, 'white', 1),
-    (6, 'turn', '5 Turns', 1, 5, NULL, 1),
-    (7, 'turn', '10 Turns', 2, 10, NULL, 1),
-    (8, 'turn', '20 Turns', 4, 20, NULL, 1),
-    (9, 'turn', '50 Turns', 8, 50, NULL, 1),
-    (10, 'turn', '100 Turns', 15, 100, NULL, 1);
+-- IDs and prices come from the legacy shop catalog. Catalog values make
+-- deck-color fulfillment server-authoritative in the standalone implementation.
+INSERT INTO shopitems (idshopitems, item_type, name, price, catalog_value, active) VALUES
+    (1, 'color', 'Green Deck', 20, 'green', 1),
+    (2, 'color', 'Purple Deck', 20, 'purple', 1),
+    (3, 'color', 'Orange Deck', 20, 'orange', 1),
+    (4, 'color', 'Black Deck', 50, 'black', 1),
+    (5, 'color', 'White Deck', 50, 'white', 1);
 
 INSERT INTO options (idoptions, name) VALUES
     (1, 'color');

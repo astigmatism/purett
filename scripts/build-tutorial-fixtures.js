@@ -15,7 +15,6 @@ var tutorialIds = [1, 2, 4, 5];
 var fields = {
     gameId: 'oiuwqnlaskjodwksjdlappw',
     playerId: 'bdjiauhjhduqijshckjhaii',
-    turns: 'ppqowifoqneocmoqiiowuoieiw',
     playerHand: 'mnzbxcnbmncbzmxnbcmnbzxmnb',
     opponentHand: 'kjhsadjhkaskjhdkjhasjhdasd',
     board: 'uyeiqowiutoiqyweiuyqwoiyro',
@@ -145,7 +144,7 @@ function buildTutorial(tutorialId) {
     delete setup[fields.turnToken];
     setup[fields.gameId] = String(tutorialId);
     setup[fields.playerId] = '2';
-    setup[fields.turns] = '30';
+    delete setup.ppqowifoqneocmoqiiowuoieiw;
     records = sanitizeTree(records, archivalPlayerId, gameCardMap, userCardMap);
     validateIdentityFields(records, tutorialId);
 

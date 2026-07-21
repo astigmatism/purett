@@ -38,30 +38,6 @@ gh.shop.prototype = {
     colors:     [],
     colorbars:  [],
     
-    turns:      [],
-    turnbars:   [],
-    turnstock: [{
-        id: 6,
-        name: 5,
-        price: 1
-    },{
-        id:7,
-        name: 10,
-        price: 2
-    },{
-        id: 8,
-        name: 20,
-        price: 4
-    },{
-        id: 9,
-        name: 50,
-        price: 8
-    },{
-        id: 10,
-        name: 100,
-        price: 15
-    }],
-    
     selectSwitch: null, //a function to call when a different menu item is selected
     
     cW:         117,       //static card width
@@ -103,17 +79,10 @@ gh.shop.prototype = {
             $(me.ul).find('li.back').trigger('click');
         });
         
-        switch(options.start) {
-            case 'turns':
-                $(me.ul).find('li.turns').trigger('click');
-                break;
-            default:
-                me.cardsshow();
-                me.selectSwitch = function() {
-                    me.cardshide();
-                };
-                break;
-        }
+        me.cardsshow();
+        me.selectSwitch = function() {
+            me.cardshide();
+        };
     },
     show: function() {
         var me = this;
@@ -123,7 +92,7 @@ gh.shop.prototype = {
         me.domshow(me.balance);
         
         $(me.ul).empty();
-        $(me.ul).append('<li class="back">< BACK</li><li class="cards selected">CARDS</li><li class="turns">TURNS</li><li class="colors">COLORS</li>');
+        $(me.ul).append('<li class="back">< BACK</li><li class="cards selected">CARDS</li><li class="colors">DECK COLORS</li>');
         
         $(me.ul).find('li.back').click(function() {
             gh.audio.select.play();
@@ -143,12 +112,6 @@ gh.shop.prototype = {
                     me.cardsshow();
                     me.selectSwitch = function() {
                         me.cardshide();
-                    };
-                    break;
-                case 'turns':
-                    me.turnsshow();
-                    me.selectSwitch = function() {
-                        me.turnshide();
                     };
                     break;
                 case 'colors':
@@ -326,72 +289,6 @@ gh.shop.prototype = {
         $('.shoptip').remove();
         me.colors = [];
         me.colorbars = [];
-    },
-    turnsshow: function() {
-        var me = this;
-        $.each(me.turnstock, function(index) {
-            var it = this;
-            setTimeout(function() {
-                var x = (Math.random() * 1000) - 1000;
-                var y = (Math.random() * 1000) - 500;
-                var card = me.canvas.image('/images/turns/' + it.name + '-full.png', x, y, 127, 143).attr({'opacity' : 0, scale: 0.3});
-                
-                $(me.space).append('<div class="turnbuybar hide" title="' + (it.name) + ' Turns" style="top:' + (index < 5 ? 381 : 461) + 'px;left:' + (me.pos[(index < 5 ? index : index - 5)] + 13) + 'px"><div class="price">' + it.price + '</div><div id="buyturns' + it.id + '" class="buy">BUY</div></div>');
-                
-                $('#buyturns' + it.id).click(function() {
-                    gh.audio.select.play();
-                    gh.manager.loading(true);
-                    gh.platform.purchase('turn', it.id, function(response) {
-                        gh.manager.loading(false);
-                        if (response.result.status == 'settled') {
-                            gh.manager.incrementTurn(response.result.grant);
-                        }
-                    });
-                });
-                var bar = me.canvas.rect(me.pos[(index < 5 ? index : index - 5)] + 0, (index < 5 ? 380 : 459), 120, 25).attr({ 'fill': 'black', 'opacity': 0, 'stroke-width': '0' });
-                
-                card.animate({ rotation: 360, translation: [ (me.pos[(index < 5 ? index : index - 5)] - 5) - x, (index < 5 ? 230 : 350) - y], opacity: 1, scale: 1}, 1000, '>', function() {
-                    //$(me.space).find('div.cardid' + it.cardid).fadeIn();
-                    $(me.space).find('div.turnbuybar').fadeIn();
-                    bar.animate({ opacity: 0.7}, 500, '>');
-                });
-                me.turns.push(card);
-                me.turnbars.push(bar);
-            }, 50 * index);
-        });
-        setTimeout(function() {
-            $('div.turnbuybar[title]').tooltip({
-                effect: 'slide',
-                position: 'bottom center',
-                offset: [0, 4],
-                tipClass: 'shoptip'
-            });
-        }, 600);
-    },
-    turnshide: function() {
-        var me = this;
-        $.each(me.turnbars, function(index) {
-            var it = $.extend(true, {}, this);
-            it.animate({opacity: 0 }, 500, '<', function() {
-                it.remove();
-            });
-        });
-        $.each(me.turns, function(index) {
-            var it = $.extend(true, {}, this);
-            setTimeout(function() {
-                var x = (Math.random() * 755) + 50;
-                var y = (Math.random() * 1000) - 200;
-                it.animate({rotation: 0, translation: [ x, y ], opacity: 0, scale: 4}, 1000, '<', function() {
-                    it.remove();
-                });
-            }, index * 50);
-        });
-        $(me.space).find('div.turnbuybar').fadeOut(500, function() {
-            $(me.space).find('div.turnbuybar').remove();
-        });
-        $('.shoptip').remove();
-        me.turns = [];
-        me.turnbars = [];
     },
     domshow: function(el) {
         var me = this;

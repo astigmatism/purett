@@ -21,13 +21,12 @@ gh.game.prototype = {
         $('#svgRules').empty(); //this was added later as a canvas to show to the rule name above the game board ("same" et al)
         
         this.gameoverCallback = gameovercallback; //the function to call when the game is complete
-        this.earlyexit = earlyexit; //the function to call to return to the main menu while playing the game (allowable to purchase turns)
+        this.earlyexit = earlyexit; //the function to call to return to the main menu while playing the game
         
         //build shortcut for return to main menu
         $('#title').click(function() {
             if ($(this).hasClass('enabled')) {
                 $(this).removeClass('enabled');
-                $(gh.manager.nomoreturnsoverlay).overlay().close();
                 me.earlyexit();
             }
         }).addClass('enabled');
@@ -51,8 +50,6 @@ gh.game.prototype = {
         //player information
         this.myColor = gh.data.color;
         this.opponentColor = 'red';
-        
-        this.turns = gameData.ppqowifoqneocmoqiiowuoieiw; //keep tabs on the number of turns the player has remaining
         
         this.isMyTurn = false;      //when true, cards are playable
         this.dragging = null;       //a flag which will contain the player object deck array item of the currently dragging card
@@ -558,15 +555,6 @@ gh.game.prototype = {
             }, hold);
         });
     },
-    turnchange: function(turns) {
-        var me = this;
-        //this function is called by index.js when a turn has been incremented
-        //in the case where we've disabled the board due to 0 turns:
-        if (me.turns == 0) {
-            me.turns = turns;
-            me.enableBoard(true);
-        }
-    },
     activatePlayerTurn: function(bool, gameoverdetails) {
         
         //this function is called when the other player's turn is complete. 
@@ -584,14 +572,7 @@ gh.game.prototype = {
                         
                         $('#svgRules').hide(); //because rules are drawn quickly (combo's) only hide the rule canvas when necessary, like here
                         
-                        //handle out of turns here
-                        if (me.turns != 0) {
-                            me.enableBoard(true);
-                        } else {
-                            //OUT OF TURNS! .. suggest they go buy some >:)
-                            $(gh.manager.nomoreturnsoverlay).overlay().load();
-                            me.enableBoard(false);
-                        }
+                        me.enableBoard(true);
                         
                     }
                     //the player's turn as ended:
@@ -1004,10 +985,6 @@ gh.game.prototype = {
                         //set new key
                         me.gameData.iiiooioooiooioioiiiiioioioooi = data.player; //player is simply a determine keyword
                         
-                        //decrement turn count for client
-                        me.turns = me.turns - 1;
-                        gh.manager.incrementTurn(-1);
-                        
                         //remove loading icon
                         loading.remove();
                         loading = null;
@@ -1036,9 +1013,7 @@ gh.game.prototype = {
                         }
                         me.drawPlayerOneHand('order');
                         me.isMyTurn = true;
-                        if (me.turns != 0) {
-                            me.enableBoard(true);
-                        }
+                        me.enableBoard(true);
                         gh.manager.error(response.responseText);
                     }
                 });

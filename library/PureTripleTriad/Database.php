@@ -2,9 +2,6 @@
 
 class PureTripleTriad_Database
 {
-    const NATURAL_TURN_CAP = 30;
-    const TURN_INTERVAL_SECONDS = 300;
-
     public $db;
     private static $sharedDb;
     private static $transactionDepth = 0;
@@ -166,12 +163,6 @@ class PureTripleTriad_Database
                 'reference_key' => 'registration:' . $userid,
                 'details' => 'Standalone starting balance'
             ));
-            $this->db->insert('user_turns', array(
-                'userid' => $userid,
-                'turns' => self::NATURAL_TURN_CAP,
-                'last_regenerated_at' => new Zend_Db_Expr('UTC_TIMESTAMP()')
-            ));
-
             $levelSpread = array(1, 1, 2, 2, 3);
             $used = array();
             foreach ($levelSpread as $level) {
@@ -601,7 +592,6 @@ class PureTripleTriad_Database
 
             $price = 0;
             $name = '';
-            $grantAmount = 0;
             $catalogValue = null;
             $card = null;
             $item = null;
@@ -621,7 +611,7 @@ class PureTripleTriad_Database
                 }
                 $price = (int) $card['level'] * 2;
                 $name = $card['name'];
-            } elseif ($type === 'color' || $type === 'turn') {
+            } elseif ($type === 'color') {
                 $item = $this->db->fetchRow(
                     'SELECT * FROM shopitems WHERE idshopitems = ? AND item_type = ? AND active = 1',
                     array($itemid, $type)
@@ -631,7 +621,6 @@ class PureTripleTriad_Database
                 }
                 $price = (int) $item['price'];
                 $name = $item['name'];
-                $grantAmount = (int) $item['grant_amount'];
                 $catalogValue = $item['catalog_value'];
             } else {
                 throw new InvalidArgumentException('Unknown catalog type.');
@@ -645,22 +634,12 @@ class PureTripleTriad_Database
 
             if ($type === 'card') {
                 $this->insertUserCard($userid, $itemid, 'Acquired with local coins.', false, (int) $card['strength'], true);
-            } elseif ($type === 'color') {
+            } else {
                 $this->db->query(
                     'INSERT IGNORE INTO useroptions (userid, optionid, value, active) VALUES (?, 1, ?, 0)',
                     array($userid, $catalogValue)
                 );
                 $this->setActiveUserOption($userid, 1, $catalogValue);
-            } else {
-                $turnRow = $this->db->fetchRow('SELECT * FROM user_turns WHERE userid = ? FOR UPDATE', array($userid));
-                if (!$turnRow) {
-                    throw new RuntimeException('Turn account not found.');
-                }
-                $this->db->update('user_turns', array(
-                    'turns' => (int) $turnRow['turns'] + $grantAmount,
-                    'last_regenerated_at' => new Zend_Db_Expr('UTC_TIMESTAMP()'),
-                    'updated_at' => new Zend_Db_Expr('UTC_TIMESTAMP()')
-                ), array('userid = ?' => $userid));
             }
 
             $this->db->update('wallets', array(
@@ -676,7 +655,6 @@ class PureTripleTriad_Database
                 'name' => $name,
                 'price' => $price,
                 'balance' => $newBalance,
-                'grant' => $grantAmount,
                 'color' => ($type === 'color') ? base64_encode($catalogValue) : null,
                 'idempotent' => false
             );
@@ -872,121 +850,6 @@ class PureTripleTriad_Database
     public function getShopItem($shopitemid)
     {
         return $this->db->fetchRow('SELECT * FROM shopitems WHERE idshopitems = ?', array((int) $shopitemid));
-    }
-
-    public function getTurns($userid)
-    {
-        $this->regenerateTurns($userid);
-        return (int) $this->db->fetchOne('SELECT turns FROM user_turns WHERE userid = ?', array((int) $userid));
-    }
-
-    public function decrementTurn($userid)
-    {
-        $userid = (int) $userid;
-        $this->regenerateTurns($userid);
-        $this->beginTransaction();
-        try {
-            $row = $this->db->fetchRow('SELECT * FROM user_turns WHERE userid = ? FOR UPDATE', array($userid));
-            if (!$row || (int) $row['turns'] < 1) {
-                $this->commit();
-                return false;
-            }
-            $newTurns = (int) $row['turns'] - 1;
-            $data = array('turns' => $newTurns, 'updated_at' => new Zend_Db_Expr('UTC_TIMESTAMP()'));
-            if ((int) $row['turns'] >= self::NATURAL_TURN_CAP && $newTurns < self::NATURAL_TURN_CAP) {
-                $data['last_regenerated_at'] = new Zend_Db_Expr('UTC_TIMESTAMP()');
-            }
-            $this->db->update('user_turns', $data, array('userid = ?' => $userid));
-            $this->commit();
-            return true;
-        } catch (Exception $e) {
-            $this->rollBack();
-            throw $e;
-        }
-    }
-
-    public function removeTurns($userid)
-    {
-        return $this->db->delete('user_turns', array('userid = ?' => (int) $userid));
-    }
-
-    public function incrementTurns($userid, $value)
-    {
-        return $this->db->query(
-            'UPDATE user_turns SET turns = turns + ?, last_regenerated_at = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP() WHERE userid = ?',
-            array(max(0, (int) $value), (int) $userid)
-        );
-    }
-
-    public function regenerateTurns($userid, $nowTimestamp = null)
-    {
-        $userid = (int) $userid;
-        $nowTimestamp = ($nowTimestamp === null) ? time() : (int) $nowTimestamp;
-        $this->beginTransaction();
-        try {
-            $row = $this->db->fetchRow('SELECT * FROM user_turns WHERE userid = ? FOR UPDATE', array($userid));
-            if (!$row) {
-                throw new RuntimeException('Turn account not found.');
-            }
-
-            $turns = (int) $row['turns'];
-            $last = strtotime($row['last_regenerated_at'] . ' UTC');
-            if ($last === false) {
-                $last = $nowTimestamp;
-            }
-
-            if ($turns >= self::NATURAL_TURN_CAP) {
-                if ($nowTimestamp - $last >= self::TURN_INTERVAL_SECONDS) {
-                    $this->db->update('user_turns', array(
-                        'last_regenerated_at' => gmdate('Y-m-d H:i:s', $nowTimestamp),
-                        'updated_at' => gmdate('Y-m-d H:i:s', $nowTimestamp)
-                    ), array('userid = ?' => $userid));
-                }
-            } else {
-                $elapsed = max(0, $nowTimestamp - $last);
-                $earned = (int) floor($elapsed / self::TURN_INTERVAL_SECONDS);
-                if ($earned > 0) {
-                    $newTurns = min(self::NATURAL_TURN_CAP, $turns + $earned);
-                    $usedIntervals = $newTurns - $turns;
-                    $newLast = ($newTurns >= self::NATURAL_TURN_CAP)
-                        ? $nowTimestamp
-                        : $last + ($usedIntervals * self::TURN_INTERVAL_SECONDS);
-                    $this->db->update('user_turns', array(
-                        'turns' => $newTurns,
-                        'last_regenerated_at' => gmdate('Y-m-d H:i:s', $newLast),
-                        'updated_at' => gmdate('Y-m-d H:i:s', $nowTimestamp)
-                    ), array('userid = ?' => $userid));
-                }
-            }
-            $this->commit();
-        } catch (Exception $e) {
-            $this->rollBack();
-            throw $e;
-        }
-    }
-
-    public function regenerateAllTurns($limit = 500)
-    {
-        $limit = max(1, min(5000, (int) $limit));
-        $userids = $this->db->fetchCol(
-            'SELECT userid FROM user_turns WHERE turns < ' . self::NATURAL_TURN_CAP .
-            ' AND last_regenerated_at <= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 5 MINUTE) ORDER BY userid LIMIT ' . $limit
-        );
-        foreach ($userids as $userid) {
-            $this->regenerateTurns((int) $userid);
-        }
-        return count($userids);
-    }
-
-    public function getSecondsUntilNextTurn($userid)
-    {
-        $row = $this->db->fetchRow('SELECT turns, last_regenerated_at FROM user_turns WHERE userid = ?', array((int) $userid));
-        if (!$row || (int) $row['turns'] >= self::NATURAL_TURN_CAP) {
-            return self::TURN_INTERVAL_SECONDS;
-        }
-        $elapsed = max(0, time() - strtotime($row['last_regenerated_at'] . ' UTC'));
-        $remaining = self::TURN_INTERVAL_SECONDS - ($elapsed % self::TURN_INTERVAL_SECONDS);
-        return ($remaining <= 0) ? self::TURN_INTERVAL_SECONDS : $remaining;
     }
 
     public function getLeaderboard($days)

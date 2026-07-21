@@ -31,7 +31,12 @@ register_shutdown_function(function () use (&$state) {
 
 $test->test('schema, catalog, rules, and reserved computer account are installed', function () use (&$state, $projectRoot) {
     $database = $state['database'];
-    PurettTestHarness::assertSame('2026.07.20-standalone-1', $database->getSchemaVersion(), 'unexpected schema version');
+    // Existing standalone-1 volumes remain runtime-compatible; fresh installs
+    // use the turnless schema and no longer create the obsolete balance table.
+    PurettTestHarness::assertTrue(in_array($database->getSchemaVersion(), array(
+        '2026.07.20-standalone-1',
+        '2026.07.21-turnless-2'
+    ), true), 'unexpected schema version');
     PurettTestHarness::assertSame(110, count($database->getCards()), 'the full 110-card catalog must be present');
     PurettTestHarness::assertSame(13, count($database->getRules()), 'all thirteen game rules must be present');
     $computer = $database->getUser(1);
@@ -64,7 +69,6 @@ $test->test('local registration hashes the password and grants exactly five star
         PurettTestHarness::assertSame(1, (int) $card['inhand'], 'every starting card should be in hand');
     }
     PurettTestHarness::assertSame(3, $state['database']->getWalletBalance($userid), 'starting coin balance is wrong');
-    PurettTestHarness::assertSame(30, $state['database']->getTurns($userid), 'starting turn balance is wrong');
 });
 
 $test->test('SQL-injection-shaped identity input is treated as data', function () use (&$state) {
@@ -108,39 +112,6 @@ $test->test('the active hand enforces five distinct cards owned by the current a
     PurettTestHarness::assertThrows('InvalidArgumentException', function () use ($user) {
         $user->setHand('1,2,3,4');
     }, 'domain model accepted a four-card catalog list');
-});
-
-$test->test('turn decrement and deterministic regeneration obey the natural cap', function () use (&$state) {
-    $database = $state['database'];
-    $userid = $state['userid'];
-    $now = time();
-    $database->db->update('user_turns', array(
-        'turns' => 3,
-        'last_regenerated_at' => gmdate('Y-m-d H:i:s', $now)
-    ), array('userid = ?' => $userid));
-    PurettTestHarness::assertTrue($database->decrementTurn($userid), 'turn decrement failed');
-    PurettTestHarness::assertSame(2, (int) $database->db->fetchOne('SELECT turns FROM user_turns WHERE userid = ?', array($userid)), 'turn was not decremented');
-
-    $database->db->update('user_turns', array(
-        'turns' => 2,
-        'last_regenerated_at' => gmdate('Y-m-d H:i:s', $now - 610)
-    ), array('userid = ?' => $userid));
-    $database->regenerateTurns($userid, $now);
-    PurettTestHarness::assertSame(4, (int) $database->db->fetchOne('SELECT turns FROM user_turns WHERE userid = ?', array($userid)), 'two elapsed intervals did not grant two turns');
-
-    $database->db->update('user_turns', array(
-        'turns' => 29,
-        'last_regenerated_at' => gmdate('Y-m-d H:i:s', $now - 3600)
-    ), array('userid = ?' => $userid));
-    $database->regenerateTurns($userid, $now);
-    PurettTestHarness::assertSame(30, (int) $database->db->fetchOne('SELECT turns FROM user_turns WHERE userid = ?', array($userid)), 'natural regeneration exceeded or missed the cap');
-
-    $database->db->update('user_turns', array(
-        'turns' => 35,
-        'last_regenerated_at' => gmdate('Y-m-d H:i:s', $now - 3600)
-    ), array('userid = ?' => $userid));
-    $database->regenerateTurns($userid, $now);
-    PurettTestHarness::assertSame(35, (int) $database->db->fetchOne('SELECT turns FROM user_turns WHERE userid = ?', array($userid)), 'purchased turns were incorrectly clamped');
 });
 
 $test->test('daily shop inventory is deterministic and bounded', function () use (&$state) {
@@ -211,7 +182,7 @@ $test->test('match coin awards are wallet-locked and idempotent by game', functi
     ), 'match award ledger contains duplicate references');
 });
 
-$test->test('color and turn-bundle purchases grant the authoritative catalog item', function () use (&$state) {
+$test->test('deck-color purchases grant the authoritative catalog item and turn bundles are rejected', function () use (&$state) {
     $database = $state['database'];
     $userid = $state['userid'];
     $balance = $database->getWalletBalance($userid);
@@ -222,10 +193,9 @@ $test->test('color and turn-bundle purchases grant the authoritative catalog ite
     PurettTestHarness::assertCount(1, $active, 'color purchase did not select exactly one color');
     PurettTestHarness::assertSame('green', $active[0]['value'], 'wrong color was granted');
 
-    $database->db->update('user_turns', array('turns' => 30), array('userid = ?' => $userid));
-    $turn = $database->purchaseCatalogItem($userid, 'turn', 6, 'test:turn:' . sha1(uniqid('', true)));
-    PurettTestHarness::assertSame(5, (int) $turn['grant'], 'turn bundle grant does not match catalog');
-    PurettTestHarness::assertSame(35, (int) $database->db->fetchOne('SELECT turns FROM user_turns WHERE userid = ?', array($userid)), 'turn bundle was not granted');
+    PurettTestHarness::assertThrows('InvalidArgumentException', function () use ($database, $userid) {
+        $database->purchaseCatalogItem($userid, 'turn', 6, 'test:turn:' . sha1(uniqid('', true)));
+    }, 'removed turn bundle was accepted');
 
     $user = new PureTripleTriad_User($userid);
     PurettTestHarness::assertTrue(in_array('green', $user->colors, true), 'purchased color is absent from the user model');
@@ -423,7 +393,7 @@ $test->test('Take All removes every eligible card but never a protected card', f
     PurettTestHarness::assertTrue($database->deleted, 'Take All result did not close the game');
 });
 
-$test->test('a complete game persists results, consumes turns, responds with AI moves, and creates an owned replay', function () use (&$state, $projectRoot) {
+$test->test('a complete game persists results, responds with AI moves, and creates an owned replay', function () use (&$state, $projectRoot) {
     $database = $state['database'];
     $userid = $state['userid'];
     $redis = new PureTripleTriad_Redis();
@@ -431,10 +401,6 @@ $test->test('a complete game persists results, consumes turns, responds with AI 
         'id' => 999999999,
         'display_name' => 'Stale Completion Sentinel'
     )));
-    $database->db->update('user_turns', array(
-        'turns' => 30,
-        'last_regenerated_at' => gmdate('Y-m-d H:i:s')
-    ), array('userid = ?' => $userid));
     $database->setUserRecord($userid, 0, 0, 0);
     $balanceBeforeGame = $database->getWalletBalance($userid);
 
@@ -494,7 +460,6 @@ $test->test('a complete game persists results, consumes turns, responds with AI 
     }
     PurettTestHarness::assertTrue($aiMoves >= 4, 'AI did not answer human turns');
     PurettTestHarness::assertFalse((bool) $database->getGame($userid), 'completed basic game remained active');
-    PurettTestHarness::assertSame(30 - $humanMoves, (int) $database->db->fetchOne('SELECT turns FROM user_turns WHERE userid = ?', array($userid)), 'human moves did not consume exactly one turn each');
 
     $history = $database->getGameHistory($state['gameid']);
     PurettTestHarness::assertTrue((bool) $history, 'game result was not written to history');

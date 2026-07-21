@@ -1357,9 +1357,6 @@ class PureTripleTriad_Game {
             if (!hash_equals((string) $lockedGame['key'], (string) $key)) {
                 throw new Exception('Player is attempting to play out of turn.');
             }
-            if (!$this->p1->decrementTurn()) {
-                throw new Exception('Player is attempting to play when they do not have any turns left.');
-            }
 
             $this->key = $this->generateKey();
             $me = $this->play($gamecardid, $position, $userid);
@@ -1767,7 +1764,6 @@ class PureTripleTriad_Game {
             'oiuwqnlaskjodwksjdlappw'           => $this->gameid,
             'bdjiauhjhduqijshckjhaii'           => $this->p1->userid,
             'ysjhkauhwjkahjhsjkhdkjh'           => $this->insuddendeath,
-            'ppqowifoqneocmoqiiowuoieiw'        => $this->p1->getTurns(),
             'mnsjkaiwbcbakjwifh'                => $this->p1color,
             'yqofhqoiwhfcoqhfcohq'              => $this->p2color,
             'mnzbxcnbmncbzmxnbcmnbzxmnb'        => $p1hand,

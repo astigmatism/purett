@@ -44,7 +44,7 @@ This is the migration disposition for every known integration point in the forme
 | Replay URLs containing a caller-supplied user identity | Session-derived identity plus database authorization of the game-history record |
 | Classic analytics and remote font/CDN assets | Remote requests removed; the original Spinnaker face is bundled locally and system fallbacks remain available |
 | Browser-triggered optimizer and arbitrary file list | Removed from the request path; source assets are served from a fixed local set |
-| Application IDs, secrets, Canvas URLs, and platform configuration sent to JavaScript | Removed; browser boot data contains only game state, local profile fields, coins, turns, CSRF token, and leaderboard data |
+| Application IDs, secrets, Canvas URLs, and platform configuration sent to JavaScript | Removed; browser boot data contains only game state, local profile fields, coins, CSRF token, and leaderboard data |
 | WordPress social-connection code | The unrelated `public/wordpress/` archive is excluded from the image and explicitly denied by Apache |
 
 The active controllers for games, deck management, colors, feedback, purchases, replay, and account settings derive ownership from the authenticated session. The computer continues to use numeric user ID 1; local human IDs start at 2 so the game engine's long-standing opponent invariant is preserved.
@@ -58,24 +58,23 @@ Standalone identity and economy add:
 - `local_accounts` for normalized usernames, display names, password hashes, and disabled state
 - `wallets` for the current coin balance
 - `coin_transactions` for grants and atomic purchase ledger entries
-- `user_turns` for deterministic turn balance and regeneration timestamps
-- `shopitems` for server-authoritative colors and turn bundles
+- `shopitems` for server-authoritative deck colors
 - `purchases` for fulfillment state, result snapshots, and idempotency keys
 - `feedback_reports` for local bug reports and feedback
 - `schema_migrations` for an installed-schema marker
 
 The game tables retain the numeric keys and field shapes expected by the legacy engine: `users`, `cards`, `usercards`, `games`, `rules`, `gamerules`, `gamecards`, `gamehistory`, `options`, and `useroptions`. `gamehistory` now stores a validated relative `log_path`, an explicit public flag, and an optional tutorial slug. The `usercards.purchased` flag is retained for protocol compatibility, but in the standalone product it means a locally acquired protected card rather than a real-money purchase.
 
-Fresh registration is one transaction that creates the user and account, a 200-coin wallet and initial ledger entry, a 30-turn balance, and exactly five starting cards. No historical user is imported.
+Fresh registration is one transaction that creates the user and account, a 3-coin wallet and initial ledger entry, and exactly five starting cards. No historical user is imported.
 
 ## Behavior changes
 
 - A username, display name, password, and optional email replace hosted identity. Passwords must be 10–128 characters; usernames have a restricted normalized format.
 - Login regenerates the session ID. Logout and account deletion are POST-only and require CSRF validation; deletion also requires the password.
-- Coins have no monetary value. Card prices are calculated from the server-side card level, while color and turn prices come from `shopitems`.
+- Coins have no monetary value. Card prices are calculated from the server-side card level, while deck-color prices come from `shopitems`.
 - Purchases lock the wallet, apply balance deduction and item grant in one database transaction, and return the stored result for a repeated idempotency key.
 - Newly acquired shop cards retain the old protected-card behavior without implying a cash purchase.
-- New accounts begin at the natural cap of 30 turns. A human move consumes one turn. One turn regenerates every five minutes up to 30; turn bundles may temporarily raise the balance above 30.
+- Gameplay has no consumable turn balance or play limit. Normal player/opponent turn order and move-token validation remain intact.
 - The misleading former leaderboard window is now consistently a genuine three-day window. Results include local ID, display name, win/loss/draw counts, games played, average points, score, rank, and initials.
 - Daily shop card ordering is deterministic for a UTC date and safely returns fewer items if the eligible catalog is smaller than the requested stock size.
 - New replay logs are JSON Lines files under `var/gamehistory/`, separate from preserved historical logs. Private logs require ownership; only explicitly seeded tutorial records are public.
@@ -88,6 +87,7 @@ Fresh registration is one transaction that creates the user and account, a 200-c
 - Likes, invitations/app requests, and social-page controls
 - Remote profile images
 - Real-money or hosted-credit payments and signed callbacks
+- Consumable turn balances, regeneration timers, and turn-bundle purchases
 - Deauthorization webhooks
 - Classic analytics and remote third-party font/CDN requests
 - Browser-invoked asset optimization, debug, phpinfo, card-grant, and static-code admin endpoints

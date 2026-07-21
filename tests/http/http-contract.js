@@ -81,6 +81,12 @@ function csrfFromHtml(html) {
   return match[1].replace(/&amp;/g, '&');
 }
 
+function csrfFromGameHtml(html) {
+  const match = html.match(/"csrf":"([A-Za-z0-9_-]+)"/);
+  if (!match) throw new Error('CSRF token was not found in game boot data');
+  return match[1];
+}
+
 async function run() {
   const unauthenticated = new Session();
   let response = await unauthenticated.request('/index/deck-manage', {
@@ -147,13 +153,18 @@ async function run() {
   assert(response.body.includes('HTTP Contract Player'), 'local display name is absent from game boot data');
   assert(!/https?:\/\//i.test(response.body), 'game document references an external runtime URL');
   assert(!/(facebook|fbcdn|google-analytics|fonts\.googleapis)/i.test(response.body), 'game document contains a prohibited platform reference');
+  const authenticatedCsrf = csrfFromGameHtml(response.body);
 
-  response = await session.request('/purchase?type=turn&id=6&idempotency_key=contract-invalid-get');
+  response = await session.request('/purchase?type=color&id=1&idempotency_key=contract-invalid-get');
   assert(response.status === 405, `state-changing purchase GET returned ${response.status}, expected 405`);
   response = await session.post('/purchase', {
-    type: 'turn', id: '6', idempotency_key: 'contract-invalid-csrf-0001'
+    type: 'color', id: '1', idempotency_key: 'contract-invalid-csrf-0001'
   }, {'X-CSRF-Token': 'wrong'});
   assert(response.status === 403, `invalid purchase CSRF returned ${response.status}, expected 403`);
+  response = await session.post('/purchase', {
+    type: 'turn', id: '6', idempotency_key: 'contract-removed-turn-0001'
+  }, {'X-CSRF-Token': authenticatedCsrf});
+  assert(response.status === 400, `removed turn purchase returned ${response.status}, expected 400`);
 
   response = await session.request('/index/review-data?gameid=..%2F..%2Fetc%2Fpasswd', {
     headers: {Accept: 'application/json'}

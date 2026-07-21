@@ -5,7 +5,6 @@ const {test, expect} = require('@playwright/test');
 const fields = {
   gameId: 'oiuwqnlaskjodwksjdlappw',
   userId: 'bdjiauhjhduqijshckjhaii',
-  turns: 'ppqowifoqneocmoqiiowuoieiw',
   playerHand: 'mnzbxcnbmncbzmxnbcmnbzxmnb',
   computerHand: 'kjhsadjhkaskjhdkjhasjhdasd',
   board: 'uyeiqowiutoiqyweiuyqwoiyro',
@@ -178,23 +177,6 @@ async function ensurePlayableHand(page) {
   await expect.poll(() => page.evaluate(() => gh.data.hand.length)).toBe(5);
 }
 
-async function ensureSmokeTurns(page) {
-  if (await page.evaluate(() => Number(gh.data.turns)) >= 40) return;
-
-  const key = `smoke:turns:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 12)}`;
-  const purchase = await api(page, '/purchase', {
-    type: 'turn',
-    id: 10,
-    idempotency_key: key
-  });
-  expect(purchase.result.status).toBe('settled');
-  await page.reload();
-  await expect.poll(() => page.evaluate(() => Boolean(
-    window.gh && gh.manager && document.querySelector('ul.mainmenu li.play')
-  ))).toBe(true);
-  await expect.poll(() => page.evaluate(() => Number(gh.data.turns))).toBeGreaterThanOrEqual(100);
-}
-
 async function waitForHumanTurnOrGameOver(page, pageErrors) {
   for (let count = 0; count < 300; count += 1) {
     if (pageErrors.length > 0) {
@@ -307,7 +289,7 @@ test('standalone player journey works without third-party requests', async ({pag
   const externalRequests = [];
   const pageErrors = [];
   const baseOrigin = new URL(baseURL).origin;
-  page.on('pageerror', error => pageErrors.push(error.message));
+  page.on('pageerror', error => pageErrors.push(error.stack || error.message));
   page.on('request', request => {
     const url = request.url();
     if (/^(data|blob|about):/.test(url)) return;
@@ -328,8 +310,6 @@ test('standalone player journey works without third-party requests', async ({pag
     window.gh && gh.manager && gh.manager.menu && document.querySelector('ul.mainmenu li.play')
   ))).toBe(true);
   await expect(page.locator('ul.mainmenu li.play')).toBeVisible();
-
-  await ensureSmokeTurns(page);
 
   await page.locator('ul.mainmenu li.tutorials').click();
   await expect(page.locator('ul.mainmenu li.basics')).toBeVisible();
@@ -366,7 +346,7 @@ test('standalone player journey works without third-party requests', async ({pag
   await dismissGameDialogs(page);
   let state = await api(page, '/index/game', {});
   const gameId = Number(state[fields.gameId]);
-  const initialTurns = Number(state[fields.turns]);
+  expect(Object.prototype.hasOwnProperty.call(state, 'ppqowifoqneocmoqiiowuoieiw')).toBeFalsy();
   let humanMoves = 0;
   let aiMoves = state[fields.openingAi] && state[fields.openingAi].u === 1 ? 1 : 0;
   let finished = false;
@@ -394,7 +374,6 @@ test('standalone player journey works without third-party requests', async ({pag
   expect(finished, 'game did not reach a result').toBeTruthy();
   expect(aiMoves, 'AI never responded').toBeGreaterThanOrEqual(1);
   expect(humanMoves, 'no human turns were submitted').toBeGreaterThanOrEqual(4);
-  expect(initialTurns - humanMoves, 'turn counter did not decrease once per human move').toBeGreaterThanOrEqual(0);
   expect(Number(completion.coinsAwarded)).toBeGreaterThanOrEqual(0);
   expect(Number(completion.coinsAwarded)).toBeLessThanOrEqual(5);
   expect(Number(completion.coins)).toBe(coinsBeforeGame + Number(completion.coinsAwarded));
@@ -410,10 +389,13 @@ test('standalone player journey works without third-party requests', async ({pag
   await expect.poll(() => page.evaluate(() => Boolean(
     window.gh && gh.manager && document.querySelector('ul.mainmenu')
   ))).toBe(true);
-  await expect.poll(() => page.evaluate(() => Number(gh.data.turns))).toBe(initialTurns - humanMoves);
+  expect(await page.evaluate(() => Object.prototype.hasOwnProperty.call(gh.data, 'turns'))).toBeFalsy();
   await expect(page.locator('ul.mainmenu li.shop')).toBeVisible();
   await page.locator('ul.mainmenu li.shop').click();
   await expect(page.locator('ul.shopmenu')).toBeVisible();
+  await expect(page.locator('ul.shopmenu li.cards')).toHaveText('CARDS');
+  await expect(page.locator('ul.shopmenu li.colors')).toHaveText('DECK COLORS');
+  await expect(page.locator('ul.shopmenu li.turns')).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => Boolean(
     gh.manager.shop && gh.manager.shop.stock && gh.manager.shop.stock.length > 0
   ))).toBe(true);

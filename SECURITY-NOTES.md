@@ -60,7 +60,7 @@ Controllers reject malformed numeric IDs, positions, move tokens, usernames, cat
 
 Application SQL is parameterized through Zend Db, with validated bounded integers only where SQL syntax prevents a placeholder (for example the scheduler limit/window). UTF-8 settings and strict MariaDB modes are enabled.
 
-Transactions and row locks cover account bootstrap, exact hand replacement, move/game result state, wallet deduction plus grant plus ledger entry, idempotent match rewards, coin grants, turn decrement/regeneration, and protected-card claims. Game IDs use `lastInsertId()` from the inserting connection. Purchase order IDs and coin references have uniqueness constraints for idempotency.
+Transactions and row locks cover account bootstrap, exact hand replacement, move/game result state, wallet deduction plus grant plus ledger entry, idempotent match rewards, coin grants, and protected-card claims. Game IDs use `lastInsertId()` from the inserting connection. Purchase order IDs and coin references have uniqueness constraints for idempotency.
 
 ## Remaining legacy risks
 

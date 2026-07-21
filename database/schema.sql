@@ -54,16 +54,6 @@ CREATE TABLE coin_transactions (
     CONSTRAINT fk_coin_transactions_user FOREIGN KEY (userid) REFERENCES users (idusers) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE user_turns (
-    userid BIGINT UNSIGNED NOT NULL,
-    turns INT UNSIGNED NOT NULL DEFAULT 30,
-    last_regenerated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (userid),
-    KEY idx_user_turns_regeneration (turns, last_regenerated_at),
-    CONSTRAINT fk_user_turns_user FOREIGN KEY (userid) REFERENCES users (idusers) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 CREATE TABLE cards (
     idcards SMALLINT UNSIGNED NOT NULL,
     level TINYINT UNSIGNED NOT NULL,
@@ -191,7 +181,6 @@ CREATE TABLE shopitems (
     item_type VARCHAR(16) NOT NULL,
     name VARCHAR(80) NOT NULL,
     price INT UNSIGNED NOT NULL,
-    grant_amount INT UNSIGNED NOT NULL DEFAULT 0,
     catalog_value VARCHAR(64) NULL,
     active TINYINT(1) NOT NULL DEFAULT 1,
     PRIMARY KEY (idshopitems),
@@ -224,4 +213,4 @@ CREATE TABLE feedback_reports (
     CONSTRAINT fk_feedback_user FOREIGN KEY (userid) REFERENCES users (idusers) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-INSERT INTO schema_migrations (version) VALUES ('2026.07.20-standalone-1');
+INSERT INTO schema_migrations (version) VALUES ('2026.07.21-turnless-2');

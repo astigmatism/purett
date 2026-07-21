@@ -15,8 +15,7 @@ Apache 2.4 + PHP 5.6 + Zend Framework 1
   └── var/          — sessions, logs, and new replay JSONL
 
 Scheduler container
-  ├── every minute  — bounded turn regeneration
-  └── hourly         — refresh three-day leaderboard cache
+  └── hourly — refresh three-day leaderboard cache
 ```
 
 `docker-compose.yml` defines `web`, `scheduler`, `db`, and `redis`. Only the web service publishes a host port. MariaDB and Redis are reachable only on the Compose network. The web and scheduler services use the same PHP 5.6 image and share the host's `var/` runtime mount; database and cache state use named volumes.
@@ -50,16 +49,16 @@ Application configuration, SQL, replay logs, and repository files are outside th
 
 ## Authentication flow
 
-Registration normalizes and validates the username, validates display name/password/email, hashes the password with PHP's password API, and calls a single transactional account constructor. That transaction allocates a human user ID at 2 or above, creates the local account, wallet, transaction ledger row, turn row, and five-card starting hand.
+Registration normalizes and validates the username, validates display name/password/email, hashes the password with PHP's password API, and calls a single transactional account constructor. That transaction allocates a human user ID at 2 or above, creates the local account, wallet, transaction ledger row, and five-card starting hand.
 
 Login fetches by normalized username, rejects disabled/deleted accounts, verifies the password hash, regenerates the session ID, rotates the CSRF token, and redirects to the game. Logout requires POST plus CSRF and invalidates the session and cookie. Account deletion additionally verifies the password, cascades owned database state from `users`, removes that account's new runtime replay directory, and destroys the session.
 
 ## Game flow
 
-1. The main page receives current hand/deck counts, record, turns, next rules, coins, colors, local profile, and leaderboard data.
+1. The main page receives current hand/deck counts, record, next rules, coins, colors, local profile, and leaderboard data.
 2. `POST /index/game` requires authentication and CSRF. The engine resumes the player's active game or creates one using the selected five-card hand, rule progression, board elements, a cryptographically random move token, and user ID 1 as the computer.
 3. The server-side AI chooses and plays the computer hand. Client moves are POSTed with a game-card ID, board position 0–8, and the current move token.
-4. The engine rejects an unowned card, occupied/out-of-range square, stale token, or move made out of turn. A valid human move consumes one turn.
+4. The engine rejects an unowned card, occupied/out-of-range square, stale token, or move made out of turn. Accepted moves have no consumable play limit.
 5. Capture evaluation remains in `PureTripleTriad_Game`: Basic, Same, Plus, Combo, Same Wall, and positive/negative Elemental effects. Open/Closed, Random, Sudden Death, and the four reward modes remain protocol-level rules.
 6. Completion updates the record, card transfers/rewards, game-history metadata, and active-game removal transactionally. A protected locally acquired card is not lost through an ordinary transfer.
 7. Review/replay retrieves the database-approved relative log path and streams the sanitized JSONL event sequence to the existing Raphael client.
@@ -75,7 +74,6 @@ An active game is unique per human (`games.p1`). Inserted game IDs come from the
 - Active games, rules, board cards, scores, move token, and claim state
 - Completed-game index and replay authorization metadata
 - Wallet balance, coin ledger, catalog, purchase results, and idempotency
-- Turn balance and regeneration timestamp
 - User colors/options, local feedback, and schema version
 - Three-day leaderboard source rows
 
@@ -83,7 +81,7 @@ All application-facing queries use bound parameters or validated numeric limits.
 
 ### Redis: rebuildable cache
 
-Redis stores one JSON value at `leaderboard:three-day` with a one-hour TTL. A cache miss rebuilds it from MariaDB. Turns are deliberately database-backed: row locks and timestamps make consumption, purchased bundles, restart recovery, and deterministic regeneration easier to test than the former ephemeral per-user keys. Redis loss therefore does not lose accounts, games, turns, or coins.
+Redis stores one JSON value at `leaderboard:three-day` with a one-hour TTL. A cache miss rebuilds it from MariaDB. Redis loss therefore does not lose accounts, games, or coins.
 
 ### Filesystem: runtime-only artifacts
 
@@ -94,25 +92,13 @@ Redis stores one JSON value at `leaderboard:three-day` with a one-hour TTL. A ca
 
 Only a database `gamehistory.log_path` that passes path validation can be opened. Raw request path components are never concatenated into a replay filename. `var/` is outside `public/` and is not copied into static assets.
 
-## Turn regeneration
-
-Turn policy is coherent across registration, requests, and scheduled work:
-
-- Start at 30 turns.
-- Consume one on each accepted human move.
-- Earn one every 300 seconds while below 30.
-- Stop natural regeneration at 30.
-- Purchased turn bundles may exceed 30; the timer resumes only after play drops below the natural cap.
-
-`regenerateTurns()` locks one `user_turns` row and accepts an explicit timestamp for deterministic tests. `regenerateAllTurns()` selects at most 500 eligible rows per scheduler pass; it does not scan Redis with `KEYS`.
-
 ## Local economy
 
 The local currency is earned through play. Accounts start with 3 coins, and a win awards the winner's score above five: 6–4 earns 1 coin through 10–0 earning 5. Draws and losses earn none. Match awards lock the wallet and use the game ID as an idempotent ledger reference so replayed completion work cannot pay twice.
 
-A purchase request carries a catalog type, item ID, and idempotency key—not a trusted price or user ID. The server locks the authenticated user's wallet, looks up/calculates price, verifies funds, grants the card/color/turns, updates the balance, and writes both purchase result and coin ledger entry in one transaction. A repeated order key for the same account returns its original stored result instead of granting twice.
+A purchase request carries a catalog type, item ID, and idempotency key—not a trusted price or user ID. The server locks the authenticated user's wallet, looks up/calculates price, verifies funds, grants the card or deck color, updates the balance, and writes both purchase result and coin ledger entry in one transaction. A repeated order key for the same account returns its original stored result instead of granting twice.
 
-Cards cost twice their level. The seeded color catalog includes green, purple, orange, black, and white; the seeded turn catalog includes 5, 10, 20, 50, and 100-turn bundles. `PURETT_FREE_ECONOMY=1` is an explicit development-only mode that grants catalog items without deducting coins while still recording the transaction.
+Cards cost twice their level. The seeded deck-color catalog includes green, purple, orange, black, and white. `PURETT_FREE_ECONOMY=1` is an explicit development-only mode that grants catalog items without deducting coins while still recording the transaction.
 
 ## Leaderboard
 

@@ -198,6 +198,7 @@ ul.shopmenu li.selected {
     height: 562px;
     width: 755px;
     background: transparent url('/images/gameBoard.png') no-repeat top left;
+    background-size: 755px 562px;
     position: relative;
 }
 #svgBoard, #board .overlay, #svgRules {

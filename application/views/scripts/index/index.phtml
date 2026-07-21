@@ -1,20 +1,15 @@
-<div id="account-strip">
-    <span class="identity"><?php echo $this->escape($this->currentAccount['display_name']); ?></span>
-    <span class="coin-balance"></span>
-    <?php if (isset($this->bootData)): ?><a class="latest-replay hide" href="#">Latest replay</a><?php endif; ?>
-    <a href="/account">Settings</a>
-    <button type="button" id="logout-control">Log out</button>
-</div>
 <div id="content-wrapper" class="hide">
     <div id="title-wrapper" class="rel">
         
         <div id="title-icon" rel="#contextmenu"></div>
         <div id="title">PURE TRIPLE TRIAD</div>
         
-        <div id="mute-icon"></div>
-        
-        <div id="turn-wrapper">
-            <div id="turns">TURNS: <span id="turn-count"></span></div>
+        <div id="status-wrapper">
+            <div id="mute-icon"></div>
+            <div id="turn-wrapper">
+                <div id="turns">TURNS: <span id="turn-count"></span></div>
+            </div>
+            <div id="coins">COINS: <span class="coin-balance"></span></div>
         </div>
         <div class="turntip">
             <div id="morein-wrapper" class="hide">
@@ -37,15 +32,6 @@
         <div id="footer-brand" class="fr">Standalone archival edition</div>
     </div>
 </div>
-<script>
-$(function () {
-    $('.coin-balance').text(gh.data.coins);
-    if (gh.data.latestReplay) {
-        $('.latest-replay').attr('href', '/replay?gameid=' + gh.data.latestReplay).show();
-    }
-    $('#logout-control').click(function () { gh.platform.logout(); });
-});
-</script>
 
 <div id="browsers-wrapper" class="hide">
     <div id="browsers">

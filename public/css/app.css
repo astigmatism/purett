@@ -12,24 +12,6 @@ a {
     text-decoration: none;
 }
 a:hover { color: #6b4a2c; }
-#account-strip {
-    min-height: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 14px;
-    color: #746657;
-    font: 12px/1.2 Arial, sans-serif;
-}
-#account-strip button {
-    padding: 0;
-    border: 0;
-    background: transparent;
-    color: #746657;
-    cursor: pointer;
-}
-#account-strip .identity { font-weight: bold; color: #4e3320; }
-#account-strip .coin-balance::before { content: 'COINS: '; color: #96764f; }
 #topplayers-wrapper .local-avatar {
     width: 28px;
     height: 28px;

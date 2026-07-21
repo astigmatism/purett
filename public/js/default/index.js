@@ -43,6 +43,7 @@ gh.load(['util', ['game'], 'cover', 'menu', ['dialog'], ['jquerytools'], 'audio'
                     //turn count
                     me.turns = gh.data.turns;
                     $('#turn-count').text(me.turns);
+                    $('.coin-balance').text(gh.data.coins);
                     $('#lowerTurnLimit').text(me.lowerTurnLimit);
                     
                     //start turn give timer
@@ -108,6 +109,10 @@ gh.load(['util', ['game'], 'cover', 'menu', ['dialog'], ['jquerytools'], 'audio'
                     $('#title').trigger('click');
                     $(me.contextmenu).overlay().close();
                 }
+            });
+            $('#contextmenu li.logout').click(function() {
+                gh.audio.select.play();
+                gh.platform.logout();
             });
             //errors
             me.erroroverlay = $('#error').overlay({
@@ -337,7 +342,6 @@ gh.load(['util', ['game'], 'cover', 'menu', ['dialog'], ['jquerytools'], 'audio'
             var latestReplay = parseInt(options.gameid, 10);
             if (latestReplay > 0) {
                 gh.data.latestReplay = latestReplay;
-                $('.latest-replay').attr('href', '/replay?gameid=' + latestReplay).show();
             }
             
             var endgame = function() {

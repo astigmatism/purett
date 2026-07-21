@@ -19,7 +19,7 @@ class Gamehouse_Controller_Action extends Zend_Controller_Action
         );
         foreach ($cssFiles as $file) {
             if (is_file($file[0])) {
-                $view->headLink()->appendStylesheet($file[1]);
+                $view->headLink()->appendStylesheet($file[1] . '?v=' . filemtime($file[0]));
             }
         }
 
@@ -30,7 +30,7 @@ class Gamehouse_Controller_Action extends Zend_Controller_Action
         );
         foreach ($jsFiles as $file) {
             if (is_file($file[0])) {
-                $view->headScript()->appendFile($file[1]);
+                $view->headScript()->appendFile($file[1] . '?v=' . filemtime($file[0]));
             }
         }
 

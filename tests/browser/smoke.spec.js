@@ -322,7 +322,8 @@ test('standalone player journey works without third-party requests', async ({pag
     page.waitForURL(url => url.pathname === '/'),
     page.locator('button[type="submit"]').click()
   ]);
-  await expect(page.locator('#account-strip .identity')).toHaveText('Demo Player');
+  await expect(page.locator('#account-strip')).toHaveCount(0);
+  await expect(page.locator('#coins .coin-balance')).toHaveText(/\d+/);
   await expect.poll(() => page.evaluate(() => Boolean(
     window.gh && gh.manager && gh.manager.menu && document.querySelector('ul.mainmenu li.play')
   ))).toBe(true);
@@ -422,7 +423,7 @@ test('standalone player journey works without third-party requests', async ({pag
   const purchase = await purchaseHttpResponse.json();
   expect(purchase.result.status).toBe('settled');
   expect(Number(purchase.result.balance)).toBeLessThan(coinsBefore);
-  await expect(page.locator('#account-strip .coin-balance')).toHaveText(String(purchase.result.balance));
+  await expect(page.locator('#coins .coin-balance')).toHaveText(String(purchase.result.balance));
   const persistedBalance = Number(purchase.result.balance);
 
   await page.reload();
@@ -437,7 +438,9 @@ test('standalone player journey works without third-party requests', async ({pag
   await expect.poll(() => page.evaluate(() => Number(gh.data.requestedReplay || 0))).toBe(gameId);
   expect((await replayResponse).ok()).toBeTruthy();
 
-  await page.locator('#logout-control').click();
+  await page.locator('#title-icon').click();
+  await expect(page.locator('#contextmenu')).toBeVisible();
+  await page.locator('#contextmenu li.logout').click();
   await page.waitForURL(url => url.pathname === '/auth/login');
   await page.locator('input[name="username"]').fill('demo');
   await page.locator('input[name="password"]').fill('TripleTriad!');
@@ -445,7 +448,7 @@ test('standalone player journey works without third-party requests', async ({pag
     page.waitForURL(url => url.pathname === '/'),
     page.locator('button[type="submit"]').click()
   ]);
-  await expect(page.locator('#account-strip .identity')).toHaveText('Demo Player');
+  await expect(page.locator('#coins .coin-balance')).toHaveText(/\d+/);
   await expect.poll(() => page.evaluate(() => Number(gh.data.coins))).toBe(persistedBalance);
   await expect.poll(() => page.evaluate(() => Number(gh.data.latestReplay || 0))).toBe(gameId);
 

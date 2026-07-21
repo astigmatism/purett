@@ -2,6 +2,28 @@
     font-family: 'Spinnaker', sans-serif;
     font-size: 20px;
 }
+html {
+    min-height: 100%;
+    background: #6a6259;
+}
+body {
+    position: relative;
+    isolation: isolate;
+    background: transparent;
+}
+body::before {
+    content: '';
+    position: fixed;
+    z-index: 0;
+    inset: 0;
+    background:
+        radial-gradient(ellipse at 50% 48%, #f1e9dc 0%, #c4b9aa 48%, #6a6259 100%)
+        fixed;
+}
+#content-wrapper, #browsers-wrapper {
+    position: relative;
+    z-index: 1;
+}
 #title-wrapper {
     margin-top: 20px;
     width: 755px;
@@ -24,31 +46,27 @@
     float: left;
     cursor: pointer;
 }
-#like {
-    top: 15px;
-    left: 300px;
-    height: 21px;
-    width: 100px;
+#status-wrapper {
+    display: flex;
+    float: right;
+    align-items: center;
+    gap: 30px;
+    margin-top: 19px;
 }
 #mute-icon {
-    position: absolute;
-    left: 630px;
-    top: 20px;
     background: transparent url('/images/mute_unmute.png') no-repeat 0px 0px;
     height: 16px;
     width: 17px;
-    float: right;
+    flex: 0 0 17px;
     cursor: pointer;
 }
 #mute-icon.muted {
     background-position: 0px -16px;
 }
 #turn-wrapper {
-    float: right;
-    margin-top: 19px;
     cursor: default;
 }
-#turns, #turns span {
+#turns, #turns span, #coins, #coins span {
     font-family: 'Spinnaker', sans-serif;
     font-size: 16px;
     color: #777;

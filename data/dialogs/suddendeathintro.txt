@@ -1,0 +1,3 @@
+[[
+{"buttons": [{"name": "Thanks!","end":0}],"content": "<p>New rule: Sudden Death.</p><p>In the case of a draw game, the match begins again with the cards you captured in the last round. This continues until someone wins. Cards are returned to their owners at the end of the game. Kupo!</p>"}
+]]

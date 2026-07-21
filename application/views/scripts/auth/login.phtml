@@ -1,0 +1,19 @@
+<section class="auth-card">
+    <div class="auth-mark">PTT</div>
+    <h1>Pure Triple Triad</h1>
+    <p class="subtitle">Standalone archival edition</p>
+    <?php if (isset($this->error)): ?>
+        <div class="form-error" role="alert"><?php echo $this->escape($this->error); ?></div>
+    <?php endif; ?>
+    <form method="post" action="/auth/login" autocomplete="on">
+        <input type="hidden" name="csrf_token" value="<?php echo $this->escape($this->csrfToken); ?>" />
+        <label>Username
+            <input name="username" maxlength="32" required autofocus autocomplete="username" />
+        </label>
+        <label>Password
+            <input type="password" name="password" maxlength="128" required autocomplete="current-password" />
+        </label>
+        <button type="submit">Enter the game</button>
+    </form>
+    <p class="auth-switch">New player? <a href="/auth/register">Create a local account</a></p>
+</section>

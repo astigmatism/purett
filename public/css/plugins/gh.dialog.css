@@ -1,0 +1,70 @@
+/* Classic speech-bubble treatment for jQuery UI dialogs. */
+.ui-dialog {
+    background-color: transparent !important;
+    padding: 0px !important;
+    border: none !important;
+    position: relative;
+}
+.ui-dialog-titlebar {
+    font-size: 16px !important;
+    font-weight: bold !important;
+    background: none !important;
+    border: transparent 1px solid !important;
+    height: 30px;
+    line-height: 30px;
+    margin: 0px !important;
+    padding-top: 10px !important;
+}
+.ui-widget-content {
+    background: none !important;
+}
+.ui-corner-all {
+    border-radius: none !important;
+}
+.ui-dialog-buttonpane {
+     margin: 0 !important;
+     padding: 0 !important;
+     background: none !important;
+     border: none !important;
+     position: relative !important;
+     height: 200px !important;
+}
+.ui-dialog-content {
+    -moz-border-radius: 15px 15px 15px 15px !important;
+    border-radius: 15px 15px 15px 15px !important;
+    background-color: #FFF !important;
+}
+.ui-dialog-content p {
+    padding: 0px;
+    margin: 0px 0px 10px 0px;
+    font-family: 'Spinnaker', sans-serif;
+    font-size: 13px;
+}
+
+.ui-dialog-buttonpane div.tail {
+    position:absolute;
+    width: 64px;
+    height: 44px;
+    background: transparent url('/images/word-bubble-tail2.png') no-repeat center center;
+    top:0px;
+    left: 35px;
+    z-index: 750;
+}
+.ui-dialog-buttonset {
+    position: absolute !important;
+    z-index: 900 !important;
+    right:0px;
+}
+.ui-button-text {
+    font-family: 'Spinnaker', sans-serif;
+    font-size: 13px;
+}
+.ui-dialog-buttonpane div.moogle {
+    position: absolute;
+    width: 116px;
+    height: 158px;
+    background: transparent url('/images/moogle1.png') no-repeat center center;
+    top:-16px;
+    left: 70px;
+    z-index: 700;
+}

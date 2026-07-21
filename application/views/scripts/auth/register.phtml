@@ -1,0 +1,25 @@
+<section class="auth-card">
+    <div class="auth-mark">PTT</div>
+    <h1>Create account</h1>
+    <p class="subtitle">Your cards and games stay on this installation.</p>
+    <?php if (isset($this->error)): ?>
+        <div class="form-error" role="alert"><?php echo $this->escape($this->error); ?></div>
+    <?php endif; ?>
+    <form method="post" action="/auth/register" autocomplete="on">
+        <input type="hidden" name="csrf_token" value="<?php echo $this->escape($this->csrfToken); ?>" />
+        <label>Username
+            <input name="username" minlength="3" maxlength="32" pattern="[A-Za-z0-9][A-Za-z0-9_.-]{2,31}" required autocomplete="username" />
+        </label>
+        <label>Display name
+            <input name="display_name" maxlength="80" required autocomplete="nickname" />
+        </label>
+        <label>Password
+            <input type="password" name="password" minlength="10" maxlength="128" required autocomplete="new-password" />
+        </label>
+        <label>Email <span>(optional)</span>
+            <input type="email" name="email" maxlength="254" autocomplete="email" />
+        </label>
+        <button type="submit">Create account</button>
+    </form>
+    <p class="auth-switch"><a href="/auth/login">Back to login</a></p>
+</section>

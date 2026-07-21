@@ -1,0 +1,5 @@
+[[
+{"buttons": [{"name": "Yep!","end":0},{"name": "Explain...","direction":1}],"content": "<p>New rule: Same.</p><p>If a card played on the board is adjacent to ranks that are equal on two or more sides, then those cards are captured.</p><p>Follow?</p>"},
+{"buttons": [{"name": "Back","direction":-1},{"name": "Next","direction":1}],"content": "<p>You play a card with a rank of 3 on its top and 4 on its left. It is played where those adjacent ranks are 3 and 4 respectively.</p><p>Because the adjacent ranks are equal on those two sides, the Same rule applies and both cards are captured.</p></p>"},
+{"buttons": [{"name": "Back","direction":-1},{"name": "Thanks!","end":0}],"content": "<p>The Same rule is applied to any adjacent rank regardless of color. This means that you can capture cards with the Same rule using some of your own for support.</p><p>Visit the Tutorials to see an actual game played with the Same rule. Kupo!</p>"}
+]]

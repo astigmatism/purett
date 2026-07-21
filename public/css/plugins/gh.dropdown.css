@@ -1,0 +1,21 @@
+ul.dropdown li {
+    position: relative;
+}
+ul.dropdown li.submenu {
+    border-radius: 5px 5px 0px 0px;
+    background: #331f1b;
+}
+ul.dropdown ul { 
+    display:none;
+    position:absolute; 
+    left:0px; 
+    top: 20px;
+    padding: 10px 0px;
+    background: #331f1b;
+    border-radius: 0px 0px 5px 5px;
+    z-index: 999;
+    width: 82px;
+}
+ul.dropdown ul li {
+    padding: 5px 10px;
+}

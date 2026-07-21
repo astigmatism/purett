@@ -1,0 +1,38 @@
+<section class="auth-card">
+    <div class="auth-mark">PTT</div>
+    <h1>Account settings</h1>
+    <dl class="account-details">
+        <dt>Username</dt><dd><?php echo $this->escape($this->account['username']); ?></dd>
+        <dt>Display name</dt><dd><?php echo $this->escape($this->account['display_name']); ?></dd>
+    </dl>
+    <p><a href="/">Return to the game</a></p>
+    <hr />
+    <h2>Delete account</h2>
+    <p>This permanently deletes this local account, its cards, games, purchases, and replay files.</p>
+    <form id="delete-account-form" method="post" action="/account/delete">
+        <input type="hidden" name="csrf_token" value="<?php echo $this->escape($this->csrfToken); ?>" />
+        <label>Confirm password
+            <input type="password" name="password" required autocomplete="current-password" />
+        </label>
+        <button class="danger" type="submit">Delete local account</button>
+    </form>
+</section>
+<script>
+(function () {
+    var form = document.getElementById('delete-account-form');
+    form.addEventListener('submit', function (event) {
+        event.preventDefault();
+        if (!window.confirm('Delete this local account permanently?')) return;
+        var request = new XMLHttpRequest();
+        request.open('POST', form.action, true);
+        request.setRequestHeader('Accept', 'application/json');
+        request.setRequestHeader('X-CSRF-Token', form.elements.csrf_token.value);
+        request.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        request.onload = function () {
+            if (request.status === 200) window.location.href = '/auth/login';
+            else window.alert('Account deletion was not completed.');
+        };
+        request.send('password=' + encodeURIComponent(form.elements.password.value));
+    });
+}());
+</script>

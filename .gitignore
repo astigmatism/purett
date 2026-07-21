@@ -1,0 +1,8 @@
+.env
+.DS_Store
+node_modules/
+tests/browser/node_modules/
+test-results/
+playwright-report/
+var/*
+!var/.gitkeep

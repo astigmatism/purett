@@ -1,0 +1,5 @@
+[[
+{"buttons": [{"name": "Yep!","end":0},{"name": "Explain...","direction":1}],"content": "<p>New rule: Combo.</p><p>Cards that are captured using the Same rule continue to capture cards using the Basic rule.</p><p>Follow?</p>"},
+{"buttons": [{"name": "Back","direction":-1},{"name": "Next","direction":1}],"content": "<p>You play card on the board which using the Same rule captures one of your opponents cards.</p><p>When that card is captured, the Combo rule acts as if you just played it as well: all surrounding cards can be captured with the Basic rule.</p>"},
+{"buttons": [{"name": "Back","direction":-1},{"name": "Thanks!","end":0}],"content": "<p>Combo gets better! For each card captured with Combo, those cards continue to capture using the Basic rule.</p><p>You see, the Combo rule chains until there are no more cards that can be captured. It can be deadly so be sure to plan ahead!</p><p>Kupo!</p>"}
+]]

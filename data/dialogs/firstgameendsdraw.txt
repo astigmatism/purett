@@ -1,0 +1,3 @@
+[[],[
+{"buttons": [{"name": "Thanks","end":0}],"content": "<p>Draw game! Since its not a win or loss your record goes unchanged.</p><p>Triple Triad has more than 10 additional advanced rules and over 100 cards. I'll be introducing you to them over time. You can click my icon at the top left corner for more options. Kupo!</p>"}
+]]

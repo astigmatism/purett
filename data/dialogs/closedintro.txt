@@ -1,0 +1,3 @@
+[[
+{"buttons": [{"name": "Thanks!","end":0}],"content": "<p>Your first new rule: Closed.</p><p>Closed games mean each player begins with their hand face down.</p><p>Next I'll show you how to win your opponent's cards. Kupo!</p>"}
+]]

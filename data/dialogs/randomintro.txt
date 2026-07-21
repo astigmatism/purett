@@ -1,0 +1,3 @@
+[[
+{"buttons": [{"name": "Thanks!","end":0}],"content": "<p>New rule: Random.</p><p>Each player starts with a hand of cards randomly selected from their entire card collection.</p><p>Kupo!</p>"}
+]]

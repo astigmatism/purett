@@ -1,0 +1,16 @@
+.DS_Store
+.env
+.git
+.agents
+.codex
+archive
+data/logs
+docs
+node_modules
+public/optimized
+public/tools
+public/wordpress
+purettv2
+tests
+var/*
+!var/.gitkeep

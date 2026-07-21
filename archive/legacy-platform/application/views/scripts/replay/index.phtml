@@ -1,0 +1,17 @@
+<div class="mb-20">
+    <?php
+        echo $this->partial('header.phtml', array( 
+        ));
+    ?>
+</div>
+<div class="mb-20">
+    <?php
+        echo $this->partial('game.phtml', array( 
+            'game'          => $this->game,
+            'facebook'      => $this->facebook,
+            'p1'            => $this->p1,
+            'clientdata'    => $this->clientdata
+            //'user'            => $this->user
+        ));
+    ?>
+</div>

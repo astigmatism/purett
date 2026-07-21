@@ -1,0 +1,50 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title></title>
+    
+    <script type="text/javascript" language="javascript" src="/js/jquery-1.5.min.js"></script>
+    <script type="text/javascript" language="javascript" src="/js/jquery-ui-1.8.9.custom.min.js"></script>
+    <script type="text/javascript" language="javascript" src="/js/gh.min.js"></script>
+    
+    <script type="text/javascript" language="javascript" src="/js/gh.facebook.js"></script>
+    
+    <script type="text/javascript" language="javascript" src="/js/cufon.js"></script>
+    <script type="text/javascript" language="javascript" src="/js/fonts.js"></script>
+    
+    <script type="text/javascript" language="javascript" src="/js/raphael-1.5.2.min.js"></script>
+    <script type="text/javascript" language="javascript" src="/js/raphael.fonts.js"></script>
+    
+    <!-- fb javascript api -->
+    <!--<script type="text/javascript" language="javascript" src="http://connect.facebook.net/en_US/all.js"></script>-->
+    <!-- fbjavascript api for debugging -->
+    <script type="text/javascript" language="javascript" src="http://static.ak.fbcdn.net/connect/en_US/core.debug.js"></script>
+    
+    <?php echo $this->headScript() ?>
+    
+    <link rel="stylesheet" href="/css/common.css" type="text/css" media="all" />
+    <link rel="stylesheet" href="/css/facebook.css" type="text/css" media="all" />
+    
+    <?php echo $this->headLink() ?>
+</head>
+<body>
+    <?php echo $this->layout()->content ?>
+
+    <div id="fb-root"></div>
+    <script type="text/javascript" language="javascript">
+        FB.init({
+            appId   : '<?php echo $this->facebook->getAppId(); ?>',
+            session : <?php echo json_encode($this->facebook->getSession()); ?>, // don't refetch the session when PHP already has it
+            status  : true, // check login status
+            cookie  : true, // enable cookies to allow the server to access the session
+            xfbml   : true // parse XFBML
+        });
+        gh.facebook.config = <?php echo json_encode($this->config->toArray()) ?> //giving the config to js for fb js sdk calls
+        //see gh.fb.js for all other FB obj interaction
+        
+        //initialize the client
+        gh.game.initialize(<?php echo json_encode($this->game->getClientData()) ?>);
+    </script>
+</body>
+</html>

@@ -1,0 +1,3 @@
+[[],[
+{"buttons": [{"name": "Thanks!","end":0}],"content": "<p>Draw! In this case, player's keep their own cards like normal.</p><p>Did you know that your opponent can't take cards you've purchased from the shop? If you play with a full hand of purchased cards your opponent gets nothing!</p><p>Kupo!</p>"}
+]]

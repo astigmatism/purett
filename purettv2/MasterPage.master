@@ -1,0 +1,86 @@
+﻿<%@ Master Language="C#" AutoEventWireup="true" CodeFile="MasterPage.master.cs" Inherits="MasterPage" %>
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head runat="server">
+    <title>Pure Triple Triad [purett.com]</title>
+
+    <script type="text/javascript" src="js/mootools-1.2.3-core-yc.js"></script>
+    <script type="text/javascript" src="js/mootools-1.2.3.1-more.js"></script>
+
+    <link rel="stylesheet" media="all" href="layout.css" type="text/css"/>
+    <link rel="stylesheet" media="all" href="colors.css" type="text/css"/>
+    <link rel="stylesheet" media="all" href="typo.css" type="text/css"/>
+    <asp:ContentPlaceHolder ID="head" runat="server">
+    </asp:ContentPlaceHolder>
+</head>
+<body class="home">
+    <form id="form1" runat="server">
+    <div id="container">
+        <div id="relativebox">
+            <div id="header">
+                <div id="logo">
+                    <a rel="home" id="home_link" title="Home" href="/">
+                        <img height="77" alt="Pure Triple Triad" src="img/logo.png" />
+                    </a>
+                    <div class="logrightbox">
+                        <ul id="loginbox">
+                            <li class="last">
+                                <img alt="no avatar" src="img/noAvatar.png" /></li>
+                            <li class="notlog"><a onclick="" id="login_link">Log
+                                in</a></li>
+                            <li class="notlog">or</li>
+                            <li class="notlog"><a href="">Sign Up!</a></li>
+                        </ul>
+                        <!--
+                    <form style="display: none; width: 355px;" id="login_form" method="post" action="https://cghub.com/login">
+                    <fieldset>
+                        <div class="noborder">
+                            <label for="username">
+                                Username</label><input type="text" value="" tabindex="1" class="text" id="username"
+                                    name="data[User][login]" />
+                            <input type="image" tabindex="3" value="Sign In!" style="float: left;" class="noborder"
+                                src="http://cghub.com/img/submitbtn.gif" />
+                            <a onclick="$('form#login_form').hide();$('div#searchbox').show();$('ul#loginbox').show();return false;"
+                                id="close_login_link" href="#">
+                                <img alt="Close" class="leftpad" src="http://cghub.com/img/close.gif" /></a>
+                        </div>
+                        <div class="noborder" style="width: 345px;">
+                            <label for="paswd">
+                                Password</label><input type="password" value="" tabindex="2" id="paswd" class="text"
+                                    name="data[User][password]" />
+                            <input type="hidden" id="UserRememberMe_" value="0" name="data[User][rememberMe]" /><input
+                                type="checkbox" id="UserRememberMe" value="1" class="floatleft" name="data[User][rememberMe]" /><label
+                                    style="padding-top: 0px;" class="checkbox">Remember me</label>
+                            <div class="clear" />
+                            <a style="" href="http://cghub.com/users/remindPassword">Lost password? </a>
+                        </div>
+                    </fieldset>
+                    </form>
+                    -->
+                    </div>
+                </div>
+            </div>
+            <ul id="navigation">
+                <li id="news"><a href="">News</a></li>
+                <li id="forums"><a href="">Forums</a><img class="editprofile_popup" alt=">" style="padding-left: 2px; float: left;"/>
+						<ul style="display: none;" class="subnavigation">
+                        	<li class="top"/>
+							<li><img alt="»" class="floatleft" /><span><a href="">New Posts</a></span></li>
+							<li><img alt="»" class="floatleft" /><span><a href="">Today's Posts</a></span></li>
+							<li><img alt="»" class="floatleft" /><span><a href="">Search</a></span></li>
+							<li class="bot"/>
+						</ul>
+					</li>
+                <li id="rules"><a href="">How To Play</a></li>                
+                <li id="Li1"><a href="">Campaigns</a></li>
+                <li id="Li2"><a href="">Challenges</a></li>
+                <li id="Li4"><a href="">My Profile</a></li>
+            </ul>
+            <asp:ContentPlaceHolder ID="ContentPlaceHolder1" runat="server">
+            </asp:ContentPlaceHolder>
+        </div>
+    </div>
+    </form>
+</body>
+</html>

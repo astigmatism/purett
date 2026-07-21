@@ -1,0 +1,29 @@
+#header {
+    height: 77px;
+    position: relative;
+    background: transparent url('/images/title-bar2.png') no-repeat top left;
+}
+
+#header div, #header span {
+    color: #fff;
+    position: absolute;
+    font-size: 18px;
+    bottom: 17px;
+}
+#header .title {
+    top: 26px;
+    left: 24px;
+    font-size: 30px;
+}
+#header .howtoplay {
+    left: 582px;
+}
+#header .invite {
+    left: 504px;
+}
+#header .news {
+    left: 663px;
+}
+#header .play {
+    left: 436px;
+}

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=755, initial-scale=1" />
+    <title>Pure Triple Triad</title>
+    <script src="/js/jquery-1.7.1.min.js"></script>
+    <script src="/js/jquery-ui-1.8.16.custom.min.js"></script>
+    <script src="/js/modernizr.min.js"></script>
+    <script src="/js/raphael-1.5.2.min.js"></script>
+    <script src="/js/gh.js"></script>
+    <!--
+        The historical gh.load() helper evaluates XHR-delivered scripts, which
+        modern CSP correctly blocks.  The standalone app has a finite plugin
+        set, so load those same-origin assets explicitly and deterministically.
+    -->
+    <script src="/js/plugins/gh.util.js"></script>
+    <script src="/js/plugins/gh.jquerytools.js"></script>
+    <script src="/js/plugins/gh.audio.js"></script>
+    <script src="/js/plugins/gh.cover.js"></script>
+    <script src="/js/plugins/gh.menu.js"></script>
+    <script src="/js/plugins/gh.dialog.js"></script>
+    <script src="/js/plugins/gh.game.js"></script>
+    <script src="/js/plugins/gh.endgame.js"></script>
+    <script src="/js/plugins/gh.confetti.js"></script>
+    <script src="/js/plugins/gh.shop.js"></script>
+    <script src="/js/plugins/gh.deck.js"></script>
+    <script src="/js/plugins/gh.snow.js"></script>
+    <script>
+        gh.data = <?php echo $this->bootData; ?>;
+    </script>
+    <script src="/js/gh.platform.js"></script>
+    <?php echo $this->headScript(); ?>
+    <link rel="stylesheet" href="/css/common.css" />
+    <link rel="stylesheet" href="/css/app.css" />
+    <link rel="stylesheet" href="/css/plugins/gh.dialog.css" />
+    <link rel="stylesheet" href="/css/plugins/gh.jquerytools.css" />
+    <?php echo $this->headLink(); ?>
+    <link rel="icon" href="/favicon.ico" />
+</head>
+<body>
+    <?php echo $this->layout()->content; ?>
+</body>
+</html>

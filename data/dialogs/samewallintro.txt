@@ -1,0 +1,3 @@
+[[
+{"buttons": [{"name": "Thanks!","end":0}],"content": "<p>New rule: Same Wall.</p><p>For purposes of the Same rule, the edges of the board count as adjacent A ranks.</p><p>Kupo!</p>"}
+]]

@@ -1,0 +1,65 @@
+<div id="account-strip">
+    <span class="identity"><?php echo $this->escape($this->currentAccount['display_name']); ?></span>
+    <span class="coin-balance"></span>
+    <?php if (isset($this->bootData)): ?><a class="latest-replay hide" href="#">Latest replay</a><?php endif; ?>
+    <a href="/account">Settings</a>
+    <button type="button" id="logout-control">Log out</button>
+</div>
+<div id="content-wrapper" class="hide">
+    <div id="title-wrapper" class="rel">
+        
+        <div id="title-icon" rel="#contextmenu"></div>
+        <div id="title">PURE TRIPLE TRIAD</div>
+        
+        <div id="mute-icon"></div>
+        
+        <div id="turn-wrapper">
+            <div id="turns">TURNS: <span id="turn-count"></span></div>
+        </div>
+        <div class="turntip">
+            <div id="morein-wrapper" class="hide">
+                <div>MORE IN:</div>
+                <div id="turncounter">0:00</div>
+            </div>
+            <div>
+                When your turn count falls below <span id="lowerTurnLimit"></span> we'll start giving you a turn every five minutes.
+            </div>
+        </div>
+    </div>
+    
+    <div id="content" class="rel clear">
+        <?php echo $this->partial('overlays.phtml', array()) ?>
+    </div>
+    
+    <div id="footer-wrapper">
+        <div id="rules" class="fl hide"></div>
+        <div class="fr"><img src="/images/html5logo20.png" /></div>
+        <div id="footer-brand" class="fr">Standalone archival edition</div>
+    </div>
+</div>
+<script>
+$(function () {
+    $('.coin-balance').text(gh.data.coins);
+    if (gh.data.latestReplay) {
+        $('.latest-replay').attr('href', '/replay?gameid=' + gh.data.latestReplay).show();
+    }
+    $('#logout-control').click(function () { gh.platform.logout(); });
+});
+</script>
+
+<div id="browsers-wrapper" class="hide">
+    <div id="browsers">
+        <div class="title">UPGRADE YOUR BROWSER TO PLAY:</div>
+        <div class="products">
+            <ul>
+                <li><img src="/images/browsers/64-chrome.png" alt="Chrome"> 8+ </li>
+                <li><img src="/images/browsers/64-firefox.png" alt="Firefox"> 4+ </li>
+                <li><img src="/images/browsers/64-ie.png" alt="Internet Explorer"> 9+ </li>
+                <li><img src="/images/browsers/64-opera.png" alt="Opera"> 11+ </li>
+                <li><img src="/images/browsers/64-safari.png" alt="Safari"> 5+ </li>
+            </ul>
+            <div class="clear"></div>
+        </div>
+        <div class="desc">PURE TRIPLE TRIAD REQUIRES AN HTML 5 COMPLIANT BROWSER</div>
+    </div>
+</div>

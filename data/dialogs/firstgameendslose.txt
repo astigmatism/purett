@@ -1,0 +1,3 @@
+[[],[
+{"buttons": [{"name": "Okay","end":0}],"content": "<p>You're just learning so don't worry about losing. You'll only get better!</p><p>Triple Triad has more than 10 additional advanced rules and over 100 cards. I'll be introducing you to them over time. You can click my icon at the top left corner for more options. Kupo!</p>"}
+]]

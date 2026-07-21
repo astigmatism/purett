@@ -1,0 +1,278 @@
+.gf {
+    font-family: 'Spinnaker', sans-serif;
+    font-size: 20px;
+}
+#title-wrapper {
+    margin-top: 20px;
+    width: 755px;
+}
+#title {
+    font-family: 'Spinnaker', sans-serif;
+    font-size: 24px;
+    color: #3c1608;
+    float: left;
+    margin: 10px 0 0 5px;
+    height: 35px;
+}
+#title.enabled {
+    cursor: pointer;
+}
+#title-icon {
+    background: transparent url('/images/mooglemenu.png') no-repeat center bottom;
+    height: 45px;
+    width: 35px;
+    float: left;
+    cursor: pointer;
+}
+#like {
+    top: 15px;
+    left: 300px;
+    height: 21px;
+    width: 100px;
+}
+#mute-icon {
+    position: absolute;
+    left: 630px;
+    top: 20px;
+    background: transparent url('/images/mute_unmute.png') no-repeat 0px 0px;
+    height: 16px;
+    width: 17px;
+    float: right;
+    cursor: pointer;
+}
+#mute-icon.muted {
+    background-position: 0px -16px;
+}
+#turn-wrapper {
+    float: right;
+    margin-top: 19px;
+    cursor: default;
+}
+#turns, #turns span {
+    font-family: 'Spinnaker', sans-serif;
+    font-size: 16px;
+    color: #777;
+}
+#content {
+    width: 755px;
+    height: 562px;
+}
+#game-wrapper {
+    top: 0px;
+    left: 0px;
+    z-index: 1;
+}
+#game-cover, #menu, #confetti, #snow, #end-game, #browsers, #deck, #shop {
+    height: 562px;
+    width: 755px;
+    top: 0px;
+    left: 0px;
+    z-index: 2;
+}
+#confetti {
+    z-index: 9;
+}
+#snow {
+    z-index: 8;
+}
+#menu {
+    z-index: 10;
+}
+#end-game, #deck, #shop {
+    z-index: 15;
+}
+
+#content ul.mainmenu, #content ul.deckmenu, #content ul.shopmenu {
+    position: absolute;
+    z-index: 11;
+    top: 100px;
+    left: 0px;
+    width: 755px;
+    height: 50px;
+    text-align: center;
+    list-style-type: none;
+    line-height: 50px;
+    display: none;
+}
+#content ul.deckmenu {
+    top: 214px;
+}
+#content div.stats, #content div.shop-balance {
+    position: absolute;
+    z-index: 11;
+    top: 345px;
+    left: 0px;
+    width: 755px;
+    height: 30px;
+    text-align: center;
+    line-height: 30px;
+    display: none;
+    font-size: 20px;
+    text-shadow: #FFFFFF 1px 1px 2px;
+}
+#content div.shop-balance {
+    top: 35px;
+    text-align: right;
+    margin-right: 50px;
+}
+#content ul.mainmenu li, #content ul.deckmenu li, #content ul.shopmenu li {
+    cursor: pointer;
+    color: #fff;
+    font-family: 'Spinnaker', sans-serif;
+    font-size: 20px;
+    display: inline;
+    padding: 2px 15px;
+}
+#content ul.deckmenu li {
+    padding: 2px 12px;
+}
+#content ul.deckmenu li.selected {
+    background: transparent url('/images/selector.png') no-repeat center center;
+}
+#deck div.card-count, #end-game div.card-count, #shop div.card-count {
+    position: absolute;
+    font-family: 'Spinnaker', sans-serif;
+    font-size: 12px;
+    color: white;
+    background-color: #F03D25;
+    padding: 1px 4px;
+    text-align: right;
+}
+#shop div.buybar, #shop div.colorbuybar, #shop div.turnbuybar {
+    position: absolute;
+    height: 25px;
+    width: 90px;
+}
+#shop div.buybar div.price, #shop div.colorbuybar div.price, #shop div.turnbuybar div.price {
+    float: left;
+    font-family: 'Spinnaker', sans-serif;
+    font-size: 13px;
+    color: white;
+    background: transparent url('/images/coins20.png') no-repeat top left;
+    padding-left: 25px;
+    height: 25px;
+    line-height: 25px;
+}
+#shop div.buybar div.buy, #shop div.colorbuybar div.buy, #shop div.turnbuybar div.buy {
+    float: right;
+    font-family: 'Spinnaker', sans-serif;
+    font-size: 13px;
+    color: white;
+    height: 25px;
+    line-height: 25px;
+    cursor: pointer;
+}
+ul.shopmenu li.selected {
+    background-color: #4138fc;
+    
+    -moz-border-radius: 15px;
+    border-radius: 15px;
+}
+#content div.victory {
+    position: absolute;
+    z-index: 0;
+    color: #fff;
+    top: 253px;
+    left: 0px;
+    width: 755px;
+    height: 50px;
+    text-align: center;
+    line-height: 50px;
+    display: none;
+    font-family: 'Spinnaker', sans-serif;
+    font-size: 50px;
+}
+#content div.claim {
+    top: 100px;
+    font-size: 20px;
+}
+#loading {
+    position: absolute;
+    z-index: 20;
+    height: 100%;
+    width: 100%;
+    background: #333 url('/images/6.gif') no-repeat center center;
+    display: none;
+}
+#board {
+    height: 562px;
+    width: 755px;
+    background: transparent url('/images/gameBoard.png') no-repeat top left;
+    position: relative;
+}
+#svgBoard, #board .overlay, #svgRules {
+    position:absolute;
+    top: 30px;
+    left: 30px;
+    height: 500px;
+    width: 693px;
+}
+#svgRules {
+    z-index: 1;
+    display: none;
+}
+#board .overlay {
+    background-color: #000;
+    display:none;
+    z-index: 2;
+}
+#topplayers-wrapper {
+    width: 695px;
+    height: 125px;
+    position: absolute;
+    bottom: 0px;
+    margin: 30px;
+}
+#topplayers-wrapper li {
+    list-style: none;
+    text-align: center;
+    width: 139px;
+}
+#topplayers-wrapper li div {
+    font-size: 18px;
+    text-shadow: #FFFFFF 1px 1px 2px;
+}
+#topplayers-wrapper li img {
+    border: solid 2px #fff;
+}
+#footer-wrapper {
+    margin: 7px 0;
+    line-height: 24px;
+}
+#rules, #rules span {
+    /*color: #3c1608;*/
+    font-family: 'Spinnaker', sans-serif;
+    font-size: 16px;
+    color: #777;
+    cursor: default;
+    width: 515px;
+}
+#browsers {
+    margin-top: 20px;
+    background-color: #eee;
+}
+#browsers div.title, div.desc {
+    padding: 150px 0 50px 0;
+    width: 755px;
+    height: 30px;
+    text-align: center;
+    line-height: 30px;
+    font-family: 'Spinnaker', sans-serif;
+    font-size: 20px;
+}
+#browsers div.desc {
+    padding-top: 50px;
+    font-size: 15px;
+}
+#browsers div.products {
+    margin-left: 85px;
+}
+#browsers div.products ul {
+    list-style: none;
+}
+#browsers div.products ul li {
+    margin: 0px 30px 0 0;
+    font-weight: bold;
+    color: #999;
+    float: left;
+}

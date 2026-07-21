@@ -1,0 +1,8 @@
+[[
+{"buttons": [{"name": "No thanks","direction":1},{"name": "Yes please!","direction":2}],"content": "<p>Welcome to Pure Triple Triad!</p><p>Would you like me to introduce you to the basic rules?</p>"},
+{"buttons": [{"name": "Okay!","end":0}],"content": "<p>Your cards are blue. Click on a card to pick it up and click again on the board to place it.</p><p>Good luck. Kupo!</p>"},
+{"buttons": [{"name": "Back","direction":-2},{"name": "Next","direction":1}],"content": "<p>Triple Triad is played on a three-by-three grid of blank spaces where cards will be placed by each player one at a time.</p><p>Each card has four numbers known as \"ranks\". These numbers correspond to one of the four sides of the card.</p>"},
+{"buttons": [{"name": "Back","direction":-1},{"name": "Next","direction":1}],"content": "<p>The objective is to capture the cards your opponent has played on the board.</p><p>To capture a card, place a card adjacent to your opponent's. The corresponding ranks where the two cards touch will be compared. If the rank of your card is higher, you capture the other and your score increases.</p>"},
+{"buttons": [{"name": "Back","direction":-1},{"name": "Next","direction":1}],"content": "<p>When the board is full, the game is finished and whomever captured the most cards wins.</p><p>Cards are returned to their owners at the end of the game regardless of who captured them.</p>"},
+{"buttons": [{"name": "Back","direction":-1},{"name": "Okay!","end":0}],"content": "<p>Your cards are blue. Click on a card to pick it up and click again on the board to place it.</p><p>Good luck. Kupo!</p>"}
+]]

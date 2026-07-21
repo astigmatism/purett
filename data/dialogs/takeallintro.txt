@@ -1,0 +1,3 @@
+[[
+{"buttons": [{"name": "Thanks!","end":0}],"content": "<p>New rule: Take All.</p><p>The winner of the game takes all of their opponent's cards.</p><p>Kupo!</p>"}
+]]

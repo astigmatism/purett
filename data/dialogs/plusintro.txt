@@ -1,0 +1,5 @@
+[[
+{"buttons": [{"name": "Yep!","end":0},{"name": "Explain...","direction":1}],"content": "<p>New rule: Plus.</p><p>When a card is played, the Plus rule considers the sum of each rank with its adjacent rank. If the sums match on two or more sides, then those cards are captured.</p><p>Follow?</p>"},
+{"buttons": [{"name": "Back","direction":-1},{"name": "Next","direction":1}],"content": "<p>Plus works a lot like the Same rule but with sums instead of equal ranks.</p><p>As an example, you play a card with a 3 on top and a 5 on bottom. Adjacent above is 4 and adjacent below is 2.</p><p>3 + 4 = 7 and 5 + 2 = 7</p><p>Both sums equal 7 so the cards above and below are captured.</p>"},
+{"buttons": [{"name": "Back","direction":-1},{"name": "Thanks!","end":0}],"content": "<p>The Plus rule gives weaker ranks an advantage because they can now help capture cards.</p><p>Plus is probably the most complex rule to understand and use so be sure to hit the Tutorial for an demo.</p><p>Kupo!</p>"}
+]]

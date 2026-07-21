@@ -1,0 +1,11 @@
+body, .full-width {
+    width: 755px;
+}
+a {
+    text-decoration: none;
+    color: inherit;
+    font-size: inherit;
+}
+a:hover {
+    color: #ccc;
+}

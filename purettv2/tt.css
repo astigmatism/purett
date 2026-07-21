@@ -1,0 +1,305 @@
+﻿#playBoard
+{
+    height: 562px;
+    width: 755px;
+    background: transparent url(img/gameBoard.png) no-repeat top left;
+    margin: 50px 0px 50px 0px;
+    position: relative;
+}
+#svgBoard
+{
+    position:absolute;
+    top: 30px;
+    left: 30px;
+    height: 500px;
+    width: 693px;
+}
+#boardShadow_bottom
+{
+    position: absolute;
+    height: 73px;
+    width: 887px;
+    background: transparent url(img/boardShadow_bottom.png) no-repeat top left;
+    bottom: -73px;
+    left: -51px;
+}
+#boardShadow_top
+{
+    position: absolute;
+    height: 73px;
+    width: 887px;
+    background: transparent url(img/boardShadow_top.png) no-repeat top left;
+    top: -73px;
+    left: -51px;
+}
+#boardShadow_left
+{
+    position: absolute;
+    height: 562px;
+    width: 70px;
+    background: transparent url(img/boardShadow_left.png) no-repeat top left;
+    left: -70px;
+    bottom: 0px;
+}
+#boardShadow_right
+{
+    position: absolute;
+    height: 562px;
+    width: 70px;
+    background: transparent url(img/boardShadow_right.png) no-repeat top left;
+    right: -70px;
+    bottom: 0px;
+}
+#playareaWrapper
+{
+    float: left;
+}
+#gameRules
+{
+    clear:both;
+    color: #150009;
+    text-align: center;
+    height: 20px;
+    width: 351px;
+    padding-top: 8px;
+}
+#gameMessageWrapper
+{
+    height: 29px;
+    width: 351px;
+    padding-top: 5px;
+}
+#gameMessage
+{
+    position: absolute;
+    text-align: center;
+    width: 351px;
+    color: #fff;
+}
+#errorMessage
+{
+    position: absolute;
+    text-align: center;
+    visibility: hidden;
+    width: 351px;
+    color: Yellow;
+}
+#playarea
+{
+    float: left;
+    width: 351px;
+}
+.playerDeckWrapper
+{
+    float: left;
+    visibility: hidden;
+    width: 117px;
+    margin: 15px 27px 0px 27px; 
+}
+#playerOneScore, #playerTwoScore
+{
+    background: transparent url(img/scoreArray.png) no-repeat top left;
+    width: 32px;
+    height: 36px;   
+    background-position: 0px 0px;
+    margin: 400px 0px 0px 42px;
+}
+.playerName
+{
+    color: #150009;
+    width: 117px;
+    height: 20px;
+    text-align: center;
+    padding-top: 5px;
+    font-size: 16px;
+}
+.turnMarker
+{
+    background: transparent url(img/turnMarker.png) no-repeat center center;
+    visibility: hidden;
+    width: 117px;
+    height: 20px;
+}
+.playerDeck
+{
+    position: absolute;
+}
+.playerDeck .card
+{
+    position: relative;
+}
+#playBoardRow1, #playBoardRow2, #playBoardRow3
+{
+    float: left;
+}
+.playBoardCardPlaceholder
+{
+    float: left;
+    width: 117px;
+    height: 146px;
+}
+.droppableOver
+{
+    background: transparent url(img/cardFade.png) repeat top left;
+}
+.card
+{
+    position: relative;
+    float: left;
+    width: 117px;
+    height: 146px;
+    padding: 1px;
+}
+.playableCard
+{
+    cursor: url(/img/open.cur), move;
+    z-index: 2;
+}
+.deadCard
+{
+    cursor: default;
+    top: 0px;
+    left: 0px;
+    z-index: 1;
+}
+.card .border, .card .illustration, .card .blueCard, .card .redCard, .over
+{
+    position: absolute;
+    width: 117px;
+    height: 146px;
+    top: 0px;
+    left: 0px;
+}
+.card .border
+{
+    z-index: 14;
+}
+.card .illustration
+{
+    z-index: 11;
+}
+.card .blueCard, .card .redCard, .card .purpleCard, .card .greenCard
+{
+    z-index: 10;
+}
+.card .redCard
+{
+    background: transparent url(img/cardFrames/redCard.png) no-repeat top left;
+}
+.card .greenCard
+{
+    background: transparent url(img/cardFrames/greenCard.png) no-repeat top left;
+}
+.card .purpleCard
+{
+    background: transparent url(img/cardFrames/purpleCard.png) no-repeat top left;
+}
+.element
+{
+    position: absolute;
+    width: 24px;
+    height: 24px;
+    top: 20px;
+    left: 80px;
+    z-index: 12;
+}
+.card .cardCaption
+{
+    position: absolute;
+    width: 72px;
+    height: 6px;
+    top: 134px;
+    left: 6px;
+    z-index: 12;
+}
+.card .cardValue
+{
+    position: absolute;
+    width: 15px;
+    height: 18px;
+    z-index: 13;
+}
+.card .cardValueNorth
+{
+    top: 10px;
+    left: 26px;
+}
+.card .cardValueEast
+{
+    top: 20px;
+    left: 42px;
+}
+.card .cardValueSouth
+{
+    top: 30px;
+    left: 26px;
+}
+.card .cardValueWest
+{
+    top: 20px;
+    left: 10px;
+}
+.card .border1, .card .border2, .card .border3, .card .border4, .card .border5
+{
+    background: transparent url(img/cardFrames/cardBorder_1.png) no-repeat top left;
+}
+.card .border6, .card .border7    
+{
+    background: transparent url(img/cardFrames/cardBorder_6.png) no-repeat top left;
+}
+.card .border8, .card .border9
+{
+    background: transparent url(img/cardFrames/cardBorder_8.png) no-repeat top left;
+}
+.card .border10
+{
+    background: transparent url(img/cardFrames/cardBorder_10.png) no-repeat top left;
+}
+.card .blueCard
+{
+    background: transparent url(img/cardFrames/blueCard.png) no-repeat top left;
+}
+.card .over
+{
+    background: transparent url(img/cardBack.png) no-repeat top left;
+}
+.card .cardValue10
+{
+    background: transparent url(img/cardValues.png) no-repeat 0px -162px;
+}
+.card .cardValue1
+{
+    background: transparent url(img/cardValues.png) no-repeat 0px 0px;
+}
+.card .cardValue2
+{
+    background: transparent url(img/cardValues.png) no-repeat 0px -18px;
+}
+.card .cardValue3
+{
+    background: transparent url(img/cardValues.png) no-repeat 0px -36px;
+}
+.card .cardValue4
+{
+    background: transparent url(img/cardValues.png) no-repeat 0px -54px;
+}
+.card .cardValue5
+{
+    background: transparent url(img/cardValues.png) no-repeat 0px -72px;
+}
+.card .cardValue6
+{
+    background: transparent url(img/cardValues.png) no-repeat 0px -90px;
+}
+.card .cardValue7
+{
+    background: transparent url(img/cardValues.png) no-repeat 0px -108px;
+}
+.card .cardValue8
+{
+    background: transparent url(img/cardValues.png) no-repeat 0px -126px;
+}
+.card .cardValue9
+{
+    background: transparent url(img/cardValues.png) no-repeat 0px -144px;
+}

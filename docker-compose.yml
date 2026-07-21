@@ -1,0 +1,89 @@
+services:
+  db:
+    image: mariadb:10.5.27
+    environment:
+      MARIADB_DATABASE: purett
+      MARIADB_USER: purett
+      MARIADB_PASSWORD: ${PURETT_DB_PASSWORD}
+      MARIADB_ROOT_PASSWORD: ${PURETT_DB_ROOT_PASSWORD}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --transaction-isolation=READ-COMMITTED
+      - --sql-mode=STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION
+    volumes:
+      - purett_db:/var/lib/mysql
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./database/seed-cards.sql:/docker-entrypoint-initdb.d/02-seed-cards.sql:ro
+      - ./database/seed-reference.sql:/docker-entrypoint-initdb.d/03-seed-reference.sql:ro
+      - ./database/seed.sql:/docker-entrypoint-initdb.d/04-seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "healthcheck.sh --connect --innodb_initialized"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+    restart: unless-stopped
+
+  redis:
+    image: redis:3.2.12-alpine
+    command: ["redis-server", "--appendonly", "yes", "--bind", "0.0.0.0", "--protected-mode", "yes"]
+    volumes:
+      - purett_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+  web:
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: docker/php56-apache.Dockerfile
+    environment: &app_environment
+      APPLICATION_ENV: production
+      PURETT_DB_HOST: db
+      PURETT_DB_PORT: 3306
+      PURETT_DB_NAME: purett
+      PURETT_DB_USER: purett
+      PURETT_DB_PASSWORD: ${PURETT_DB_PASSWORD}
+      PURETT_REDIS_HOST: redis
+      PURETT_REDIS_PORT: 6379
+      PURETT_FREE_ECONOMY: ${PURETT_FREE_ECONOMY:-0}
+      PURETT_TEST_MODE: ${PURETT_TEST_MODE:-0}
+    ports:
+      - "${PURETT_BIND_ADDRESS:-127.0.0.1}:${PURETT_HTTP_PORT:-8080}:80"
+    volumes:
+      - ./var:/var/www/app/var
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "php", "/var/www/app/bin/health.php"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
+  scheduler:
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: docker/php56-apache.Dockerfile
+    environment: *app_environment
+    command: ["/bin/sh", "/var/www/app/scripts/scheduler-loop.sh"]
+    volumes:
+      - ./var:/var/www/app/var
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  purett_db:
+  purett_redis:

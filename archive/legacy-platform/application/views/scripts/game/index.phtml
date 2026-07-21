@@ -1,0 +1,13 @@
+<div id="content" class="rel">
+    <div id="game-wrapper" class="abs">
+        <?php 
+            echo $this->partial('game.phtml', array( 
+                'game'          => $this->game,
+                'facebook'      => $this->facebook,
+                'p1'            => $this->user->me,
+                'user'          => $this->user,
+                'clientdata'    => $this->clientdata
+            ));
+        ?>
+    </div>
+</div>

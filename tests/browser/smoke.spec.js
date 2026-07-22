@@ -119,6 +119,31 @@ async function dismissGameDialogs(page) {
   throw new Error('game dialog sequence did not terminate');
 }
 
+async function observeShopPurchaseAnimations(page) {
+  await page.evaluate(() => {
+    window.__shopPurchaseAnimations = [];
+    if (window.__shopPurchaseObserver) window.__shopPurchaseObserver.disconnect();
+    window.__shopPurchaseObserver = new MutationObserver(records => {
+      records.forEach(record => {
+        const node = record.target;
+        if (node.getAttribute('data-shop-state') !== 'purchased') return;
+        window.__shopPurchaseAnimations.push({
+          type: node.getAttribute('data-shop-type'),
+          id: node.getAttribute('data-shop-id'),
+          slot: node.getAttribute('data-shop-slot'),
+          connected: node.isConnected,
+          transform: node.getAttribute('transform')
+        });
+      });
+    });
+    window.__shopPurchaseObserver.observe(document.querySelector('#shop'), {
+      attributes: true,
+      attributeFilter: ['data-shop-state'],
+      subtree: true
+    });
+  });
+}
+
 async function ensurePlayableHand(page) {
   const size = await page.evaluate(() => gh.data.hand.length);
   if (size === 5) return;
@@ -333,6 +358,138 @@ test('shop uses unified coin controls and the persistent header balance', async 
   await expect(colorBuy).toHaveText(/^BUY\s*\u00b7\s*\d+$/);
 });
 
+test('settled purchases leave their card and color slots vacant', async ({page}) => {
+  const purchasedTypes = [];
+  await page.route('**/purchase', async route => {
+    const params = new URLSearchParams(route.request().postData() || '');
+    const type = params.get('type');
+    const id = Number(params.get('id'));
+    purchasedTypes.push(type);
+    await new Promise(resolve => setTimeout(resolve, 150));
+    if (purchasedTypes.length === 3) {
+      await route.fulfill({
+        status: 402,
+        contentType: 'application/json',
+        body: JSON.stringify({error: 'Not enough coins.'})
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        result: {
+          status: 'settled',
+          type,
+          itemid: id,
+          balance: type === 'card' ? 48 : 28,
+          color: type === 'color' ? 'Z3JlZW4=' : null
+        },
+        id
+      })
+    });
+  });
+
+  await page.goto('/auth/login');
+  await page.locator('input[name="username"]').fill('demo');
+  await page.locator('input[name="password"]').fill('TripleTriad!');
+  await Promise.all([
+    page.waitForURL(url => url.pathname === '/'),
+    page.locator('button[type="submit"]').click()
+  ]);
+  await expect.poll(() => page.evaluate(() => Boolean(
+    window.gh && gh.manager && gh.manager.menu && document.querySelector('ul.mainmenu li.shop')
+  ))).toBe(true);
+  await page.locator('ul.mainmenu li.shop').click();
+  await expect(page.locator('ul.shopmenu')).toBeVisible();
+  await observeShopPurchaseAnimations(page);
+
+  const cardButton = page.locator('#shop button.buybar[data-shop-slot="0"]');
+  const cardItem = page.locator('#shop [data-shop-role="item"][data-shop-type="card"][data-shop-slot="0"]');
+  const cardBar = page.locator('#shop [data-shop-role="buybar"][data-shop-type="card"][data-shop-slot="0"]');
+  const cardNeighbor = page.locator('#shop [data-shop-role="item"][data-shop-type="card"][data-shop-slot="1"]');
+  await expect(cardButton).toBeVisible();
+  await expect(cardNeighbor).toBeVisible();
+  const cardNeighborBefore = await cardNeighbor.boundingBox();
+
+  await cardButton.evaluate(node => {
+    node.click();
+    node.click();
+  });
+  await expect(cardButton).toBeDisabled();
+  await expect.poll(() => page.evaluate(() => window.__shopPurchaseAnimations.some(item => (
+    item.type === 'card' && item.slot === '0' && item.connected
+  )))).toBe(true);
+  await expect(cardItem).toHaveCount(0, {timeout: 3000});
+  await expect(cardButton).toHaveCount(0);
+  await expect(cardBar).toHaveCount(0);
+  const cardNeighborAfter = await cardNeighbor.boundingBox();
+  expect(cardNeighborAfter.x).toBeCloseTo(cardNeighborBefore.x, 0);
+  expect(cardNeighborAfter.y).toBeCloseTo(cardNeighborBefore.y, 0);
+  expect(await page.evaluate(() => Boolean(
+    gh.manager.shop.soldCards[gh.manager.shop.stock[0].cardid] && !gh.manager.shop.cards[0]
+  ))).toBe(true);
+
+  await page.locator('ul.shopmenu li.colors').click();
+  const colorButton = page.locator('#shop button.colorbuybar[data-shop-slot="0"]');
+  const colorItem = page.locator('#shop [data-shop-role="item"][data-shop-type="color"][data-shop-slot="0"]');
+  const colorBar = page.locator('#shop [data-shop-role="buybar"][data-shop-type="color"][data-shop-slot="0"]');
+  const colorNeighbor = page.locator('#shop [data-shop-role="item"][data-shop-type="color"][data-shop-slot="1"]');
+  await expect(colorButton).toBeVisible();
+  await expect(colorNeighbor).toBeVisible();
+  const colorNeighborBefore = await colorNeighbor.boundingBox();
+
+  await colorButton.evaluate(node => {
+    node.click();
+    node.click();
+  });
+  await expect(colorButton).toBeDisabled();
+  await expect.poll(() => page.evaluate(() => window.__shopPurchaseAnimations.some(item => (
+    item.type === 'color' && item.slot === '0' && item.connected
+  )))).toBe(true);
+  await expect(colorItem).toHaveCount(0, {timeout: 3000});
+  await expect(colorButton).toHaveCount(0);
+  await expect(colorBar).toHaveCount(0);
+  const colorNeighborAfter = await colorNeighbor.boundingBox();
+  expect(colorNeighborAfter.x).toBeCloseTo(colorNeighborBefore.x, 0);
+  expect(colorNeighborAfter.y).toBeCloseTo(colorNeighborBefore.y, 0);
+  expect(await page.evaluate(() => Boolean(
+    gh.manager.shop.soldColors[gh.manager.shop.colorstock[0].id] && !gh.manager.shop.colors[0]
+  ))).toBe(true);
+
+  await page.locator('ul.shopmenu li.cards').click();
+  const failedButton = page.locator('#shop button.buybar[data-shop-slot="1"]');
+  const failedItem = page.locator('#shop [data-shop-role="item"][data-shop-type="card"][data-shop-slot="1"]');
+  await expect(failedButton).toBeVisible();
+  await expect(page.locator('#shop button.buybar[data-shop-slot="0"]')).toHaveCount(0);
+  await failedButton.click();
+  await expect(failedButton).toBeEnabled();
+  await expect(failedItem).toBeVisible();
+  expect(await page.evaluate(() => Boolean(
+    gh.manager.shop.soldCards[gh.manager.shop.stock[1].cardid]
+  ))).toBe(false);
+  await page.locator('ul.shopmenu li.colors').click();
+  await expect(page.locator('#shop button.colorbuybar[data-shop-slot="1"]')).toBeVisible();
+  await expect(page.locator('#shop button.colorbuybar[data-shop-slot="0"]')).toHaveCount(0);
+  expect(purchasedTypes).toEqual(['card', 'color', 'card']);
+
+  await page.evaluate(() => {
+    $('ul.shopmenu li.cards').trigger('click');
+    $('ul.shopmenu li.colors').trigger('click');
+    $('ul.shopmenu li.cards').trigger('click');
+  });
+  await expect.poll(() => page.evaluate(() => {
+    const buttons = Array.from(document.querySelectorAll('#shop button.buybar'));
+    const items = document.querySelectorAll('#shop [data-shop-role="item"][data-shop-type="card"]');
+    return {
+      buttons: buttons.length,
+      uniqueButtons: new Set(buttons.map(button => button.id)).size,
+      cardItems: items.length,
+      colorButtons: document.querySelectorAll('#shop button.colorbuybar').length
+    };
+  })).toEqual({buttons: 9, uniqueButtons: 9, cardItems: 9, colorButtons: 0});
+});
+
 test('game size control scales from the top and survives a tab reload', async ({page}) => {
   await page.goto('/auth/login');
   await page.locator('input[name="username"]').fill('demo');
@@ -511,6 +668,9 @@ test('standalone player journey works without third-party requests', async ({pag
   await expect(buy).toHaveAccessibleName(/^Buy for \d+ coins$/);
   await expect(buy).toHaveText(/^BUY\s*\u00b7\s*\d+$/);
   await expect(buy.locator('.price')).toHaveCSS('background-image', 'none');
+  const boughtCardId = await buy.getAttribute('data-shop-id');
+  const boughtCard = page.locator('#shop [data-shop-role="item"][data-shop-type="card"][data-shop-id="' + boughtCardId + '"]');
+  await observeShopPurchaseAnimations(page);
   await buy.click();
   const purchaseHttpResponse = await purchaseResponse;
   expect(purchaseHttpResponse.ok(), 'visible BUY control request failed').toBeTruthy();
@@ -518,6 +678,11 @@ test('standalone player journey works without third-party requests', async ({pag
   expect(purchase.result.status).toBe('settled');
   expect(Number(purchase.result.balance)).toBeLessThan(coinsBefore);
   await expect(page.locator('#coins .coin-balance')).toHaveText(String(purchase.result.balance));
+  await expect.poll(() => page.evaluate(id => window.__shopPurchaseAnimations.some(item => (
+    item.type === 'card' && item.id === id && item.connected
+  )), boughtCardId)).toBe(true);
+  await expect(boughtCard).toHaveCount(0, {timeout: 3000});
+  await expect(page.locator('#shop button.buybar[data-shop-id="' + boughtCardId + '"]')).toHaveCount(0);
   const persistedBalance = Number(purchase.result.balance);
 
   await page.reload();

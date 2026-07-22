@@ -51,7 +51,7 @@ class PurettFixtureDatabase
     public $suddenDeath = false;
     public $cardUpdates = array();
     public $committed = false;
-    public $balance = 3;
+    public $balance = 10;
     public $matchAwards = array();
 
     public function beginTransaction() {}

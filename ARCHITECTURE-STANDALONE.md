@@ -94,7 +94,7 @@ Only a database `gamehistory.log_path` that passes path validation can be opened
 
 ## Local economy
 
-The local currency is earned through play. Accounts start with 3 coins, and a win awards the winner's score above five: 6–4 earns 1 coin through 10–0 earning 5. Draws and losses earn none. Match awards lock the wallet and use the game ID as an idempotent ledger reference so replayed completion work cannot pay twice.
+The local currency is earned through play. Accounts start with 10 coins, and a win awards the difference between the winner's and loser's scores: 6–4 earns 2 coins and 7–3 earns 4. Draws and losses earn none. Match awards lock the wallet and use the game ID as an idempotent ledger reference so replayed completion work cannot pay twice.
 
 A purchase request carries a catalog type, item ID, and idempotency key—not a trusted price or user ID. The server locks the authenticated user's wallet, looks up/calculates price, verifies funds, grants the card or deck color, updates the balance, and writes both purchase result and coin ledger entry in one transaction. A repeated order key for the same account returns its original stored result instead of granting twice.
 

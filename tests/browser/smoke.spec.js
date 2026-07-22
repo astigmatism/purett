@@ -424,7 +424,7 @@ test('standalone player journey works without third-party requests', async ({pag
   expect(aiMoves, 'AI never responded').toBeGreaterThanOrEqual(1);
   expect(humanMoves, 'no human turns were submitted').toBeGreaterThanOrEqual(4);
   expect(Number(completion.coinsAwarded)).toBeGreaterThanOrEqual(0);
-  expect(Number(completion.coinsAwarded)).toBeLessThanOrEqual(5);
+  expect(Number(completion.coinsAwarded)).toBeLessThanOrEqual(10);
   expect(Number(completion.coins)).toBe(coinsBeforeGame + Number(completion.coinsAwarded));
   await expect.poll(() => page.evaluate(() => Number(gh.data.coins))).toBe(Number(completion.coins));
   await expect(page.locator('#coins .coin-balance')).toHaveText(String(completion.coins));

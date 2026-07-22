@@ -27,7 +27,7 @@ Demo account:
 - Username: `demo`
 - Password: `TripleTriad!`
 
-The demo account starts with five cards in its active hand and 3 coins. The credentials are intentionally public demo data; do not reuse the password for another account or service.
+The demo account starts with five cards in its active hand and 10 coins. The credentials are intentionally public demo data; do not reuse the password for another account or service.
 
 ### Direct Docker Compose launch
 

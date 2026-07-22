@@ -54,7 +54,7 @@ $test->test('local registration hashes the password and grants exactly five star
         'Integration Player',
         $hash,
         'integration@example.invalid',
-        3
+        10
     );
     $userid = (int) $account['userid'];
     $state['userid'] = $userid;
@@ -68,7 +68,7 @@ $test->test('local registration hashes the password and grants exactly five star
     foreach ($cards as $card) {
         PurettTestHarness::assertSame(1, (int) $card['inhand'], 'every starting card should be in hand');
     }
-    PurettTestHarness::assertSame(3, $state['database']->getWalletBalance($userid), 'starting coin balance is wrong');
+    PurettTestHarness::assertSame(10, $state['database']->getWalletBalance($userid), 'starting coin balance is wrong');
 });
 
 $test->test('SQL-injection-shaped identity input is treated as data', function () use (&$state) {
@@ -342,19 +342,19 @@ $test->test('Take One preserves protected cards on a loss and creates a claim on
     $winResult = purettInvokePrivate($winGame, 'gameover', array());
     PurettTestHarness::assertSame(1, $winDatabase->victoryClaim, 'Take One win did not persist a one-card claim');
     PurettTestHarness::assertFalse($winDatabase->deleted, 'claimable game was deleted before the claim');
-    PurettTestHarness::assertSame(1, (int) $winResult['coinsAwarded'], '6-4 win did not award one coin');
-    PurettTestHarness::assertSame(4, (int) $winResult['coins'], 'win payload did not include the updated coin balance');
+    PurettTestHarness::assertSame(2, (int) $winResult['coinsAwarded'], '6-4 win did not award two coins');
+    PurettTestHarness::assertSame(12, (int) $winResult['coins'], 'win payload did not include the updated coin balance');
 });
 
-$test->test('victory coin rewards measure the winning score above a draw', function () {
+$test->test('victory coin rewards match the winning score difference', function () {
     $expectations = array(
         array(5, 5, 0),
         array(4, 6, 0),
-        array(6, 4, 1),
-        array(7, 3, 2),
-        array(8, 2, 3),
-        array(9, 1, 4),
-        array(10, 0, 5)
+        array(6, 4, 2),
+        array(7, 3, 4),
+        array(8, 2, 6),
+        array(9, 1, 8),
+        array(10, 0, 10)
     );
     foreach ($expectations as $expectation) {
         PurettTestHarness::assertSame(

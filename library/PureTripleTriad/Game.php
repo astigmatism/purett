@@ -1633,7 +1633,7 @@ class PureTripleTriad_Game {
         if ($p1score <= $p2score) {
             return 0;
         }
-        return min(5, max(0, $p1score - 5));
+        return $p1score - $p2score;
     }
 
     public function setVictoryClaim($value) {

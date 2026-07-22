@@ -4,7 +4,7 @@ const {defineConfig} = require('@playwright/test');
 
 module.exports = defineConfig({
   testDir: '.',
-  testMatch: ['smoke.spec.js', 'dialog-scale.spec.js'],
+  testMatch: ['smoke.spec.js', 'dialog-scale.spec.js', 'scale-interactions.spec.js'],
   timeout: 240000,
   expect: {timeout: 15000},
   fullyParallel: false,

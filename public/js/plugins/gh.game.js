@@ -917,16 +917,40 @@ gh.game.prototype = {
             });
         }
     },
+    getPointerPosition: function(event) {
+        var position = {x: event.clientX, y: event.clientY};
+        var svg = this.canvas && this.canvas.canvas;
+
+        if (!svg || !svg.createSVGPoint || !svg.getScreenCTM) {
+            return position;
+        }
+
+        var screenMatrix = svg.getScreenCTM();
+        if (!screenMatrix || !screenMatrix.inverse) {
+            return position;
+        }
+
+        try {
+            var point = svg.createSVGPoint();
+            point.x = event.clientX;
+            point.y = event.clientY;
+            point = point.matrixTransform(screenMatrix.inverse());
+            return {x: point.x, y: point.y};
+        } catch (error) {
+            // Preserve the historical unscaled behavior if SVG matrix APIs
+            // are unavailable or fail in an older browser.
+            return position;
+        }
+    },
     drag: function(me, event) {
         //if a card has been picked up
         if (me.dragging) {
-            //get card's current position
-            var transMatrix = me.dragging.card.node.getCTM();
-            //using the saved point of origin from the last drag iteration, translate the card in the direction the mouse is moving
-            me.dragging.card.translate((event.clientX - Number(transMatrix.e)) - me.grapbpoint.x, (event.clientY - Number(transMatrix.f)) - me.grapbpoint.y);
-            //save the point of origin of the card for the next drag iteration
-            me.grapbpoint.x = event.clientX - Number(transMatrix.e);
-            me.grapbpoint.y = event.clientY - Number(transMatrix.f);
+            // CSS scaling changes viewport pixels without changing the SVG's
+            // coordinate system. Translate by the pointer delta expressed in
+            // SVG coordinates so the lifted card stays under the mouse.
+            var pointerPosition = me.getPointerPosition(event);
+            me.dragging.card.translate(pointerPosition.x - me.grapbpoint.x, pointerPosition.y - me.grapbpoint.y);
+            me.grapbpoint = pointerPosition;
         }
     },
     drop: function(item, dropItem, me, event, position) {
@@ -1080,9 +1104,7 @@ gh.game.prototype = {
             //grab
             item.card.toFront();
             item.card.node.setAttributeNS(null, 'pointer-events', 'none');
-            var transMatrix = item.card.node.getCTM();
-            me.grapbpoint.x = event.clientX - Number(transMatrix.e);
-            me.grapbpoint.y = event.clientY - Number(transMatrix.f);
+            me.grapbpoint = me.getPointerPosition(event);
             me.dragging = item;
             var rotationoffset = (Math.random() * 4) - 2;
             item.card.animate({ scale: 1.075, rotation: rotationoffset }, 300, function() {

@@ -421,10 +421,22 @@ test('standalone player journey works without third-party requests', async ({pag
   await page.locator('ul.mainmenu li.deck').click();
   await expect(page.locator('ul.deckmenu')).toBeVisible();
 
+  let replayRequests = 0;
+  page.on('request', request => {
+    if (request.url().includes('/index/review?gameid=')) replayRequests += 1;
+  });
   const replayResponse = page.waitForResponse(response => response.url().includes('/index/review?gameid='));
   await page.goto(`/replay?gameid=${gameId}`);
   await expect.poll(() => page.evaluate(() => Number(gh.data.requestedReplay || 0))).toBe(gameId);
   expect((await replayResponse).ok()).toBeTruthy();
+  await expect.poll(() => new URL(page.url()).search).toBe('');
+
+  await page.reload();
+  await expect.poll(() => page.evaluate(() => Boolean(
+    window.gh && gh.manager && document.querySelector('ul.mainmenu li.play')
+  ))).toBe(true);
+  expect(await page.evaluate(() => Object.prototype.hasOwnProperty.call(gh.data, 'requestedReplay'))).toBeFalsy();
+  expect(replayRequests, 'refresh started the replay a second time').toBe(1);
 
   await page.locator('#title-icon').click();
   await expect(page.locator('#contextmenu')).toBeVisible();

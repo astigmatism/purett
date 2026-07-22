@@ -50,12 +50,16 @@ gh.dialog.prototype = {
             
             //insert extras
             var widget = $('#' + id).dialog("widget");
+            $(widget).appendTo('#content-wrapper');
             
             $(widget).find('.ui-dialog-buttonpane').append('<div class="tail"></div><div class="moogle"></div>');
             
             //top fix
             var parent = $('#' + id).parent();
-            parent.css('top', 657 - parent.outerHeight());
+            parent.css({
+                top: 657 - parent.outerHeight(),
+                left: Math.round((755 - parent.outerWidth()) / 2)
+            });
             
             //style overrides
             //$('.ui-dialog-title').css('font-size','18px');

@@ -116,3 +116,33 @@
     color: #000;
     cursor: pointer;
 }
+#contextmenu ul.menu > li.content-scale {
+    cursor: default;
+    padding-bottom: 4px;
+}
+#contextmenu .content-scale-options {
+    display: flex;
+    gap: 4px;
+    margin-top: 6px;
+}
+#contextmenu .content-scale-options button {
+    min-width: 32px;
+    padding: 3px 5px;
+    border: 1px solid #aaa;
+    border-radius: 4px;
+    background: #eee;
+    color: #333;
+    font: 12px/1.2 'Spinnaker', sans-serif;
+    cursor: pointer;
+}
+#contextmenu .content-scale-options button:hover,
+#contextmenu .content-scale-options button:focus {
+    border-color: #777;
+    background: #fff;
+    outline: none;
+}
+#contextmenu .content-scale-options button[aria-pressed="true"] {
+    border-color: #5c3922;
+    background: #5c3922;
+    color: #fff;
+}

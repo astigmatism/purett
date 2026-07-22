@@ -24,6 +24,15 @@ body::before {
     position: relative;
     z-index: 1;
 }
+#content-scale-stage, #content-wrapper {
+    width: 755px;
+}
+#content-scale-stage {
+    position: relative;
+}
+#content-wrapper {
+    transform-origin: top left;
+}
 #title-wrapper {
     margin-top: 20px;
     width: 755px;

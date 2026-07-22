@@ -285,6 +285,55 @@ test('bundled Spinnaker renders without a third-party request', async ({page, ba
   expect(externalRequests, `unexpected third-party requests: ${externalRequests.join(', ')}`).toEqual([]);
 });
 
+test('game size control scales from the top and survives a tab reload', async ({page}) => {
+  await page.goto('/auth/login');
+  await page.locator('input[name="username"]').fill('demo');
+  await page.locator('input[name="password"]').fill('TripleTriad!');
+  await Promise.all([
+    page.waitForURL(url => url.pathname === '/'),
+    page.locator('button[type="submit"]').click()
+  ]);
+  await expect(page.locator('#content-wrapper')).toBeVisible();
+
+  await page.locator('#title-icon').click();
+  await expect(page.locator('#contextmenu')).toBeVisible();
+  await page.locator('#contextmenu button[data-scale="3"]').click();
+
+  const geometry = await page.evaluate(() => {
+    const stage = document.querySelector('#content-scale-stage').getBoundingClientRect();
+    const wrapper = document.querySelector('#content-wrapper').getBoundingClientRect();
+    return {
+      stored: window.sessionStorage.getItem('purett.contentScale'),
+      pressed: document.querySelector('#contextmenu button[data-scale="3"]').getAttribute('aria-pressed'),
+      stageWidth: stage.width,
+      wrapperWidth: wrapper.width,
+      wrapperTop: wrapper.top,
+      scrollWidth: document.documentElement.scrollWidth,
+      scrollHeight: document.documentElement.scrollHeight
+    };
+  });
+  expect(geometry.stored).toBe('3');
+  expect(geometry.pressed).toBe('true');
+  expect(geometry.stageWidth).toBeCloseTo(2265, 0);
+  expect(geometry.wrapperWidth).toBeCloseTo(2265, 0);
+  expect(geometry.wrapperTop).toBeGreaterThanOrEqual(0);
+  expect(geometry.scrollWidth).toBeGreaterThanOrEqual(2265);
+  expect(geometry.scrollHeight).toBeGreaterThan(1500);
+
+  await page.reload();
+  await expect(page.locator('#content-wrapper')).toBeVisible();
+  await expect(page.locator('#contextmenu button[data-scale="3"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect.poll(() => page.evaluate(() => gh.manager.contentScale)).toBe(3);
+  await expect.poll(() => page.evaluate(() => (
+    document.querySelector('#content-scale-stage').getBoundingClientRect().height
+  ))).toBeGreaterThan(1500);
+
+  await page.locator('#title-icon').click();
+  await expect(page.locator('#contextmenu')).toBeVisible();
+  await page.locator('#contextmenu button[data-scale="1"]').click();
+  await expect.poll(() => page.evaluate(() => gh.manager.contentScale)).toBe(1);
+});
+
 test('standalone player journey works without third-party requests', async ({page, baseURL}) => {
   const externalRequests = [];
   const pageErrors = [];

@@ -21,6 +21,10 @@ gh.load(['util', ['game'], 'cover', 'menu', ['dialog'], ['jquerytools'], 'audio'
         snow:       null,
         snowDelay:  60000,
         snowTimer:  null,
+
+        contentScale:           1,
+        contentScaleStorageKey: 'purett.contentScale',
+        contentScaleOptions:    [1, 1.5, 2, 3],
         
         initialize: function() {
             var me = this;
@@ -40,8 +44,13 @@ gh.load(['util', ['game'], 'cover', 'menu', ['dialog'], ['jquerytools'], 'audio'
             $(document).ready(function() {
                 
                 if (Modernizr.canvas) { 
-                    
+
+                    me.initContentScale();
                     $('#content-wrapper').show();
+                    me.updateContentScaleLayout();
+                    setTimeout(function() {
+                        me.updateContentScaleLayout();
+                    }, 0);
                     
                     $('.coin-balance').text(gh.data.coins);
                     
@@ -70,6 +79,65 @@ gh.load(['util', ['game'], 'cover', 'menu', ['dialog'], ['jquerytools'], 'audio'
                     $('#browsers-wrapper').show();
                 }
             });
+        },
+        initContentScale: function() {
+            var me = this;
+            var storedScale = null;
+
+            try {
+                storedScale = window.sessionStorage.getItem(me.contentScaleStorageKey);
+            } catch (error) {
+                storedScale = null;
+            }
+
+            me.setContentScale(parseFloat(storedScale), false);
+
+            $('#contextmenu .content-scale-options button').click(function(event) {
+                event.preventDefault();
+                event.stopPropagation();
+                if (!$(this).closest('li').hasClass('enabled')) {
+                    return;
+                }
+                gh.audio.select.play();
+                me.setContentScale(parseFloat($(this).attr('data-scale')), true);
+                if (me.contextmenu) {
+                    $(me.contextmenu).overlay().close();
+                }
+            });
+        },
+        setContentScale: function(scale, persist) {
+            var me = this;
+            if ($.inArray(scale, me.contentScaleOptions) === -1) {
+                scale = 1;
+            }
+
+            me.contentScale = scale;
+            $('#content-wrapper').css('transform', 'scale(' + scale + ')');
+            $('#contextmenu .content-scale-options button').each(function() {
+                var selected = parseFloat($(this).attr('data-scale')) === scale;
+                $(this).attr('aria-pressed', selected ? 'true' : 'false');
+            });
+            me.updateContentScaleLayout();
+
+            if (persist) {
+                try {
+                    window.sessionStorage.setItem(me.contentScaleStorageKey, String(scale));
+                } catch (error) {
+                    // Storage can be unavailable in hardened/private contexts.
+                }
+            }
+        },
+        updateContentScaleLayout: function() {
+            var me = this;
+            var width = 755 * me.contentScale;
+            var $wrapper = $('#content-wrapper');
+            var wrapperHeight = $wrapper.length ? $wrapper[0].scrollHeight : 0;
+
+            $('#content-scale-stage').css('width', width + 'px');
+            $('body').css('width', width + 'px');
+            if (wrapperHeight > 0) {
+                $('#content-scale-stage').css('height', Math.ceil(wrapperHeight * me.contentScale) + 'px');
+            }
         },
         initOverlays: function() {
             var me = this;
@@ -106,6 +174,7 @@ gh.load(['util', ['game'], 'cover', 'menu', ['dialog'], ['jquerytools'], 'audio'
             //errors
             me.erroroverlay = $('#error').overlay({
                 top: 175,
+                left: 157,
                 onBeforeLoad: function() {
                     me.loading(true);
                 },
@@ -117,6 +186,7 @@ gh.load(['util', ['game'], 'cover', 'menu', ['dialog'], ['jquerytools'], 'audio'
             //bug reports
             me.bugoverlay = $('#contextmenu li.reportbug[rel]').overlay({
                 top: 175,
+                left: 157,
                 close: $('#reportbug div.close'),
                 onBeforeClose: function() {
                     gh.audio.select.play();
@@ -147,6 +217,7 @@ gh.load(['util', ['game'], 'cover', 'menu', ['dialog'], ['jquerytools'], 'audio'
             //feedback
             me.feedbackoverlay = $('#contextmenu li.feedback[rel]').overlay({
                 top: 175,
+                left: 157,
                 close: $('#feedback div.close'),
                 onClose: function() {
                     $('#feedback textarea').val('');
@@ -179,6 +250,7 @@ gh.load(['util', ['game'], 'cover', 'menu', ['dialog'], ['jquerytools'], 'audio'
             });
             me.coloroverlay = $('#contextmenu li.changecolor[rel]').overlay({
                 top: 175,
+                left: 157,
                 close: $('#changecolor div.close'),
                 onClose: function() {
                     $('#changecolor div.colorselect').empty();

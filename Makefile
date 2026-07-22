@@ -1,4 +1,4 @@
-.PHONY: vm-up vm-down up down health test smoke reset grant-coins
+.PHONY: vm-up vm-down up down health test unit smoke reset grant-coins
 
 vm-up:
 	vagrant up
@@ -17,6 +17,9 @@ health:
 
 test:
 	./scripts/test.sh
+
+unit:
+	./scripts/test.sh unit
 
 smoke:
 	./scripts/smoke-test.sh

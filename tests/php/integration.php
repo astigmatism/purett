@@ -206,91 +206,6 @@ $test->test('deck-color purchases grant the authoritative catalog item and turn 
     PurettTestHarness::assertSame(count($freshUser->colors), count(array_unique($freshUser->colors)), 'color ownership contains duplicates');
 });
 
-$test->test('basic capture uses the four-direction ranks', function () {
-    $game = purettNewEngineFixture(array());
-    $enemy = new PurettFixtureCard(2, 1, 1, 1, 1, 5, false);
-    $enemy->position = 5;
-    $game->playboard[5] = $enemy;
-    $played = new PurettFixtureCard(1, 42, 1, 6, 1, 1, false);
-    purettInvokePrivate($game, 'capture', array($played, 4, array()));
-    PurettTestHarness::assertSame(42, $enemy->captured, 'higher east rank did not capture adjacent west rank');
-});
-
-$test->test('Same captures two matching adjacent ranks', function () {
-    $game = purettNewEngineFixture(array('same'));
-    $north = new PurettFixtureCard(2, 1, 1, 1, 4, 1, false);
-    $west = new PurettFixtureCard(3, 1, 1, 5, 1, 1, false);
-    $north->position = 1;
-    $west->position = 3;
-    $game->playboard[1] = $north;
-    $game->playboard[3] = $west;
-    $played = new PurettFixtureCard(1, 42, 4, 1, 1, 5, false);
-    purettInvokePrivate($game, 'capture', array($played, 4, array()));
-    PurettTestHarness::assertSame(42, $north->captured, 'Same did not capture north card');
-    PurettTestHarness::assertSame(42, $west->captured, 'Same did not capture west card');
-});
-
-$test->test('Plus captures adjacent pairs with equal sums', function () {
-    $game = purettNewEngineFixture(array('plus'));
-    $north = new PurettFixtureCard(2, 1, 1, 1, 5, 1, false);
-    $west = new PurettFixtureCard(3, 1, 1, 4, 1, 1, false);
-    $north->position = 1;
-    $west->position = 3;
-    $game->playboard[1] = $north;
-    $game->playboard[3] = $west;
-    $played = new PurettFixtureCard(1, 42, 3, 1, 1, 4, false);
-    purettInvokePrivate($game, 'capture', array($played, 4, array()));
-    PurettTestHarness::assertSame(42, $north->captured, 'Plus did not capture north card');
-    PurettTestHarness::assertSame(42, $west->captured, 'Plus did not capture west card');
-});
-
-$test->test('Combo recursively applies basic capture after Same', function () {
-    $game = purettNewEngineFixture(array('same', 'combo'));
-    $northWest = new PurettFixtureCard(4, 1, 1, 1, 1, 1, false);
-    $north = new PurettFixtureCard(2, 1, 1, 1, 4, 9, false);
-    $west = new PurettFixtureCard(3, 1, 1, 5, 1, 1, false);
-    $northWest->position = 0;
-    $north->position = 1;
-    $west->position = 3;
-    $game->playboard[0] = $northWest;
-    $game->playboard[1] = $north;
-    $game->playboard[3] = $west;
-    $played = new PurettFixtureCard(1, 42, 4, 1, 1, 5, false);
-    purettInvokePrivate($game, 'capture', array($played, 4, array()));
-    PurettTestHarness::assertSame(42, $north->captured, 'Same precondition did not capture north card');
-    PurettTestHarness::assertSame(42, $northWest->captured, 'Combo did not propagate from the captured card');
-});
-
-$test->test('Same Wall treats a board edge as rank A', function () {
-    $game = purettNewEngineFixture(array('same', 'same wall'));
-    $east = new PurettFixtureCard(2, 1, 1, 1, 1, 4, false);
-    $east->position = 2;
-    $game->playboard[2] = $east;
-    $played = new PurettFixtureCard(1, 42, 10, 4, 1, 1, false);
-    purettInvokePrivate($game, 'capture', array($played, 1, array()));
-    PurettTestHarness::assertSame(42, $east->captured, 'matching card plus rank-A north wall did not trigger Same');
-});
-
-$test->test('Elemental positive and negative modifiers affect captures symmetrically', function () {
-    $positiveGame = purettNewEngineFixture(array('elemental'));
-    $positiveEnemy = new PurettFixtureCard(2, 1, 1, 1, 1, 5, false);
-    $positiveEnemy->position = 5;
-    $positiveGame->playboard[5] = $positiveEnemy;
-    $positive = new PurettFixtureCard(1, 42, 1, 5, 1, 1, false);
-    $positive->elementbonus = 1;
-    purettInvokePrivate($positiveGame, 'capture', array($positive, 4, array()));
-    PurettTestHarness::assertSame(42, $positiveEnemy->captured, 'positive elemental bonus did not enable capture');
-
-    $negativeGame = purettNewEngineFixture(array('elemental'));
-    $negativeEnemy = new PurettFixtureCard(4, 1, 1, 1, 1, 5, false);
-    $negativeEnemy->position = 5;
-    $negativeGame->playboard[5] = $negativeEnemy;
-    $negative = new PurettFixtureCard(3, 42, 1, 6, 1, 1, false);
-    $negative->elementbonus = -1;
-    purettInvokePrivate($negativeGame, 'capture', array($negative, 4, array()));
-    PurettTestHarness::assertSame(1, $negativeEnemy->captured, 'negative elemental bonus was treated as positive');
-});
-
 $test->test('rule progression schedules Random, Sudden Death, and all take variants', function () {
     $namesAt = function ($played) {
         $rules = PureTripleTriad_Game::getNextRules($played, 0, 0);
@@ -305,29 +220,6 @@ $test->test('rule progression schedules Random, Sudden Death, and all take varia
     PurettTestHarness::assertTrue(in_array('take difference', $namesAt(58), true), 'Take Difference is absent from progression');
     PurettTestHarness::assertTrue(in_array('take direct', $namesAt(102), true), 'Take Direct is absent from progression');
     PurettTestHarness::assertTrue(in_array('take all', $namesAt(103), true), 'Take All is absent from progression');
-});
-
-$test->test('Sudden Death clears the board and returns captured cards to the correct hands', function () {
-    $game = purettNewEngineFixture(array('sudden death'));
-    $database = new PurettFixtureDatabase();
-    purettReflectionSet($game, 'db', $database);
-    $game->gameid = 88;
-    $humanCard = new PurettFixtureCard(1, 42, 1, 1, 1, 1, false);
-    $humanCard->captured = 42;
-    $humanCard->position = 3;
-    $computerCard = new PurettFixtureCard(2, 1, 1, 1, 1, 1, false);
-    $computerCard->captured = 1;
-    $computerCard->position = 4;
-    $game->gamecards = array($humanCard, $computerCard);
-    $game->playboard[3] = $humanCard;
-    $game->playboard[4] = $computerCard;
-    $game->cardsplayed = 2;
-    purettInvokePrivate($game, 'setSuddenDeath', array());
-    PurettTestHarness::assertTrue($game->insuddendeath, 'Sudden Death flag was not set');
-    PurettTestHarness::assertSame(0, $game->cardsplayed, 'board play count was not reset');
-    PurettTestHarness::assertSame(-1, $humanCard->position, 'human-captured card did not return to human hand');
-    PurettTestHarness::assertSame(-2, $computerCard->position, 'computer-captured card did not return to computer hand');
-    PurettTestHarness::assertSame(2, count($database->cardUpdates), 'Sudden Death hand reset was not persisted');
 });
 
 $test->test('Take One preserves protected cards on a loss and creates a claim on a win', function () {

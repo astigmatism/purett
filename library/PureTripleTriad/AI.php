@@ -39,7 +39,8 @@ class PureTripleTriad_AI {
                         'flips'         => 0, //if the actions results in a flip
                         'name'          => $card->name,
                         'gamecardid'    => $card->gamecardid,
-                        'position'      => $i
+                        'position'      => $i,
+                        '_captures'     => array()
                     );
                     
                     //evaluate basic rule
@@ -66,7 +67,11 @@ class PureTripleTriad_AI {
         //print_r($bestscores);
         
         //with all the best play's collected from each position, use the same logic to determine best play overall
-        return $this->bestPlay($bestscores);
+        $bestscore = $this->bestPlay($bestscores);
+        if (is_array($bestscore) && array_key_exists('_captures', $bestscore)) {
+            unset($bestscore['_captures']);
+        }
+        return $bestscore;
     }
     
     private function bestPlay($allscores) {
@@ -175,6 +180,19 @@ class PureTripleTriad_AI {
         $scores['defense']      = $nscores['defense'] + $escores['defense'] + $sscores['defense'] + $wscores['defense'];
         $scores['waste']        = $nscores['waste'] + $escores['waste'] + $sscores['waste'] + $wscores['waste'];
         $scores['flips']        = $nscores['flips'] + $escores['flips'] + $sscores['flips'] + $wscores['flips'];
+        $scores['_captures']    = array();
+        if ($nscores['flips'] > 0) {
+            $scores['_captures'][$nindex] = true;
+        }
+        if ($escores['flips'] > 0) {
+            $scores['_captures'][$eindex] = true;
+        }
+        if ($sscores['flips'] > 0) {
+            $scores['_captures'][$sindex] = true;
+        }
+        if ($wscores['flips'] > 0) {
+            $scores['_captures'][$windex] = true;
+        }
         
         //reset after evaluation
         $card->elementbonus = $originalbonus;
@@ -285,8 +303,7 @@ class PureTripleTriad_AI {
         foreach($sums as $sum) {
             //only add to attack score if one of the qualifying cards is not already mine
             if ($sum['qualify'] && $sum['capturable']) {
-                $scores['attack'] += 10;
-                $scores['flips'] += 1;
+                $scores = $this->addCaptureScore($scores, $sum['position']);
             }
         }
         return $scores;
@@ -298,14 +315,11 @@ class PureTripleTriad_AI {
         $return = array(
             'sum'           => 0,
             'capturable'    => false,
-            'qualify'       => false
-        ); 
-        
+            'qualify'       => false,
+            'position'      => $evaluateindex
+        );
+
         if ($evaluateindex != -1 && $this->game->playboard[$evaluateindex]) {
-            //if the same rule is also on, same values do not count as pluses
-            if (($card->getRank($myrankindex) == $this->game->playboard[$evaluateindex]->getRank($theirrankindex)) && $this->game->rules['same']) {
-                return $return;
-            }
             $capturable = false;
             if ($this->game->playboard[$evaluateindex]->captured != 1) {
                 $capturable = true;
@@ -313,7 +327,8 @@ class PureTripleTriad_AI {
             return array(
                 'sum'           => (intval($card->getRank($myrankindex)) +  intval($this->game->playboard[$evaluateindex]->getRank($theirrankindex))),
                 'capturable'    => $capturable,
-                'qualify'       => false
+                'qualify'       => false,
+                'position'      => $evaluateindex
             );
         }
         return $return;
@@ -356,8 +371,7 @@ class PureTripleTriad_AI {
             foreach($sames as $same) {
                 //captruable is ONLY true when a same rule applies to a position and the card is capturable
                 if ($same['capturable']) {
-                    $scores['attack'] += 10;
-                    $scores['flips'] += 1;
+                    $scores = $this->addCaptureScore($scores, $same['position']);
                 }
             }
         }
@@ -368,7 +382,8 @@ class PureTripleTriad_AI {
         
         $return = array (
             'same'          => false,
-            'capturable'    => false
+            'capturable'    => false,
+            'position'      => $evaluateindex
         );
         
         //if not a wall and there is a card to evaluate
@@ -381,7 +396,8 @@ class PureTripleTriad_AI {
                     }
                     return array (
                         'same'          => true,
-                        'capturable'    => $capturable
+                        'capturable'    => $capturable,
+                        'position'      => $evaluateindex
                     );
                 }
                 return $return;
@@ -389,15 +405,35 @@ class PureTripleTriad_AI {
             return $return;
         } else {
             //same wall
-            if ($card->getRank($myrankindex) == 10) {
+            if (!empty($this->game->rules['same wall']) && $card->getRank($myrankindex) == 10) {
                 return array (
                     'same'          => true,
-                    'capturable'    => false
+                    'capturable'    => false,
+                    'position'      => $evaluateindex
                 );
             }
             return $return;
         }
         return $return;
+    }
+
+    private function addCaptureScore($scores, $position) {
+
+        // A placement resolves basic, Plus, and Same as a union. Keep an
+        // internal position set so a card qualifying under several rules only
+        // contributes one flip to the AI's move score.
+        if (!isset($scores['_captures']) || !is_array($scores['_captures'])) {
+            $scores['_captures'] = array();
+        }
+
+        $position = (int) $position;
+        if (!isset($scores['_captures'][$position])) {
+            $scores['_captures'][$position] = true;
+            $scores['attack'] += 10;
+            $scores['flips'] += 1;
+        }
+
+        return $scores;
     }
 
 }

@@ -22,11 +22,6 @@ else
     echo "Docker Compose is required." >&2
     exit 1
 fi
-if ! command -v node >/dev/null 2>&1; then
-    echo "Node.js 18 or newer is required for repository and HTTP contract tests." >&2
-    exit 1
-fi
-
 base_url="http://127.0.0.1:${PURETT_HTTP_PORT:-8080}"
 export PURETT_BASE_URL="$base_url"
 
@@ -36,19 +31,36 @@ run_health() {
 }
 
 run_static() {
+    if ! command -v node >/dev/null 2>&1; then
+        echo "Node.js 18 or newer is required for repository contract tests." >&2
+        exit 1
+    fi
     node tests/static/repository-contract.js
     compose run --rm -T \
+        -v "$project_dir/library:/var/www/app/library:ro" \
         -v "$project_dir/tests:/var/www/app/tests:ro" \
         web sh /var/www/app/tests/php/lint.sh
 }
 
-run_php() {
+run_unit() {
+    compose run --rm --no-deps -T \
+        -v "$project_dir/library:/var/www/app/library:ro" \
+        -v "$project_dir/tests:/var/www/app/tests:ro" \
+        web php /var/www/app/tests/php/unit.php
+}
+
+run_integration() {
     compose run --rm -T \
+        -v "$project_dir/library:/var/www/app/library:ro" \
         -v "$project_dir/tests:/var/www/app/tests:ro" \
         web php /var/www/app/tests/php/integration.php
 }
 
 run_http() {
+    if ! command -v node >/dev/null 2>&1; then
+        echo "Node.js 18 or newer is required for HTTP contract tests." >&2
+        exit 1
+    fi
     node tests/http/http-contract.js
 }
 
@@ -71,15 +83,24 @@ case "$suite" in
     all)
         run_health
         run_static
-        run_php
+        run_unit
+        run_integration
         run_http
         ;;
     static)
         run_static
         ;;
-    php|integration)
+    unit)
+        run_unit
+        ;;
+    php)
+        run_unit
         run_health
-        run_php
+        run_integration
+        ;;
+    integration)
+        run_health
+        run_integration
         ;;
     http)
         run_health
@@ -90,7 +111,7 @@ case "$suite" in
         run_browser
         ;;
     *)
-        echo "Usage: ./scripts/test.sh [all|static|php|http|browser]" >&2
+        echo "Usage: ./scripts/test.sh [all|static|unit|php|integration|http|browser]" >&2
         exit 2
         ;;
 esac

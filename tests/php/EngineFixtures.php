@@ -10,11 +10,13 @@ class PurettFixtureCard
     public $owner;
     public $purchased;
     public $image;
+    public $name;
     public $gamecardid;
     public $usercardid;
     public $cardid;
     public $position;
     public $elementbonus;
+    public $element;
     public $level;
     public $strengthRank;
 
@@ -28,11 +30,13 @@ class PurettFixtureCard
         $this->captured = (int) $owner;
         $this->purchased = $purchased ? 1 : 0;
         $this->image = 'fixture';
+        $this->name = 'Fixture card ' . (int) $id;
         $this->gamecardid = (int) $id;
         $this->usercardid = (int) $id;
         $this->cardid = (int) $id;
         $this->position = -1;
         $this->elementbonus = 0;
+        $this->element = -1;
         $this->level = 1;
         $this->strengthRank = $n + $e + $s + $w;
     }
@@ -110,6 +114,16 @@ class PurettFixturePlayer
     }
     public function tooFewCards() { return array(); }
     public function getOwnershipCount($cardid) { return 0; }
+}
+
+class PurettFixtureLog
+{
+    public $entries = array();
+
+    public function info($entry)
+    {
+        $this->entries[] = $entry;
+    }
 }
 
 function purettReflectionSet($object, $property, $value)

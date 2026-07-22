@@ -51,7 +51,7 @@ The PHP image is pinned to `linux/amd64`. Docker Desktop can emulate it on Apple
 
 ## Health and tests
 
-The PHP/unit/integration test runner uses the application container. The browser smoke test is host-side and additionally requires Node.js 18 or newer and npm. On its first run, `scripts/smoke-test.sh` installs the declared Playwright dependencies when needed; if a browser binary cannot be installed automatically, it reports the required npm/Playwright install command. First-time installation requires network access.
+The PHP unit and integration test runners use the application container. The core game-mechanics unit suite uses in-memory fixtures and starts no database or Redis dependencies. The browser smoke test is host-side and additionally requires Node.js 18 or newer and npm. On its first run, `scripts/smoke-test.sh` installs the declared Playwright dependencies when needed; if a browser binary cannot be installed automatically, it reports the required npm/Playwright install command. First-time installation requires network access.
 
 For repeatability, the browser smoke command restores only the documented `demo` fixture before it opens Chromium. Running it deletes that demo account's current cards, purchases, record, and new replay files, then recreates the seeded demo state. It never resets another local account or any preserved archival material.
 
@@ -60,6 +60,7 @@ With the direct Compose stack running:
 ```sh
 ./scripts/health-check.sh
 ./scripts/test.sh
+./scripts/test.sh unit
 ./scripts/smoke-test.sh
 ```
 
@@ -68,6 +69,7 @@ Equivalent Make targets are:
 ```sh
 make health
 make test
+make unit
 make smoke
 ```
 

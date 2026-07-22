@@ -1225,6 +1225,9 @@ gh.game.prototype = {
     },
     suddenDeath: function(callback) {
         var me = this;
+
+        //keep the hand inert until every card has returned and its stacking order is final
+        me.enableHand(false);
         
         //simple structure for looping over players
         var p = [
@@ -1252,7 +1255,7 @@ gh.game.prototype = {
                     if (p[playerIndex].userid === me.p1) {
                         $(newItem.card.node).css('cursor', ' url(/images/open.cur), move');
                         me.playerOneCardClick(newItem);
-                        newItem.card.node.setAttributeNS(null, 'pointer-events', 'all'); //return draggable properties
+                        newItem.card.node.setAttributeNS(null, 'pointer-events', 'none');
                     }
                     newItem.card.toFront();
                     
@@ -1264,6 +1267,11 @@ gh.game.prototype = {
         
         //show sudden death
         me.drawRule(8, 2000, function() {
+            //animations and captures can change SVG paint order, so finish with the
+            //same canonical top-to-bottom ordering used by normal hand returns
+            me.drawPlayerOneHand('order');
+            me.drawPlayerTwoHand('order');
+            me.enableHand(true);
             callback(); //callback to end condition called here, when rule disappears
         });
         

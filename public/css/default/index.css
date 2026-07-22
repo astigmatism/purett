@@ -121,7 +121,7 @@ body::before {
 #content ul.deckmenu {
     top: 214px;
 }
-#content div.stats, #content div.shop-balance {
+#content div.stats {
     position: absolute;
     z-index: 11;
     top: 345px;
@@ -133,11 +133,6 @@ body::before {
     display: none;
     font-size: 20px;
     text-shadow: #FFFFFF 1px 1px 2px;
-}
-#content div.shop-balance {
-    top: 35px;
-    text-align: right;
-    margin-right: 50px;
 }
 #content ul.mainmenu li, #content ul.deckmenu li, #content ul.shopmenu li {
     cursor: pointer;

@@ -285,6 +285,25 @@ test('bundled Spinnaker renders without a third-party request', async ({page, ba
   expect(externalRequests, `unexpected third-party requests: ${externalRequests.join(', ')}`).toEqual([]);
 });
 
+test('shop reuses the persistent header coin balance', async ({page}) => {
+  await page.goto('/auth/login');
+  await page.locator('input[name="username"]').fill('demo');
+  await page.locator('input[name="password"]').fill('TripleTriad!');
+  await Promise.all([
+    page.waitForURL(url => url.pathname === '/'),
+    page.locator('button[type="submit"]').click()
+  ]);
+
+  await expect.poll(() => page.evaluate(() => Boolean(
+    window.gh && gh.manager && gh.manager.menu && document.querySelector('ul.mainmenu li.shop')
+  ))).toBe(true);
+  await page.locator('ul.mainmenu li.shop').click();
+  await expect(page.locator('ul.shopmenu')).toBeVisible();
+  await expect(page.locator('.shop-balance')).toHaveCount(0);
+  await expect(page.locator('.coin-balance')).toHaveCount(1);
+  await expect(page.locator('#coins .coin-balance')).toHaveText(/\d+/);
+});
+
 test('game size control scales from the top and survives a tab reload', async ({page}) => {
   await page.goto('/auth/login');
   await page.locator('input[name="username"]').fill('demo');

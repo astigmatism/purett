@@ -52,13 +52,10 @@ gh.shop.prototype = {
             
             $(wrapper).append('<div id="shop" class="abs"></div>');
             $(wrapper).append('<ul class="shopmenu"></ul>');
-            $(wrapper).append('<div class="shop-balance">COINS: <span class="coin-balance"></span></div>');
             
             me.space = '#shop';
             
             me.ul = '#content ul.shopmenu';
-            
-            me.balance = '#content div.shop-balance';
             
             me.canvas = Raphael("shop", 755, 562);
             
@@ -87,9 +84,6 @@ gh.shop.prototype = {
     show: function() {
         var me = this;
         $('#store').show();
-        
-        $(me.balance).find('.coin-balance').text(gh.data.coins);
-        me.domshow(me.balance);
         
         $(me.ul).empty();
         $(me.ul).append('<li class="back">< BACK</li><li class="cards selected">CARDS</li><li class="colors">DECK COLORS</li>');
@@ -135,7 +129,6 @@ gh.shop.prototype = {
         var me = this;
         
         me.domhide(me.ul);
-        me.domhide(me.balance);
         me.cardshide();
         
         me.bar.stop().animate({ translation: [0, 25], height: 0, opacity: 0}, 1500, '<', function() {

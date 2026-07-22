@@ -83,8 +83,8 @@ class AuthController extends Gamehouse_Controller_Action
             $this->view->error = 'Display name must be 1–80 characters.';
             return;
         }
-        if (strlen($password) < 10 || strlen($password) > 128) {
-            $this->view->error = 'Password must be 10–128 characters.';
+        if (strlen($password) < 8 || strlen($password) > 128) {
+            $this->view->error = 'Password must be 8–128 characters.';
             return;
         }
         if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {

@@ -117,12 +117,13 @@ async function run() {
   response = await session.request('/auth/register');
   assert(response.status === 200, 'registration page did not load');
   assert(!/https?:\/\//i.test(response.body), 'registration page references an external URL');
+  assert(response.body.includes('minlength="8"'), 'registration form does not allow eight-character passwords');
   const csrf = csrfFromHtml(response.body);
   const anonymousSessionId = session.cookie('PHPSESSID');
   assert(Boolean(anonymousSessionId), 'registration page did not establish a session');
 
   const username = `web_${Date.now().toString(36)}_${process.pid}`.slice(0, 31).toLowerCase();
-  const password = 'WebContractPassword42!';
+  const password = 'WebPass8';
   const validRegistration = {
     username,
     display_name: 'HTTP Contract Player',
@@ -141,6 +142,10 @@ async function run() {
   assert(response.status === 200, 'SQL-shaped registration input did not fail as a validation response');
   assert(response.body.includes('Username must be'), 'SQL-shaped username did not trigger username validation');
   assert(!response.body.includes('<script>alert(1)</script>'), 'registration form reflected executable markup');
+
+  response = await session.post('/auth/register', Object.assign({}, validRegistration, {password: 'Seven77'}));
+  assert(response.status === 200, 'seven-character password did not fail as a validation response');
+  assert(response.body.includes('Password must be 8–128 characters.'), 'short password did not trigger password validation');
 
   response = await session.post('/auth/register', validRegistration);
   assert(response.status === 302, `valid registration returned ${response.status}, expected redirect`);

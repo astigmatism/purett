@@ -697,7 +697,7 @@ class PureTripleTriad_Database
         $userid = (int) $userid;
         $gameid = (int) $gameid;
         $amount = (int) $amount;
-        if ($userid < 2 || $gameid < 1 || $amount < 1 || $amount > 5) {
+        if ($userid < 2 || $gameid < 1 || $amount < 1 || $amount > 10) {
             throw new InvalidArgumentException('Match coin award is invalid.');
         }
 

@@ -365,6 +365,42 @@ $test->test('victory coin rewards match the winning score difference', function 
     }
 });
 
+$test->test('high-margin victories complete and award the full score difference', function () use (&$state) {
+    $database = $state['database'];
+    $userid = $state['userid'];
+    $victories = array(
+        array(8, 2, 6),
+        array(9, 1, 8),
+        array(10, 0, 10)
+    );
+
+    foreach ($victories as $victory) {
+        $database->setUserRecord($userid, 0, 0, 0);
+        $before = $database->getWalletBalance($userid);
+        $game = new PureTripleTriad_Game(new PureTripleTriad_User($userid));
+        $gameid = (int) $game->gameid;
+        $game->p1score = $victory[0];
+        $game->p2score = $victory[1];
+
+        $completion = purettInvokePrivate($game, 'gameover', array());
+        $label = $victory[0] . '-' . $victory[1];
+
+        PurettTestHarness::assertSame($victory[2], (int) $completion['coinsAwarded'], $label . ' completion awarded the wrong coins');
+        PurettTestHarness::assertSame($before + $victory[2], (int) $completion['coins'], $label . ' completion returned the wrong balance');
+        PurettTestHarness::assertSame($before + $victory[2], $database->getWalletBalance($userid), $label . ' completion stored the wrong balance');
+        PurettTestHarness::assertFalse((bool) $database->getGame($userid), $label . ' completion left the game active');
+
+        $history = $database->getGameHistory($gameid);
+        PurettTestHarness::assertTrue((bool) $history, $label . ' completion did not write game history');
+        PurettTestHarness::assertSame($victory[0], (int) $history['p1score'], $label . ' history stored the wrong player score');
+        PurettTestHarness::assertSame($victory[1], (int) $history['p2score'], $label . ' history stored the wrong opponent score');
+        PurettTestHarness::assertSame($victory[2], (int) $database->db->fetchOne(
+            'SELECT amount FROM coin_transactions WHERE userid = ? AND reference_key = ?',
+            array($userid, 'match:' . $gameid)
+        ), $label . ' completion wrote the wrong ledger amount');
+    }
+});
+
 $test->test('Take Direct transfers captured cards while preserving protected losses', function () {
     list($game, $database, $player) = purettVictoryFixture('take direct', 5, 5);
     purettInvokePrivate($game, 'gameover', array());

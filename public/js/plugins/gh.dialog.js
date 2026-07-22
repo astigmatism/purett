@@ -27,9 +27,10 @@ gh.dialog.prototype = {
         if ($('#' + id).length === 0) {
             $('#board').append('<div id="' + id + '">' + options.content + '</div>');
             
-            this.dialog = $('#' + id).dialog({
+            var content = $('#' + id);
+            this.dialog = content.dialog({
                 title: options.title || '',
-                autoOpen: options.autoOpen || true,
+                autoOpen: false,
                 modal: options.model || false,
                 show: options.show || 'fade',
                 hide: options.hide || 'fade',
@@ -49,13 +50,16 @@ gh.dialog.prototype = {
             });
             
             //insert extras
-            var widget = $('#' + id).dialog("widget");
-            $(widget).appendTo('#content-wrapper');
+            var widget = content.dialog("widget");
+            widget.appendTo('#content-wrapper');
             
             $(widget).find('.ui-dialog-buttonpane').append('<div class="tail"></div><div class="moogle"></div>');
             
+            // Open only after the widget belongs to the transformed game surface.
+            content.dialog('open');
+
             //top fix
-            var parent = $('#' + id).parent();
+            var parent = content.parent();
             parent.css({
                 top: 657 - parent.outerHeight(),
                 left: Math.round((755 - parent.outerWidth()) / 2)

@@ -268,10 +268,20 @@ test('bundled Spinnaker renders without a third-party request', async ({page, ba
 
   const typography = await page.evaluate(async () => {
     await document.fonts.ready;
+    const titleColor = getComputedStyle(document.querySelector('#title')).color;
     return {
       available: document.fonts.check('13px "Spinnaker"', 'Pure Triple Triad'),
       bodyFamily: getComputedStyle(document.body).fontFamily,
       titleFamily: getComputedStyle(document.querySelector('#title')).fontFamily,
+      titleColor,
+      chromeColors: {
+        coins: getComputedStyle(document.querySelector('#coins')).color,
+        balance: getComputedStyle(document.querySelector('#coins .coin-balance')).color,
+        mute: getComputedStyle(document.querySelector('#mute-icon')).backgroundColor,
+        rules: getComputedStyle(document.querySelector('#rules')).color,
+        footer: getComputedStyle(document.querySelector('#footer-wrapper')).color,
+        footerBrand: getComputedStyle(document.querySelector('#footer-brand')).color
+      },
       fetched: performance.getEntriesByType('resource').some(entry => (
         new URL(entry.name).pathname === '/fonts/spinnaker/Spinnaker-Regular.ttf'
       ))
@@ -281,6 +291,10 @@ test('bundled Spinnaker renders without a third-party request', async ({page, ba
   expect(typography.available, 'Spinnaker is not available to the document').toBeTruthy();
   expect(typography.bodyFamily).toContain('Spinnaker');
   expect(typography.titleFamily).toContain('Spinnaker');
+  expect(typography.titleColor).toBe('rgb(60, 22, 8)');
+  expect(Object.values(typography.chromeColors)).toEqual(
+    Array(Object.keys(typography.chromeColors).length).fill(typography.titleColor)
+  );
   expect(typography.fetched, 'browser did not fetch the bundled Spinnaker face').toBeTruthy();
   expect(externalRequests, `unexpected third-party requests: ${externalRequests.join(', ')}`).toEqual([]);
 });

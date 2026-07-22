@@ -37,10 +37,12 @@ body::before {
     margin-top: 20px;
     width: 755px;
 }
+#title, #status-wrapper, #footer-wrapper {
+    color: #3c1608;
+}
 #title {
     font-family: 'Spinnaker', sans-serif;
     font-size: 24px;
-    color: #3c1608;
     float: left;
     margin: 10px 0 0 5px;
     height: 35px;
@@ -72,10 +74,21 @@ body::before {
 #mute-icon.muted {
     background-position: 0px -16px;
 }
+@supports ((-webkit-mask-image: url('/images/mute_unmute.png')) or (mask-image: url('/images/mute_unmute.png'))) {
+    #mute-icon {
+        background: currentColor;
+        -webkit-mask: url('/images/mute_unmute.png') no-repeat 0 0;
+        mask: url('/images/mute_unmute.png') no-repeat 0 0;
+    }
+    #mute-icon.muted {
+        -webkit-mask-position: 0 -16px;
+        mask-position: 0 -16px;
+    }
+}
 #coins, #coins span {
     font-family: 'Spinnaker', sans-serif;
     font-size: 16px;
-    color: #777;
+    color: inherit;
 }
 #content {
     width: 755px;
@@ -267,10 +280,9 @@ ul.shopmenu li.selected {
     line-height: 24px;
 }
 #rules, #rules span {
-    /*color: #3c1608;*/
     font-family: 'Spinnaker', sans-serif;
     font-size: 16px;
-    color: #777;
+    color: inherit;
     cursor: default;
     width: 515px;
 }

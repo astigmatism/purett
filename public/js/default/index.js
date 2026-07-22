@@ -371,8 +371,16 @@ gh.load(['util', ['game'], 'cover', 'menu', ['dialog'], ['jquerytools'], 'audio'
             gh.data.nextrules = options.nextrules;
             gh.data.deckcount = options.deckcount;
             if (typeof options.coins !== 'undefined') {
-                gh.data.coins = parseInt(options.coins, 10);
-                $('.coin-balance').text(gh.data.coins);
+                var updatedCoins = parseInt(options.coins, 10);
+                var coinsAwarded = parseInt(options.coinsAwarded, 10);
+
+                gh.data.coins = updatedCoins;
+                if (options.victory === 1 && coinsAwarded > 0) {
+                    options.coinBalanceStart = updatedCoins - coinsAwarded;
+                    $('.coin-balance').text(options.coinBalanceStart);
+                } else {
+                    $('.coin-balance').text(updatedCoins);
+                }
             }
 
             var latestReplay = parseInt(options.gameid, 10);

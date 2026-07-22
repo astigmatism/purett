@@ -9,6 +9,7 @@ gh.endgame.prototype = {
     cH:         146,      //static card height
     pos:        [72, 197, 322, 447, 572],
     claimPending: false,
+    coinAnimationTimer: null,
     
     intpos:     [
                     [322],
@@ -23,9 +24,11 @@ gh.endgame.prototype = {
         $(document).ready(function() {
             
             $(wrapper).append('<div id="end-game" class="abs"></div>');
-            $(wrapper).append('<div class="victory"></div>');
+            $(wrapper).append('<div class="victory" role="status" aria-live="polite"></div>');
+            $(wrapper).append('<div class="coins-awarded" aria-hidden="true"></div>');
             
             me.content  = '#content div.victory';
+            me.coinsAwarded = '#content div.coins-awarded';
             me.space    = '#end-game';
             
             me.canvas = Raphael("end-game", 755, 562);
@@ -38,11 +41,20 @@ gh.endgame.prototype = {
     },
     go: function(options, callback) {
         var me = this;
+        var coinsAwarded = parseInt(options.coinsAwarded, 10);
+
+        me.stopCoinAnimation();
         $('#end-game').show();
         me.callback = callback;
+        $(me.content).removeClass('claim with-award');
+        $(me.coinsAwarded).hide().text('').attr('aria-hidden', 'true');
         switch (options.victory) {
             case 1:
                 $(me.content).text('YOU WIN! ' + options.score);
+                if (coinsAwarded > 0) {
+                    $(me.content).addClass('with-award');
+                    $(me.coinsAwarded).text('COINS AWARDED: ' + coinsAwarded).attr('aria-hidden', 'false');
+                }
                 break;
             case 0:
                 $(me.content).text('DRAW');
@@ -54,8 +66,13 @@ gh.endgame.prototype = {
         me.resultbar.animate({ translation: [0, -50], height: 100, opacity: 1 }, 2000, '<', function() {
             
             me.domshow(me.content);
+            if (options.victory === 1 && coinsAwarded > 0) {
+                me.domshow(me.coinsAwarded);
+                me.animateCoinBalance(options);
+            }
             setTimeout(function() {
                 $(me.content).fadeOut(500);
+                $(me.coinsAwarded).fadeOut(500);
                 me.resultbar.animate({ translation: [0, 50], height: 0, opacity: 0 }, 1000, '<', function() {
                 
                     //conditions: won, claim, taken, given
@@ -82,9 +99,61 @@ gh.endgame.prototype = {
     },
     done: function() {
         var me = this;
+        me.stopCoinAnimation();
         $(me.content).hide().removeClass('claim');
+        $(me.coinsAwarded).hide().text('').attr('aria-hidden', 'true');
         $('#end-game').hide();
         me.callback(); //all done!
+    },
+    animateCoinBalance: function(options) {
+        var me = this;
+        var target = parseInt(options.coins, 10);
+        var awarded = parseInt(options.coinsAwarded, 10);
+        var current = parseInt(options.coinBalanceStart, 10);
+        var balance = $('#coins .coin-balance');
+
+        if (isNaN(target) || isNaN(awarded) || awarded <= 0) {
+            return;
+        }
+        if (isNaN(current)) {
+            current = target - awarded;
+        }
+
+        me.stopCoinAnimation();
+        balance.text(current);
+
+        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            balance.text(target);
+            return;
+        }
+
+        var delay = Math.max(80, Math.min(220, Math.floor(900 / awarded)));
+        var increment = function() {
+            current += 1;
+            balance.text(current).removeClass('coin-balance-award');
+            if (balance.length) {
+                balance[0].offsetWidth;
+            }
+            balance.addClass('coin-balance-award');
+
+            if (current < target) {
+                me.coinAnimationTimer = setTimeout(increment, delay);
+            } else {
+                me.coinAnimationTimer = setTimeout(function() {
+                    balance.removeClass('coin-balance-award');
+                    me.coinAnimationTimer = null;
+                }, 240);
+            }
+        };
+
+        me.coinAnimationTimer = setTimeout(increment, delay);
+    },
+    stopCoinAnimation: function() {
+        if (this.coinAnimationTimer !== null) {
+            clearTimeout(this.coinAnimationTimer);
+            this.coinAnimationTimer = null;
+        }
+        $('#coins .coin-balance').removeClass('coin-balance-award');
     },
     claim: function(options, callback) {
         var me = this;

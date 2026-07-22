@@ -90,6 +90,25 @@ body::before {
     font-size: 16px;
     color: inherit;
 }
+#coins .coin-balance {
+    display: inline-block;
+    transform-origin: center;
+}
+#coins .coin-balance.coin-balance-award {
+    color: #8a4b00;
+    text-shadow: 0 0 8px #f6d36a;
+    animation: coin-balance-pop 240ms ease-out;
+}
+@keyframes coin-balance-pop {
+    0% { transform: scale(1); }
+    45% { transform: scale(1.35); }
+    100% { transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+    #coins .coin-balance.coin-balance-award {
+        animation: none;
+    }
+}
 #content {
     width: 755px;
     height: 562px;
@@ -220,6 +239,26 @@ ul.shopmenu li.selected {
     display: none;
     font-family: 'Spinnaker', sans-serif;
     font-size: 50px;
+}
+#content div.victory.with-award {
+    top: 240px;
+}
+#content div.coins-awarded {
+    position: absolute;
+    z-index: 0;
+    top: 296px;
+    left: 0;
+    width: 755px;
+    height: 24px;
+    color: #f6d36a;
+    display: none;
+    font-family: 'Spinnaker', sans-serif;
+    font-size: 17px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    line-height: 24px;
+    text-align: center;
+    text-shadow: 0 1px 3px #000;
 }
 #content div.claim {
     top: 100px;

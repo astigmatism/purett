@@ -475,6 +475,12 @@ test('standalone player journey works without third-party requests', async ({pag
   expect(Number(completion.coinsAwarded)).toBeLessThanOrEqual(10);
   expect(Number(completion.coins)).toBe(coinsBeforeGame + Number(completion.coinsAwarded));
   await expect.poll(() => page.evaluate(() => Number(gh.data.coins))).toBe(Number(completion.coins));
+  if (Number(completion.coinsAwarded) > 0) {
+    await expect(page.locator('.coins-awarded')).toHaveText(`COINS AWARDED: ${completion.coinsAwarded}`);
+    await expect(page.locator('.coins-awarded')).toBeVisible();
+  } else {
+    await expect(page.locator('.coins-awarded')).toBeHidden();
+  }
   await expect(page.locator('#coins .coin-balance')).toHaveText(String(completion.coins));
 
   if (completion && Number(completion.claim || 0) > 0) {

@@ -285,7 +285,7 @@ test('bundled Spinnaker renders without a third-party request', async ({page, ba
   expect(externalRequests, `unexpected third-party requests: ${externalRequests.join(', ')}`).toEqual([]);
 });
 
-test('shop reuses the persistent header coin balance', async ({page}) => {
+test('shop uses unified coin controls and the persistent header balance', async ({page}) => {
   await page.goto('/auth/login');
   await page.locator('input[name="username"]').fill('demo');
   await page.locator('input[name="password"]').fill('TripleTriad!');
@@ -302,6 +302,21 @@ test('shop reuses the persistent header coin balance', async ({page}) => {
   await expect(page.locator('.shop-balance')).toHaveCount(0);
   await expect(page.locator('.coin-balance')).toHaveCount(1);
   await expect(page.locator('#coins .coin-balance')).toHaveText(/\d+/);
+
+  await expect.poll(() => page.evaluate(() => Boolean(
+    gh.manager.shop && gh.manager.shop.stock && gh.manager.shop.stock.length > 0
+  ))).toBe(true);
+  const cardBuy = page.locator('#shop button.buybar:visible').first();
+  await expect(cardBuy).toBeVisible();
+  await expect(cardBuy).toHaveAccessibleName(/^Buy for \d+ coins$/);
+  await expect(cardBuy).toHaveText(/^BUY\s*\u00b7\s*\d+$/);
+  await expect(cardBuy.locator('.price')).toHaveCSS('background-image', 'none');
+
+  await page.locator('ul.shopmenu li.colors').click();
+  const colorBuy = page.locator('#shop button.colorbuybar:visible').first();
+  await expect(colorBuy).toBeVisible();
+  await expect(colorBuy).toHaveAccessibleName(/^Buy for \d+ coins$/);
+  await expect(colorBuy).toHaveText(/^BUY\s*\u00b7\s*\d+$/);
 });
 
 test('game size control scales from the top and survives a tab reload', async ({page}) => {
@@ -471,8 +486,11 @@ test('standalone player journey works without third-party requests', async ({pag
   const purchaseResponse = page.waitForResponse(response =>
     response.url().endsWith('/purchase') && response.request().method() === 'POST'
   );
-  const buy = page.locator('#shop .buybar .buy:visible').first();
+  const buy = page.locator('#shop button.buybar:visible').first();
   await expect(buy).toBeVisible();
+  await expect(buy).toHaveAccessibleName(/^Buy for \d+ coins$/);
+  await expect(buy).toHaveText(/^BUY\s*\u00b7\s*\d+$/);
+  await expect(buy.locator('.price')).toHaveCSS('background-image', 'none');
   await buy.click();
   const purchaseHttpResponse = await purchaseResponse;
   expect(purchaseHttpResponse.ok(), 'visible BUY control request failed').toBeTruthy();

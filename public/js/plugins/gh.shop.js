@@ -147,7 +147,7 @@ gh.shop.prototype = {
                 
                 //$(me.space).append('<div class="card-count hide rc-2 shadow cardid' + it.cardid + '" style="top:' + (index < 5 ? 314 : 478) + 'px;right:' + ((755 - me.pos[(index < 5 ? index : index - 5)]) - 108) + 'px">OWN: ' + it.userowns + '</div>');
                 
-                $(me.space).append('<div class="buybar hide" title="' + it.name + '<br/>(Level ' + it.level + ')<br/>Own: ' + it.userowns + '" style="top:' + (index < 5 ? 298 : 461) + 'px;left:' + (me.pos[(index < 5 ? index : index - 5)] + 10) + 'px"><div class="price">' + it.price + '</div><div id="buy' + it.cardid + '" class="buy">BUY</div></div>');
+                $(me.space).append('<button type="button" id="buy' + it.cardid + '" class="buybar hide" aria-label="Buy for ' + it.price + ' coins" title="' + it.name + '<br/>(Level ' + it.level + ')<br/>Own: ' + it.userowns + '" style="top:' + (index < 5 ? 298 : 461) + 'px;left:' + (me.pos[(index < 5 ? index : index - 5)] + 6) + 'px"><span class="buy">BUY</span><span aria-hidden="true"> &middot; </span><span class="price">' + it.price + '</span></button>');
                 
                 $('#buy' + it.cardid).click(function() {
                     gh.audio.select.play();
@@ -166,7 +166,7 @@ gh.shop.prototype = {
                 
                 card.animate({ rotation: 360, translation: [ me.pos[(index < 5 ? index : index - 5)] - x, (index < 5 ? 185 : 350) - y], opacity: 1, scale: 1}, 1000, '>', function() {
                     $(me.space).find('div.cardid' + it.cardid).fadeIn();
-                    $(me.space).find('div.buybar').fadeIn();
+                    $(me.space).find('button.buybar').fadeIn();
                     bar.animate({ opacity: 0.7}, 500, '>');
                 });
                 me.cards.push(card);
@@ -174,7 +174,7 @@ gh.shop.prototype = {
             }, index * 50);
         });
         setTimeout(function() {
-            $('div.buybar[title]').tooltip({
+            $('button.buybar[title]').tooltip({
                 effect: 'slide',
                 position: 'bottom center',
                 offset: [0, 4],
@@ -205,8 +205,8 @@ gh.shop.prototype = {
             $(me.space).find('div.card-count').remove();
         });
         */
-        $(me.space).find('div.buybar').fadeOut(500, function() {
-            $(me.space).find('div.buybar').remove();
+        $(me.space).find('button.buybar').fadeOut(500, function() {
+            $(me.space).find('button.buybar').remove();
         });
         $('.shoptip').remove();
         me.cards = [];
@@ -221,7 +221,7 @@ gh.shop.prototype = {
                 var y = (Math.random() * 1000) - 500;
                 var card = me.canvas.image('/images/' + it.name + 'deck.png', x, y, 127, 156).attr({'opacity' : 0, scale: 0.3});
                 
-                $(me.space).append('<div class="colorbuybar hide" title="' + (it.name).capitaliseFirstLetter() + ' Deck" style="top:' + (index < 5 ? 342 : 461) + 'px;left:' + (me.pos[(index < 5 ? index : index - 5)] + 3) + 'px"><div class="price">' + it.price + '</div><div id="buycolor' + it.id + '" class="buy">BUY</div></div>');
+                $(me.space).append('<button type="button" id="buycolor' + it.id + '" class="colorbuybar hide" aria-label="Buy for ' + it.price + ' coins" title="' + (it.name).capitaliseFirstLetter() + ' Deck" style="top:' + (index < 5 ? 342 : 461) + 'px;left:' + (me.pos[(index < 5 ? index : index - 5)] - 1) + 'px"><span class="buy">BUY</span><span aria-hidden="true"> &middot; </span><span class="price">' + it.price + '</span></button>');
                 
                 $('#buycolor' + it.id).click(function() {
                     gh.audio.select.play();
@@ -242,7 +242,7 @@ gh.shop.prototype = {
                 
                 card.animate({ rotation: 360, translation: [ (me.pos[(index < 5 ? index : index - 5)] - 18) - x, (index < 5 ? 230 : 350) - y], opacity: 1, scale: 1}, 1000, '>', function() {
                     //$(me.space).find('div.cardid' + it.cardid).fadeIn();
-                    $(me.space).find('div.colorbuybar').fadeIn();
+                    $(me.space).find('button.colorbuybar').fadeIn();
                     bar.animate({ opacity: 0.7}, 500, '>');
                 });
                 me.colors.push(card);
@@ -250,7 +250,7 @@ gh.shop.prototype = {
             }, 50 * index);
         });
         setTimeout(function() {
-            $('div.colorbuybar[title]').tooltip({
+            $('button.colorbuybar[title]').tooltip({
                 effect: 'slide',
                 position: 'bottom center',
                 offset: [0, 4],
@@ -276,8 +276,8 @@ gh.shop.prototype = {
                 });
             }, index * 50);
         });
-        $(me.space).find('div.colorbuybar').fadeOut(500, function() {
-            $(me.space).find('div.colorbuybar').remove();
+        $(me.space).find('button.colorbuybar').fadeOut(500, function() {
+            $(me.space).find('button.colorbuybar').remove();
         });
         $('.shoptip').remove();
         me.colors = [];

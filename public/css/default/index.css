@@ -157,29 +157,36 @@ body::before {
     padding: 1px 4px;
     text-align: right;
 }
-#shop div.buybar, #shop div.colorbuybar {
+#shop button.buybar, #shop button.colorbuybar {
     position: absolute;
+    box-sizing: border-box;
     height: 25px;
-    width: 90px;
-}
-#shop div.buybar div.price, #shop div.colorbuybar div.price {
-    float: left;
+    width: 105px;
+    margin: 0;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 2px;
     font-family: 'Spinnaker', sans-serif;
     font-size: 13px;
     color: white;
-    background: transparent url('/images/coins20.png') no-repeat top left;
-    padding-left: 25px;
-    height: 25px;
-    line-height: 25px;
-}
-#shop div.buybar div.buy, #shop div.colorbuybar div.buy {
-    float: right;
-    font-family: 'Spinnaker', sans-serif;
-    font-size: 13px;
-    color: white;
-    height: 25px;
-    line-height: 25px;
+    background: transparent;
+    line-height: 23px;
+    text-align: center;
     cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+}
+#shop button.colorbuybar {
+    width: 99px;
+}
+#shop button.buybar .price, #shop button.colorbuybar .price {
+    color: #f6d36a;
+}
+#shop button.buybar:hover, #shop button.buybar:focus,
+#shop button.colorbuybar:hover, #shop button.colorbuybar:focus {
+    border-color: #f6d36a;
+    background-color: rgba(246, 211, 106, 0.16);
+    outline: none;
 }
 ul.shopmenu li.selected {
     background-color: #4138fc;

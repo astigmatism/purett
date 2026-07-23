@@ -12,12 +12,19 @@ gh.menu.prototype = {
     cH:         146,      //static card height
     pos:        [72, 197, 322, 447, 572],
     showLeaderboard: false,
+    graphics:   null,
+    graphicsMode: 'legacy',
+    modernHandReady: false,
+    visible:    false,
+    currentHandCards: [],
     
     initialize: function(wrapper, callback) {
         var me = this;
         $(document).ready(function() {
             
             me.wrapper = wrapper;
+            me.hand = [];
+            me.currentHandCards = [];
             
             $(wrapper).append('<div id="menu" class="abs"></div>');
             $(wrapper).append('<ul class="mainmenu"></ul>');
@@ -30,6 +37,7 @@ gh.menu.prototype = {
             me.nextrules = '#rules';
             
             me.canvas = Raphael("menu", 755, 562);
+            $('#menu').append('<div id="modernLobbyHand" aria-hidden="true"></div>');
             
             me.bar = me.canvas.rect(31, 125, 695, 0).attr({ 'fill': 'black', 'opacity': 0, 'stroke-width': '0' });
             
@@ -42,6 +50,7 @@ gh.menu.prototype = {
     },
     show: function(callback) {
         var me = this;
+        me.visible = true;
         $('#menu').show();
         me.bar.stop().attr({x:31, y:125});
         me.bar.animate({ translation: [0, -25], height: 50, opacity: 1}, 1000, '<', function() {
@@ -66,6 +75,8 @@ gh.menu.prototype = {
 
         me.bar.stop().animate({ translation: [0, 25], height: 0, opacity: 0}, 1000, '<', function() {
             $('#menu').hide();
+            me.visible = false;
+            me.setModernHandReady(false);
         });
         
         me.handhide();
@@ -140,18 +151,38 @@ gh.menu.prototype = {
     },
     handshow: function(hand) {
         var me = this;
-        $.each(hand, function(index) {
+        var cards = [];
+
+        $.each(hand || [], function(index) {
+            if (index >= me.pos.length) {
+                return false;
+            }
             var x = (Math.random() * 1000) - 1000;
             var y = (Math.random() * 1000) - 500;
-            var card = me.canvas.image('/images/cards/' + ((this.purchased == 1) ? 'p' : '') + gh.data.color + '/' + this.image + '.png', x, y, me.cW, me.cH).attr({'opacity' : 0, scale: 2});
+            var cardInfo = me.describeHandCard(this, index);
+            var card = me.canvas.image(cardInfo.textureUrl, x, y, me.cW, me.cH).attr({'opacity' : 0, scale: 2});
+            var existingClass = card.node.getAttribute('class') || '';
+            card.node.setAttribute('class', (existingClass + ' legacy-menu-hand-card').replace(/^\s+|\s+$/g, ''));
+            card.node.setAttribute('data-menu-hand-index', index);
+            card.node.setAttribute('aria-hidden', 'false');
             // Center the hand between the fixed control bar and career ribbon.
             var angle = (Math.random() * 5) - 2.5;
             card.animate({ rotation: 720 - angle, translation: [ me.pos[index] - x, 203 - y], opacity: 1, scale: 1}, 1000, '>');
             me.hand.push(card);
+            cards.push(cardInfo);
         });
+
+        me.currentHandCards = cards;
+        me.setModernHandReady(false);
+        if (me.graphics) {
+            me.graphics.showLobbyHand(cards);
+        }
     },
     handhide: function() {
         var me = this;
+        if (me.graphics) {
+            me.graphics.hideLobbyHand();
+        }
         $.each(me.hand, function() {
             var x = (Math.random() * 1000) + 755;
             var y = (Math.random() * 1000) - 200;
@@ -160,6 +191,43 @@ gh.menu.prototype = {
             });
         });
         me.hand = [];
+        me.currentHandCards = [];
+    },
+    describeHandCard: function(card, index) {
+        return {
+            index: index,
+            userCardId: card.usercardid,
+            cardId: card.cardid,
+            textureUrl: '/images/cards/' + ((card.purchased == 1) ? 'p' : '') + gh.data.color + '/' + card.image + '.png',
+            x: this.pos[index],
+            y: 203,
+            width: this.cW,
+            height: this.cH
+        };
+    },
+    setGraphicsCoordinator: function(graphics) {
+        this.graphics = graphics;
+        if (this.visible) {
+            graphics.showLobbyHand(this.currentHandCards);
+        }
+    },
+    setGraphicsMode: function(mode) {
+        this.graphicsMode = mode === 'modern' ? 'modern' : 'legacy';
+        if (this.graphicsMode !== 'modern') {
+            this.setModernHandReady(false);
+        }
+        $('#menu').attr('data-graphics-mode', this.graphicsMode);
+    },
+    setModernHandReady: function(ready) {
+        var useModernHand = ready === true && this.graphicsMode === 'modern' && this.visible;
+        this.modernHandReady = useModernHand;
+        $('#menu').toggleClass('graphics-modern-hand', useModernHand);
+        $('#modernLobbyHand').attr('aria-hidden', useModernHand ? 'false' : 'true');
+        $.each(this.hand, function() {
+            if (this.node) {
+                this.node.setAttribute('aria-hidden', useModernHand ? 'true' : 'false');
+            }
+        });
     },
     domshow: function(el) {
         var me = this;

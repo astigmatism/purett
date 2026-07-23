@@ -134,6 +134,30 @@ body::before {
 #menu {
     z-index: 10;
 }
+#modernLobbyHand {
+    position: absolute;
+    z-index: 1;
+    top: 0;
+    left: 0;
+    width: 755px;
+    height: 562px;
+    overflow: hidden;
+    display: none;
+    pointer-events: none;
+}
+#modernLobbyHand .modern-graphics-canvas {
+    width: 755px !important;
+    height: 562px !important;
+    display: block;
+    pointer-events: none;
+}
+#menu.graphics-modern-hand #modernLobbyHand {
+    display: block;
+}
+#menu.graphics-modern-hand .legacy-menu-hand-card {
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
 #end-game, #deck, #shop {
     z-index: 15;
 }

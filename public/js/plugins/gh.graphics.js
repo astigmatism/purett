@@ -6,13 +6,14 @@ gh.graphics.prototype = {
         var me = this;
 
         this.game = options.game;
+        this.menu = options.menu;
         this.modernEnabled = options.modernEnabled !== false;
         this.getContentScale = options.getContentScale || function() { return 1; };
         this.closeMenu = options.closeMenu || function() {};
         this.storageKey = 'purett.graphicsMode.v1';
         this.threePackageVersion = '0.185.1';
         this.threeRevision = '185';
-        this.modernScriptUrl = '/js/modern/purett-modern-graphics.min.js?v=0.185.1';
+        this.modernScriptUrl = '/js/modern/purett-modern-graphics.min.js?v=0.185.1-lobby-hand.1';
         this.requestedMode = 'legacy';
         this.effectiveMode = 'legacy';
         this.loadState = 'idle';
@@ -20,6 +21,10 @@ gh.graphics.prototype = {
         this.loadCallbacks = [];
         this.fallbackReason = null;
         this.surface = null;
+        this.surfaceKind = null;
+        this.modernGraphics = null;
+        this.lobbyVisible = false;
+        this.lobbyCards = [];
         this.scriptElement = null;
 
         var storedMode = null;
@@ -43,6 +48,10 @@ gh.graphics.prototype = {
         $(window).resize(function() {
             me.setContentScale(me.getContentScale());
         });
+
+        if (this.menu && this.menu.setGraphicsCoordinator) {
+            this.menu.setGraphicsCoordinator(this);
+        }
 
         this.setMode(storedMode, false);
     },
@@ -149,7 +158,9 @@ gh.graphics.prototype = {
     isExpectedModernGraphics: function(modernGraphics) {
         return modernGraphics &&
             modernGraphics.packageVersion === this.threePackageVersion &&
-            String(modernGraphics.revision) === this.threeRevision;
+            String(modernGraphics.revision) === this.threeRevision &&
+            typeof modernGraphics.createSurface === 'function' &&
+            typeof modernGraphics.createLobbyHandSurface === 'function';
     },
     completeModernLoad: function(error, modernGraphics) {
         var callbacks = this.loadCallbacks.slice(0);
@@ -162,47 +173,46 @@ gh.graphics.prototype = {
         });
     },
     activateModern: function(modernGraphics) {
-        var me = this;
-        var host = document.getElementById('modernGraphics');
-
         try {
             if (this.surface && this.surface.getDebugState().contextLost) {
                 this.surface.dispose();
                 this.surface = null;
+                this.surfaceKind = null;
             }
-            if (!this.surface) {
-                this.surface = modernGraphics.createSurface(host, {
-                    contentScale: this.getContentScale(),
-                    onContextLost: function(error) {
-                        me.activateLegacy(error);
-                    }
-                });
-            } else {
-                this.surface.setContentScale(this.getContentScale());
-            }
+            this.modernGraphics = modernGraphics;
+            this.ensureSurface(this.lobbyVisible ? 'lobby-hand' : 'active-match');
         } catch (error) {
-            if (this.surface) {
-                try {
-                    this.surface.dispose();
-                } catch (cleanupError) {
-                    // Preserve the graphics initialization error for the UI.
-                }
-            }
-            this.surface = null;
-            $('#modernGraphics canvas.modern-graphics-canvas').remove();
+            this.disposeSurface();
+            $('#modernGraphics canvas.modern-graphics-canvas, #modernLobbyHand canvas.modern-graphics-canvas').remove();
             this.activateLegacy(error);
             return;
         }
 
         this.game.setGraphicsMode('modern');
+        if (this.menu && this.menu.setGraphicsMode) {
+            this.menu.setGraphicsMode('modern');
+        }
         this.effectiveMode = 'modern';
         this.fallbackReason = null;
+        try {
+            this.renderCurrentSurface();
+        } catch (error) {
+            this.disposeSurface();
+            this.activateLegacy(error);
+            return;
+        }
+        if (this.effectiveMode !== 'modern') {
+            return;
+        }
         this.updateModeUi();
         this.updateBoardState();
-        this.setStatus('Three.js ' + this.threePackageVersion + ' preview active. Cards are not rendered yet; select Legacy to play.');
+        this.updateModernStatus();
     },
     activateLegacy: function(error, reason) {
         this.game.setGraphicsMode('legacy');
+        if (this.menu && this.menu.setGraphicsMode) {
+            this.menu.setGraphicsMode('legacy');
+        }
         this.effectiveMode = 'legacy';
         this.fallbackReason = reason || (error ? 'initialization-failed' : null);
         this.updateModeUi();
@@ -236,6 +246,138 @@ gh.graphics.prototype = {
     setContentScale: function(scale) {
         if (this.surface) {
             this.surface.setContentScale(scale);
+        }
+    },
+    showLobbyHand: function(cards) {
+        this.lobbyVisible = true;
+        this.lobbyCards = (cards || []).slice(0);
+        if (this.menu && this.menu.setModernHandReady) {
+            this.menu.setModernHandReady(false);
+        }
+        if (this.effectiveMode === 'modern' && this.modernGraphics) {
+            try {
+                this.ensureSurface('lobby-hand');
+                this.renderCurrentSurface();
+                this.updateModernStatus();
+            } catch (error) {
+                this.disposeSurface();
+                this.activateLegacy(error);
+            }
+        }
+    },
+    hideLobbyHand: function() {
+        this.lobbyVisible = false;
+        this.lobbyCards = [];
+        if (this.effectiveMode === 'modern' && this.modernGraphics) {
+            try {
+                this.ensureSurface('active-match');
+                this.renderCurrentSurface();
+                this.updateModernStatus();
+            } catch (error) {
+                this.disposeSurface();
+                this.activateLegacy(error);
+            }
+        }
+    },
+    ensureSurface: function(kind) {
+        var me = this;
+        var modernGraphics = this.modernGraphics;
+        var host;
+        var createdSurface;
+
+        if (!modernGraphics) {
+            throw new Error('The modern graphics facade is unavailable.');
+        }
+        if (this.surface && this.surfaceKind === kind) {
+            this.surface.setContentScale(this.getContentScale());
+            return;
+        }
+
+        this.disposeSurface();
+        if (kind === 'lobby-hand') {
+            host = document.getElementById('modernLobbyHand');
+            createdSurface = modernGraphics.createLobbyHandSurface(host, {
+                contentScale: this.getContentScale(),
+                onReady: function() {
+                    if (me.surface === createdSurface &&
+                        me.surfaceKind === 'lobby-hand' &&
+                        me.lobbyVisible &&
+                        me.effectiveMode === 'modern' &&
+                        me.menu &&
+                        me.menu.setModernHandReady) {
+                        me.menu.setModernHandReady(true);
+                        me.updateModernStatus();
+                    }
+                },
+                onError: function(error) {
+                    if (me.surface === createdSurface &&
+                        me.surfaceKind === 'lobby-hand' &&
+                        me.lobbyVisible &&
+                        me.effectiveMode === 'modern') {
+                        me.disposeSurface();
+                        me.activateLegacy(error);
+                    }
+                },
+                onContextLost: function(error) {
+                    if (me.surface === createdSurface && me.effectiveMode === 'modern') {
+                        me.disposeSurface();
+                        me.activateLegacy(error);
+                    }
+                }
+            });
+        } else {
+            host = document.getElementById('modernGraphics');
+            createdSurface = modernGraphics.createSurface(host, {
+                contentScale: this.getContentScale(),
+                onContextLost: function(error) {
+                    if (me.surface === createdSurface && me.effectiveMode === 'modern') {
+                        me.activateLegacy(error);
+                    }
+                }
+            });
+        }
+
+        this.surface = createdSurface;
+        this.surfaceKind = kind;
+    },
+    renderCurrentSurface: function() {
+        if (!this.surface) {
+            return;
+        }
+        this.surface.setContentScale(this.getContentScale());
+        if (this.surfaceKind === 'lobby-hand') {
+            this.surface.setCards(this.lobbyCards);
+        } else {
+            this.surface.render();
+        }
+    },
+    disposeSurface: function() {
+        if (this.surface) {
+            try {
+                this.surface.dispose();
+            } catch (cleanupError) {
+                // A failed cleanup must not prevent the intact Legacy path.
+            }
+        }
+        this.surface = null;
+        this.surfaceKind = null;
+    },
+    updateModernStatus: function() {
+        var surfaceState;
+
+        if (this.effectiveMode !== 'modern') {
+            return;
+        }
+        if (!this.lobbyVisible) {
+            this.setStatus('Three.js ' + this.threePackageVersion + ' match preview active. Match cards are not rendered yet; select Legacy to play.');
+            return;
+        }
+
+        surfaceState = this.surface ? this.surface.getDebugState() : null;
+        if (surfaceState && surfaceState.ready) {
+            this.setStatus('Three.js ' + this.threePackageVersion + ' lobby hand active. These cards are decorative; matches still require Legacy.');
+        } else {
+            this.setStatus('Three.js ' + this.threePackageVersion + ' is preparing the Modern lobby hand\u2026');
         }
     },
     updateModeUi: function() {
@@ -279,6 +421,8 @@ gh.graphics.prototype = {
             loadState: this.loadState,
             packageVersion: gh.modernGraphics ? gh.modernGraphics.packageVersion : null,
             revision: gh.modernGraphics ? String(gh.modernGraphics.revision) : null,
+            surfaceKind: this.surfaceKind,
+            lobbyVisible: this.lobbyVisible,
             surface: this.surface ? this.surface.getDebugState() : null
         };
     }

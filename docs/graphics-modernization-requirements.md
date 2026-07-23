@@ -2,13 +2,13 @@
 
 | Field | Value |
 |---|---|
-| Status | Phase 0 implementation baseline |
-| Version | 0.2 |
+| Status | Phase 0.5 lobby-hand implementation baseline |
+| Version | 0.3 |
 | Last updated | 2026-07-23 |
-| Scope | Active-match graphics and interactions |
+| Scope | Active-match graphics roadmap plus the non-interactive main-menu hand preview |
 | Modern renderer | Three.js `0.185.1` (`r185`) with `WebGLRenderer`, selected for Phase 0 and provisional for the playable renderer |
 
-> **Implementation status — 2026-07-23:** Phase 0 is authorized for implementation. Its runtime bridge keeps the existing active-match Raphael papers mounted and synchronized, gates their presentation and pointer input while Modern is selected, and lazily mounts an inert self-hosted Three.js `0.185.1` (`r185`) WebGL surface. This bridge is deliberately temporary; it does not replace the target renderer-neutral architecture described later in this document.
+> **Implementation status — 2026-07-23:** Phase 0 established the runtime Graphics switch, the safe Legacy fallback, and an inert active-match Modern surface. Phase 0.5 is authorized to render only the five non-interactive hand cards shown in the main-menu/lobby viewport beneath the Play, Shop, and Tutorials bar. The bar, commands, statistics, rules, and surrounding menu remain on their existing Raphael/DOM implementation. The playable active-match renderer remains intentionally blank and follows the renderer-neutral roadmap described later in this document.
 
 ## Contents
 
@@ -24,6 +24,7 @@
 - [10. System invariants](#10-system-invariants)
 - [11. Functional requirements](#11-functional-requirements)
 - [12. Phase 0: graphics preference and inert Modern preview](#12-phase-0-graphics-preference-and-inert-modern-preview)
+  - [12.8 Phase 0.5: non-interactive Modern lobby hand](#128-phase-05-non-interactive-modern-lobby-hand)
 - [13. Target renderer contract](#13-target-renderer-contract)
 - [14. Renderer-neutral view state](#14-renderer-neutral-view-state)
 - [15. Three.js implementation constraints](#15-threejs-implementation-constraints)
@@ -41,14 +42,14 @@
 
 ## 1. Purpose of this document
 
-This document defines the intended outcome, constraints, phased delivery plan, and acceptance criteria for modernizing the active-match graphics in Pure Triple Triad.
+This document defines the intended outcome, constraints, phased delivery plan, and acceptance criteria for modernizing the active-match graphics in Pure Triple Triad. It also defines the deliberately narrow Phase 0.5 lobby-hand preview used to validate real Three.js card rendering before any playable match surface is converted.
 
 It is deliberately more detailed than an implementation ticket. The modernization will cross a legacy rendering implementation, animation-driven control flow, input handling, tests, build and dependency delivery, accessibility, and failure recovery. Once reviewed and accepted, this document is intended to be the stable product and engineering reference for that work.
 
 The document is intended to:
 
 - keep the original game fully playable throughout the modernization;
-- distinguish the active-match renderer from the application's other Raphael surfaces;
+- distinguish the active-match renderer and the isolated lobby-hand preview from the application's other Raphael surfaces;
 - prevent visual work from changing game rules or authoritative state;
 - define the first preparatory increment precisely;
 - provide measurable exit criteria for each later increment;
@@ -68,7 +69,7 @@ Pure Triple Triad should gain two selectable active-match graphics modes:
 1. **Legacy** uses the existing Raphael implementation and preserves the game as it currently behaves.
 2. **Modern** uses a new Three.js renderer in the same 693 by 500 logical active-match region.
 
-Raphael will remain loaded and usable. This project does not attempt to remove Raphael from the application as a whole. The cover, main menu, deck editor, shop, endgame screen, and other surrounding surfaces continue to depend on it.
+Raphael will remain loaded and usable. This project does not attempt to remove Raphael from the application as a whole. The cover, deck editor, shop, endgame screen, and the main-menu bar, commands, statistics, rules, and surrounding layout continue to depend on it. Phase 0.5 makes one explicit exception inside `gh.menu`: only the five decorative hand cards beneath the main command bar gain a parallel Three.js presentation.
 
 The long-term design must place the match controller and authoritative client-side match state above a renderer-neutral boundary:
 
@@ -88,6 +89,8 @@ After renderer extraction, exactly one active-match renderer must own the active
 The first implementation increment does **not** add functional Three.js card rendering. It adds a persisted graphics-mode preference and immediate runtime selection, preserves fully functional Legacy behavior, and supplies an intentionally inert Modern preview. The Modern bundle is isolated, pinned, self-hosted, and loaded only when Modern is requested.
 
 Phase 0 uses a presentation/input gate rather than a renderer reconstruction boundary. The active-match Raphael papers remain mounted, live, and synchronized while Modern is effective, but they are opacity-hidden, marked `aria-hidden`, and blocked from pointer input. A blank, non-interactive Three.js WebGL surface occupies the same active-match region and renders no cards yet. Selecting Legacy removes that gate and reveals the identical current Raphael state immediately, without a reload or renderer rebuild. This temporary coexistence must not be mistaken for the final architecture.
+
+Phase 0.5 is the first real-card rendering slice. When the main menu is visible and Modern is effective, a dedicated transparent Three.js surface renders up to five current `gh.data.hand` card faces at the established 755 by 562 lobby coordinates. The corresponding Raphael card images remain alive until the Modern texture set has rendered successfully, then only those five card elements are visually and accessibly gated. Switching to Legacy immediately reveals the original Raphael card images. The main-menu bar and commands are never hidden, replaced, or made pointer-inert by this hand-only gate.
 
 Legacy remains the default until the Modern renderer reaches the documented playability, parity, reliability, and fallback gates.
 
@@ -166,7 +169,7 @@ The hand and board arrays currently contain live Raphael handles. Some behavior 
 
 This means the Modern renderer cannot safely be implemented as a direct library substitution. A renderer-neutral state and transition boundary must be introduced deliberately.
 
-### 4.3 Raphael outside the match
+### 4.3 Raphael outside the match and the lobby-hand exception
 
 Raphael is also used by:
 
@@ -176,7 +179,11 @@ Raphael is also used by:
 - `gh.shop`;
 - `gh.endgame`.
 
-Those surfaces are outside this project's initial scope. Modern graphics mode must not unload, replace, delete, or globally disable `window.Raphael`.
+Phase 0.5 brings one bounded part of `gh.menu` into scope: the five non-interactive card images displayed beneath the Play, Shop, and Tutorials command bar when the application first reaches the main-menu/lobby viewport. The existing implementation uses one 755 by 562 Raphael paper for both the black command bar and those card images. It positions the card images at x coordinates 72, 197, 322, 447, and 572, with y 203 and a logical card size of 117 by 146.
+
+The Modern implementation must therefore gate individual hand-card elements rather than the `gh.menu` Raphael paper. The bar, commands, statistics, next-rules content, and all menu navigation remain present and usable. `gh.cover`, `gh.deck`, `gh.shop`, `gh.endgame`, and every other part of `gh.menu` remain outside the Phase 0.5 conversion.
+
+Modern graphics mode must not unload, replace, delete, or globally disable `window.Raphael`.
 
 ### 4.4 Existing layout and protocol contracts
 
@@ -184,6 +191,8 @@ The following existing contracts remain authoritative unless a later requirement
 
 - The active-match logical region is 693 by 500.
 - The containing board and frame are 755 by 562.
+- The main-menu/lobby Raphael paper and the dedicated Modern lobby-hand host use a 755 by 562 logical region.
+- The main-menu/lobby hand preview contains at most five cards at the existing x positions 72, 197, 322, 447, and 572 and y position 203; it is decorative and non-interactive.
 - Card art uses the current same-origin image paths and opaque image keys.
 - The application-level scale choices are 1, 1.5, 2, and 3.
 - Match creation, move submission, replay, claim, and game-completion protocols remain unchanged.
@@ -201,10 +210,13 @@ The following existing contracts remain authoritative unless a later requirement
 | **Legacy renderer** | The current active-match implementation backed by the two Raphael papers. |
 | **Modern renderer** | The future active-match implementation backed by Three.js. |
 | **Modern preview** | The intentionally inert Phase 0 Modern mode. It proves lazy Three.js delivery, WebGL mounting, runtime selection, and presentation/input gating but does not render playable cards. |
+| **Lobby/main-menu viewport** | The first application screen containing the Play, Shop, and Tutorials command bar, statistics/rules content, and the five-card hand preview. It is not an active match or game state. |
+| **Lobby-hand preview** | The five non-interactive current-hand card faces displayed below the main command bar. Phase 0.5 may render these cards with Three.js while all surrounding menu UI remains unchanged. |
+| **Lobby-hand host** | The dedicated, transparent, pointer-inert 755 by 562 DOM mount used only for the Modern lobby-hand preview. |
 | **Requested mode** | The value selected and persisted by the user. |
 | **Effective mode** | The mode currently presented to the user and permitted to own active-match pointer input. During the temporary Phase 0 bridge, the hidden Legacy implementation may remain mounted and synchronized even while Modern is effective. |
 | **Renderer host** | The positioned 693 by 500 DOM mount occupied by the effective renderer. |
-| **Outer UI** | Menus, cover, dialogs, deck editor, shop, endgame, title, footer, and other application UI outside the active-match renderer. |
+| **Outer UI** | Menus, cover, dialogs, deck editor, shop, endgame, title, footer, and other application UI outside the active-match renderer. The five-card lobby preview is a narrow rendering exception; its surrounding menu remains Outer UI. |
 | **Snapshot** | A renderer-neutral description of the current visible match state. |
 | **Semantic action** | A renderer-emitted intent such as selecting a card or dropping it on a slot, expressed without a Raphael or Three.js object. |
 | **Transition** | A renderer request such as lifting, moving, revealing, or flipping a card whose completion can be awaited. |
@@ -219,7 +231,7 @@ These decisions are part of the baseline requirements.
 
 | ID | Decision |
 |---|---|
-| DEC-001 | The modernization applies first to the active-match surface only. |
+| DEC-001 | The long-term modernization applies to the active-match surface; Phase 0.5 additionally authorizes one bounded, non-playable lobby-hand preview as a lower-risk renderer validation slice. |
 | DEC-002 | Raphael remains loaded and available to the rest of the application. |
 | DEC-003 | Legacy graphics remain a supported user-selectable mode for the foreseeable future. Removal would require a separate, explicit decision and project. |
 | DEC-004 | Three.js is the recommended and provisionally selected Modern rendering library, subject to the Phase 2 feasibility gate. |
@@ -238,6 +250,10 @@ These decisions are part of the baseline requirements.
 | DEC-017 | A local release/configuration kill switch must be able to force effective Legacy without erasing a stored Modern request. |
 | DEC-018 | Phase 0 pins and self-hosts Three.js `0.185.1` (`r185`) in an isolated lazy-loaded bundle. Legacy startup must not request or evaluate that bundle. |
 | DEC-019 | Phase 0 Modern mode is a temporary presentation/input gate: active-match Raphael remains mounted and synchronized but is opacity-hidden, `aria-hidden`, and pointer-blocked; the Three.js surface is blank and pointer-inert. |
+| DEC-020 | Phase 0.5 renders only the five non-interactive lobby/main-menu hand cards with Three.js. It does not render an in-match player hand and does not convert the lobby command bar or navigation. |
+| DEC-021 | The Modern lobby hand uses a dedicated 755 by 562 orthographic surface, existing same-origin card-face assets, the established five card positions, and no picking or interaction handlers. |
+| DEC-022 | Each Legacy lobby card receives a hand-specific presentation class. The Modern-ready gate may hide only those card elements; it must never hide the shared `gh.menu` Raphael paper, its bar, or the DOM command controls. |
+| DEC-023 | The lobby hand remains Legacy-visible until all required Modern card textures have loaded and the first complete frame is ready. Any initialization, texture, or context failure restores effective Legacy without altering game or account data. |
 
 ## 7. Goals
 
@@ -245,6 +261,7 @@ These decisions are part of the baseline requirements.
 
 - Give the player an explicit, understandable choice between Modern and Legacy active-match graphics.
 - Preserve the present game as a reliable escape hatch and historical experience.
+- Provide an early, low-risk visual proof by rendering the familiar five-card lobby hand without making it interactive or treating it as match state.
 - Make the Modern experience materially more expressive through controlled 3D card motion.
 - Allow the renderer to evolve without rewriting the server-side game.
 - Keep a match resumable when the selected renderer is unavailable or fails.
@@ -260,6 +277,7 @@ These decisions are part of the baseline requirements.
 - Ensure only one renderer and one set of input handlers is active.
 - Provide renderer-neutral diagnostics and test snapshots.
 - Add Modern code without requiring a broad rewrite of the legacy application.
+- Validate same-origin card-texture loading, orthographic layout, color handling, disposal, and runtime fallback through the isolated lobby-hand slice.
 - Preserve the existing same-origin security and self-contained deployment model.
 
 ### 7.3 Quality goals
@@ -276,7 +294,9 @@ These decisions are part of the baseline requirements.
 The following are outside this initiative unless separately approved:
 
 - removing Raphael from the application;
-- migrating the cover, menu, deck editor, shop, or endgame UI to Three.js;
+- migrating the cover, main-menu bar or commands, statistics, next-rules content, deck editor, shop, or endgame UI to Three.js;
+- making the Phase 0.5 lobby-hand cards interactive, draggable, selectable, animated, or authoritative over any game state;
+- treating the lobby-hand preview as an in-match player hand or using it to submit a move;
 - changing the game rules, AI, scoring, rewards, economy, persistence, or move validation;
 - changing opaque client/server protocol fields merely to make them easier to read;
 - changing canonical card identities or image-key naming;
@@ -301,11 +321,15 @@ The player selects Legacy, starts or resumes any match, and receives the present
 
 ### 9.2 Player opting into Modern graphics
 
-The player selects Modern in the existing dropdown. The application persists the choice, lazily loads Three.js if necessary, and switches the active-match presentation to the inert Three.js surface on the same page. The rest of the application continues using its existing UI technologies.
+The player selects Modern in the existing dropdown. The application persists the choice, lazily loads Three.js if necessary, and switches the active-match presentation to the inert Three.js surface on the same page. When the lobby/main-menu viewport is visible, the same effective setting renders its five-card hand preview with Three.js while the bar and commands continue using their existing technologies.
+
+### 9.2.1 Player viewing the Phase 0.5 lobby hand
+
+The player reaches the main menu and sees Play, Shop, and Tutorials exactly as before. Beneath those commands, the five current hand card faces are drawn by Three.js at approximately the existing positions. They do not respond to pointer, keyboard, or touch input. Selecting Legacy swaps those five images back to their original Raphael presentation without changing the hand, starting a game, navigating, or reloading.
 
 ### 9.3 Player returning from the Phase 0 preview
 
-During Phase 0, the player selects Modern and sees an inert preview rather than cards. The context menu and main-menu route remain usable. The player selects Legacy and immediately sees the same current Raphael match state that continued to synchronize while hidden. No reload, match resume, or renderer rebuild is required.
+During Phase 0, the player selects Modern during an active match and sees an inert preview rather than playable match cards. The context menu and main-menu route remain usable. The Phase 0.5 lobby cards do not change this active-match limitation. The player selects Legacy and immediately sees the same current Raphael match state that continued to synchronize while hidden. No reload, match resume, or renderer rebuild is required.
 
 ### 9.4 Unsupported or failed Modern environment
 
@@ -342,6 +366,9 @@ The following invariants apply across every phase after the relevant seam exists
 17. Renderer disposal removes ownership before another renderer accepts input.
 18. Renderer application state advances through monotonically increasing snapshot revisions; a stale animation result cannot overwrite a newer revision.
 19. A release kill switch may force effective Legacy without changing the requested preference.
+20. The lobby-hand preview is a projection of the current menu hand data and never becomes authoritative state.
+21. Neither the Modern nor Legacy lobby-hand preview owns pointer or keyboard input.
+22. The hand-only lobby gate cannot hide, disable, or replace the shared Raphael menu bar or DOM commands.
 
 ### 10.1 Phased applicability
 
@@ -356,7 +383,7 @@ In particular, Phase 0 does **not** require:
 - renderer-neutral replay or Sudden Death reconstruction;
 - replacement of existing renderer-specific tests.
 
-Phase 0 may use a shallow runtime presentation/input gate around the unchanged Legacy path and the inert Modern preview. It must still meet every requirement and acceptance criterion explicitly assigned to Phase 0.
+Phase 0 may use a shallow runtime presentation/input gate around the unchanged Legacy path and the inert Modern preview. Phase 0.5 may add a dedicated lobby-hand projection and a hand-element-only presentation gate without expanding the playable renderer boundary. Each phase must still meet every requirement and acceptance criterion explicitly assigned to it.
 
 Requirements become mandatory according to this table:
 
@@ -378,6 +405,7 @@ Requirements become mandatory according to this table:
 | Remaining `FR-A11Y-*` | Phase 5, before Modern becomes default |
 | `FR-TEST-001` | Phase 0 |
 | Remaining `FR-TEST-*` | Phase 1 onward |
+| `FR-LOBBY-*` | Phase 0.5 |
 
 ## 11. Functional requirements
 
@@ -391,7 +419,7 @@ Requirements become mandatory according to this table:
 
 **FR-MODE-004** — The application must distinguish the requested mode from the effective mode.
 
-**FR-MODE-005** — In Phase 0, selecting `Legacy` or `Modern` must apply on the current page without reload. Selecting Modern must not hide or pointer-block Legacy until the Modern bundle and WebGL surface have initialized successfully. Selecting Legacy must reveal the current live Raphael state immediately without reconstructing the match or its papers.
+**FR-MODE-005** — In Phase 0, selecting `Legacy` or `Modern` must apply on the current page without reload. Selecting Modern must not hide or pointer-block Legacy until the Modern bundle and WebGL surface have initialized successfully. Selecting Legacy must reveal the current live Raphael state immediately without reconstructing the match or its papers. In Phase 0.5 the same readiness rule applies independently to the five lobby card elements; it never gates the shared menu paper.
 
 **FR-MODE-006** — When requested and effective modes differ, the UI must explain the actual reason:
 
@@ -433,7 +461,7 @@ Requirements become mandatory according to this table:
 
 **FR-LIFE-007** — The effective renderer must be observable through a stable renderer-neutral API or DOM marker.
 
-**FR-LIFE-008** — The modern host must occupy the same 693 by 500 logical region as the two Legacy papers, inset 30 pixels from the top and left of the 755 by 562 board.
+**FR-LIFE-008** — The active-match Modern host must occupy the same 693 by 500 logical region as the two Legacy match papers, inset 30 pixels from the top and left of the 755 by 562 board. The distinct Phase 0.5 lobby-hand host follows `FR-LOBBY-003`.
 
 **FR-LIFE-009** — Both renderers must coexist with the existing 755 by 562 CSS board frame and HTML dialog overlay.
 
@@ -650,6 +678,32 @@ Before beta, this flow requires automated accessible-tree and keyboard assertion
 
 **FR-TEST-008** — Renderer failures and fallback reasons should be diagnosable locally without transmitting match data to an external service.
 
+### 11.11 Phase 0.5 lobby-hand preview
+
+**FR-LOBBY-001** — The Phase 0.5 target is the five-card hand preview in the lobby/main-menu viewport beneath the Play, Shop, and Tutorials command bar. It is not the player hand inside an active match.
+
+**FR-LOBBY-002** — `gh.menu` must expose plain rendering descriptions for at most five current cards, including semantic identifiers when available, same-origin texture URL, logical x and y, width, and height. Three.js must not read Raphael element state to construct the preview.
+
+**FR-LOBBY-003** — The Modern lobby-hand renderer must have a dedicated host and factory distinct from the 693 by 500 active-match host. Its logical region must be 755 by 562.
+
+**FR-LOBBY-004** — The settled Modern preview must use the existing five x positions 72, 197, 322, 447, and 572, y position 203, and card dimensions 117 by 146 unless a later visual review explicitly approves a change.
+
+**FR-LOBBY-005** — The Modern lobby hand must render no more than five front-face card textures from the same URLs used by Legacy, with deterministic ordering and restrained static rotation. It must not perform picking, attach card input handlers, submit actions, or run an unconditional animation loop.
+
+**FR-LOBBY-006** — The original Raphael lobby cards must remain mounted. Each must carry a hand-specific marker that can be gated independently from the shared Raphael paper. The bar and all surrounding menu presentation must remain visible throughout Modern initialization and use.
+
+**FR-LOBBY-007** — The legacy lobby cards may become visually hidden and `aria-hidden` only after all required Modern card textures load and a complete Modern frame is ready. Until then, Legacy remains presented to prevent a blank hand region.
+
+**FR-LOBBY-008** — Selecting Legacy must synchronously reveal the existing Raphael lobby cards and hide the Modern lobby host. It must not recreate hand data, reload the page, navigate, start a match, or issue a server request.
+
+**FR-LOBBY-009** — Entering or leaving the lobby must notify the graphics coordinator so the coordinator owns at most one current WebGL surface kind. Leaving the lobby must dispose or make idle the lobby surface before the active-match surface becomes current.
+
+**FR-LOBBY-010** — A lobby texture-load, initialization, or context-loss failure must dispose the partial Modern surface, preserve or reveal the Raphael cards, report effective Legacy, and retain the requested Modern preference under the existing fallback policy.
+
+**FR-LOBBY-011** — The Modern lobby surface must use an orthographic mapping that preserves the established pixel-space positions under application scale and capped device-pixel ratio. The canvas and host must remain pointer-inert, and the decorative canvas itself must remain `aria-hidden`.
+
+**FR-LOBBY-012** — Diagnostics must identify the surface as `lobby-hand` and report readiness, logical size, mesh count, texture count, and the five card screen rectangles without exposing Three.js mesh objects as application state.
+
 ## 12. Phase 0: graphics preference and inert Modern preview
 
 ### 12.1 Objective
@@ -700,7 +754,7 @@ While Modern is being requested or initialized:
 When Modern preview is effective:
 
 - `window.Raphael` remains present and callable.
-- Outer UI continues to create and use Raphael surfaces.
+- Surrounding Outer UI continues to create and use Raphael surfaces; Phase 0.5 may separately project only the lobby hand through Three.js.
 - The active-match board and rule Raphael papers remain mounted.
 - The existing `gh.game` match state, Raphael objects, timers, callbacks, review/replay state, and server-response sequencing remain live and synchronized.
 - The complete Legacy active-match presentation is opacity-hidden as one unit; selectively hiding card images is insufficient.
@@ -729,7 +783,7 @@ This bridge is an implementation tactic for Phase 0 only. Phase 1 and later must
 
 A completely blank board is technically acceptable for the seam, but it looks like a defect. Phase 0 should show a renderer-neutral DOM message such as:
 
-> Modern graphics preview — card rendering is not implemented yet. Select Legacy graphics to return to the current game.
+> Modern match preview — playable card rendering is not implemented here yet. Select Legacy graphics to return to the current game.
 
 The exact copy may change, but it must:
 
@@ -908,7 +962,7 @@ Given Modern preview is effective:
 Given at least ten alternating same-page mode changes:
 
 - the page does not reload;
-- one board paper, one rule paper, one Modern host, one Three.js canvas, and at most one WebGL context exist;
+- one board paper, one rule paper, one active-match Modern host, one lobby-hand Modern host, at most one current Three.js canvas, and at most one WebGL context exist;
 - input handlers do not multiply;
 - the non-effective surface remains pointer-inert;
 - delayed completion of an earlier Modern load cannot override a later Legacy request;
@@ -977,14 +1031,184 @@ Given requested Modern is stored:
 Phase 0 is complete only when:
 
 - every acceptance criterion above is automated where practical;
-- no application code outside active-match selection treats Modern as playable;
+- no application code treats the Modern active-match surface as playable; the Phase 0.5 lobby hand remains decorative;
 - Legacy remains the documented default;
 - the preview is clearly labeled;
 - the user can return to Legacy immediately without clearing storage or reloading;
 - the pinned Three.js bundle is reproducibly built, license-recorded, and served from the same origin;
 - the temporary hidden-live-Raphael bridge is identified in code and documentation as Phase 0 debt;
 - no server, database, rules, or protocol change was needed;
-- a code review confirms that outer Raphael usage remains untouched.
+- a code review confirms that Raphael usage outside the Phase 0.5 hand-card elements remains untouched.
+
+### 12.8 Phase 0.5: non-interactive Modern lobby hand
+
+#### 12.8.1 Objective and scope boundary
+
+Phase 0.5 proves that the pinned Three.js delivery path can render real Pure Triple Triad card assets in the familiar application viewport without first taking on match rules, interaction, animation sequencing, opponent secrecy, or renderer-neutral match reconstruction.
+
+The target is exactly the five-card decorative hand shown when the application is on its main menu. The identifying visual context is the command bar containing Play, Shop, and Tutorials, with the five cards directly beneath it. This surface is not a match, a resumable game scene, or the in-match player hand.
+
+Phase 0.5 must not:
+
+- render or gate any in-match hand card;
+- convert the Play, Shop, Tutorials, Replay, Deck, statistics, or rules presentation;
+- make a lobby card hoverable, selectable, draggable, focusable, or clickable;
+- alter `gh.data.hand`, deck composition, account state, match state, or server protocol;
+- weaken the Phase 0 guarantee that Legacy remains immediately available;
+- imply that the active-match Modern renderer is playable.
+
+#### 12.8.2 Runtime composition
+
+The Phase 0.5 lobby composition is:
+
+```text
+#menu                                      755 × 562 lobby coordinate space
+├── existing Raphael paper
+│   ├── existing black command bar         remains visible in both modes
+│   └── five Legacy card <image> elements  individually marked and gated
+├── #modernLobbyHand                       dedicated pointer-inert host
+│   └── one Three.js WebGL canvas          five textured planes in Modern
+└── sibling DOM menu/stat/rule elements    remain unchanged and usable
+```
+
+`#modernLobbyHand` must not be used as the active-match host. The Modern facade must expose a dedicated lobby-hand factory in addition to the existing active-match surface factory. The application manager must pass the existing `gh.menu` instance into the graphics coordinator so menu visibility, card descriptions, effective mode, readiness, fallback, and cleanup have one owner. The Phase 0.5 artifact must be requested with the cache identity `/js/modern/purett-modern-graphics.min.js?v=0.185.1-lobby-hand.1`; a later artifact change must advance that identity.
+
+When the lobby becomes visible:
+
+1. `gh.menu` constructs its normal Raphael card images and a plain five-card rendering description.
+2. If Legacy is effective, only the established Raphael result is visible.
+3. If Modern is effective, the coordinator creates or selects the `lobby-hand` surface and supplies the plain descriptions.
+4. The surface loads the required same-origin card textures, configures their color space and filtering, creates five non-interactive planes, and performs an on-demand render.
+5. Only after the complete frame is ready does `gh.menu` apply the hand-only gate that hides the marked Raphael card images.
+6. The Raphael command bar and DOM commands remain visible and usable at every step.
+
+When the lobby is hidden or the application transitions to an active match, the coordinator must invalidate pending lobby texture completion, reset the hand-ready gate, and dispose or replace the current surface without leaving an extra canvas, WebGL context, material, geometry, or texture owner. Selecting Legacy must reset the gate immediately; consistent with Phase 0's cache policy, it may retain one hidden, idle lobby surface for a later same-page Modern retry, and its guarded completion must be unable to reapply the gate while Legacy is effective.
+
+#### 12.8.3 Layout and rendering baseline
+
+The first Modern lobby rendering deliberately approximates the established design:
+
+- logical viewport: 755 by 562;
+- maximum card count: five;
+- card dimensions: 117 by 146;
+- x positions: 72, 197, 322, 447, and 572;
+- y position: 203;
+- camera: orthographic pixel-space mapping;
+- material: unlit, art-preserving textured planes;
+- card faces: the exact current same-origin Legacy image URLs, including purchased-card and user-color path rules;
+- ordering: stable source hand order;
+- rotation: small deterministic per-position variation is allowed;
+- motion: none required;
+- interaction and picking: prohibited;
+- render scheduling: initialization, texture completion, content-scale change, or explicit state change only.
+
+The renderer may cap the effective device-pixel ratio for resource control, but CSS bounds must continue to follow the application's existing scale transform. Card texture loading must be generation-guarded so a stale hand or a surface that has already been replaced cannot commit meshes or trigger a late mode change.
+
+#### 12.8.4 Failure and fallback
+
+The legacy hand must remain visible while Modern textures are pending. A required texture failure, renderer creation failure, invalid card description, or WebGL context loss must:
+
+- prevent or remove the hand-only Modern-ready gate;
+- dispose every resource owned by the partial lobby surface;
+- make effective Legacy visible;
+- report a classified fallback through the existing Graphics status;
+- preserve the requested Modern preference;
+- issue no game, account, deck, or match request;
+- leave Play, Shop, Tutorials, and the rest of the lobby usable.
+
+A later explicit Modern selection may retry under the same bounded failure policy used by Phase 0. Returning to Legacy is never contingent on a Modern texture request finishing.
+
+#### 12.8.5 Acceptance criteria
+
+**AC-P05-001 — Correct target**
+
+Given the application is on the main-menu/lobby viewport:
+
+- the preview is below the Play, Shop, and Tutorials bar;
+- its input data comes from the lobby hand supplied to `gh.menu`;
+- no active-match `gh.game.hand`, board card, slot, score, or rule-banner object is used to construct it.
+
+**AC-P05-002 — Modern settled frame**
+
+Given five valid current-hand entries and effective Modern:
+
+- one dedicated lobby WebGL canvas exists;
+- debug state identifies `surface: "lobby-hand"`;
+- logical size is 755 by 562;
+- exactly five visible meshes and the required texture set are reported after readiness;
+- each debug screen rectangle matches its expected 117 by 146 legacy position;
+- the canvas performs no picking and remains pointer-inert;
+- no unconditional animation frame loop remains active after settlement.
+
+**AC-P05-003 — Hand-only Legacy gate**
+
+Given the Modern lobby frame is ready:
+
+- only the five Raphael card image elements marked as lobby-hand cards are opacity-hidden and `aria-hidden`;
+- the shared Raphael paper is still mounted;
+- the black command bar remains visible;
+- Play, Shop, Tutorials, and any conditionally present menu commands remain operable;
+- no broad selector hides the menu paper or all of its SVG descendants.
+
+**AC-P05-004 — Readiness and async ordering**
+
+Given one or more card textures are delayed:
+
+- the original Raphael cards remain visible until every required texture is ready;
+- repeated lobby-show or card-update notifications cannot commit an older texture generation;
+- selecting Legacy before texture completion prevents the delayed completion from reapplying the Modern-ready gate;
+- no partially populated hand is presented as a successful Modern frame.
+
+**AC-P05-005 — Runtime Legacy return**
+
+Given a ready Modern lobby hand, when Legacy is selected:
+
+- the existing Raphael card elements become visible immediately;
+- the Modern host becomes hidden and pointer-inert;
+- the hand data and Raphael element identities are unchanged;
+- the page does not reload and no network request mutates game or account state.
+
+**AC-P05-006 — Lobby lifecycle**
+
+Given repeated navigation between the lobby and another application surface:
+
+- at most one current Modern surface kind and one application-owned WebGL context remain;
+- leaving the lobby clears its ready gate and cannot leave hidden Raphael cards behind;
+- texture, material, geometry, canvas, and context resources are released when the lobby surface is disposed;
+- returning to the lobby renders the current hand rather than a stale earlier hand.
+
+**AC-P05-007 — Failure recovery**
+
+Given a forced lobby texture failure or WebGL context loss:
+
+- effective mode becomes Legacy exactly once;
+- all five Raphael cards remain or become visible;
+- the lobby commands remain usable;
+- requested Modern remains persisted;
+- partial Modern resources are removed;
+- the UI reports a useful fallback reason.
+
+**AC-P05-008 — Legacy isolation**
+
+Given a fresh Legacy-only page:
+
+- the Modern bundle is not requested or evaluated;
+- the lobby uses its existing Raphael cards and animation;
+- no Modern lobby canvas or WebGL context is created;
+- the main-menu visual and navigation regression suite remains unchanged.
+
+#### 12.8.6 Definition of done
+
+Phase 0.5 is complete only when:
+
+- the dedicated lobby host, factory, coordinator bridge, and hand-specific gate have static contract coverage;
+- browser evidence verifies a five-card Modern frame and immediate Legacy return;
+- browser evidence verifies that the Play, Shop, and Tutorials bar remains visible and functional;
+- forced texture and context failures preserve a complete Legacy lobby;
+- the generated bundle remains isolated, license-recorded, reproducible, and unable to overwrite the legacy `window.THREE` used by the snow effect;
+- the bundle URL carries the documented lobby-hand cache revision so existing clients do not reuse the earlier inert artifact;
+- no server, database, game-rule, account, or protocol change is introduced;
+- the active-match Modern surface remains non-playable and the Phase 1 through Phase 7 roadmap is unchanged.
 
 ## 13. Target renderer contract
 
@@ -1172,6 +1396,7 @@ This is illustrative rather than a mandated field-for-field schema. The implemen
 - Modern code must be lazy-loaded or otherwise excluded from the forced-Legacy startup path.
 - A fresh page load with Legacy forced must issue no Modern resource request, import, or preload and must evaluate zero Modern bytes. Switching back to Legacy after Modern was explicitly loaded on that page may retain the idle cached surface.
 - Phase 0 must render one blank transparent frame with the pinned Three.js `WebGLRenderer`; it must not create card geometry, texture assets, picking targets, or a continuous animation loop.
+- Phase 0.5 adds the sole pre-Phase-2 exception to that blank-frame rule: the dedicated lobby-hand factory may create one shared 117 by 146 plane geometry, up to five meshes, and only the current lobby hand's same-origin textures. The active-match factory remains blank, and neither surface may create picking targets or an unconditional animation loop.
 - Lazy-load failure before input ownership must follow the initialization-fallback policy.
 - Source-map publication, generated-file review, and third-party license-notice policy must be explicit.
 - A lockfile, upgrade procedure, and license record must accompany the dependency.
@@ -1185,7 +1410,7 @@ This is illustrative rather than a mandated field-for-field schema. The implemen
 
 ### 15.3 Initial scene strategy
 
-The initial scene should favor clarity and simplicity:
+The playable active-match scene beginning in Phase 2 should favor clarity and simplicity:
 
 - one constrained camera;
 - one scene;
@@ -1212,9 +1437,11 @@ The Phase 2 spike must record decisions and visual fixtures for:
 
 Instancing, atlases, complex post-processing, particles, physics, and advanced shadows should be added only after profiling demonstrates a need or a product requirement justifies them.
 
+The Phase 0.5 lobby-hand scene intentionally uses an orthographic camera and unlit planes so its screen-space result approximates the established two-dimensional menu layout. That choice is not a decision about the later active-match camera, card thickness, lighting, or perspective.
+
 ### 15.4 Texture policy
 
-- Only textures needed by the current match, its card backs, board elements, and immediate effects should be loaded.
+- Only textures needed by the current lobby hand or current match, its card backs, board elements, and immediate effects should be loaded.
 - Texture color-space handling must preserve card-art appearance.
 - Front and back orientation must be tested edge-on and through a complete turn.
 - Texture cache ownership must be explicit.
@@ -1351,10 +1578,11 @@ Performance evidence must use two named deterministic fixtures:
 
 ## 17. Behavior and parity matrix
 
-In the Phase 0 column, “not rendered” or “disabled” means not rendered or operable by Three.js. The corresponding Legacy objects remain live and synchronized behind the opacity and pointer gate so they can be revealed immediately.
+In the Phase 0/0.5 column, “not rendered” or “disabled” means not rendered or operable by Three.js on the active-match surface. The corresponding Legacy match objects remain live and synchronized behind the opacity and pointer gate so they can be revealed immediately. The lobby-hand row is the sole Phase 0.5 card-rendering exception.
 
-| Capability | Legacy requirement | Phase 0 Modern preview | Playable Modern requirement |
+| Capability | Legacy requirement | Phase 0/0.5 Modern preview | Playable Modern requirement |
 |---|---|---|---|
+| Lobby/main-menu hand | Five non-interactive Raphael card faces beneath the command bar | Phase 0.5 renders up to five non-interactive Three.js card faces; only corresponding Raphael card elements are gated | Remains a separate decorative menu projection |
 | Board frame | Unchanged | Visible | Preserved or deliberately redesigned later |
 | Player hand | Fully functional | Not rendered | Rendered and interactive |
 | Opponent hand | Fully functional | Not rendered | Correct open/closed state |
@@ -1395,6 +1623,19 @@ Exit gate:
 - The user can return to the identical current Legacy state immediately without reload or reconstruction.
 - Existing Legacy browser tests pass.
 
+### Phase 0.5 — Non-interactive lobby-hand rendering
+
+Deliver the exact scope and acceptance criteria in Section 12.8.
+
+Exit gate:
+
+- Modern renders the current five-card lobby hand in the 755 by 562 main-menu coordinate space with the pinned Three.js bundle.
+- The cards are static, decorative, pointer-inert, and sourced from plain menu card descriptions rather than active-match or Raphael state.
+- Only individually marked Raphael hand-card elements are hidden after the complete Modern frame is ready.
+- The Raphael command bar and the Play, Shop, and Tutorials controls remain visible and usable.
+- Runtime Legacy return and initialization, texture, and context-loss fallback reveal the intact original lobby hand.
+- The active-match Modern surface remains blank and non-playable.
+
 ### Phase 1 — Characterization and Legacy renderer boundary
 
 Deliverables:
@@ -1423,9 +1664,9 @@ Exit gate:
 
 Deliverables:
 
-- extend and validate the isolated, pinned, same-origin Three.js build introduced in Phase 0;
+- extend and validate the isolated, pinned, same-origin Three.js build introduced in Phase 0 and exercised with real lobby textures in Phase 0.5;
 - review the existing production manifest, pinned toolchain declaration, lockfile, reproducible build/validation command, generated-artifact policy, module ABI, and license/source-map policy;
-- evolve the blank transparent WebGL renderer already mounted in the Modern host;
+- evolve the blank transparent active-match WebGL renderer already mounted in the Modern host; do not treat the separate lobby-hand scene as an active-match snapshot;
 - render a representative board snapshot;
 - implement card front, back, edge, perspective, lift, turn, and scale;
 - prove raycast picking and coordinate mapping;
@@ -1575,7 +1816,9 @@ Ongoing gate:
 | Dimension | Required cases |
 |---|---|
 | Renderer | Legacy, Modern, forced Modern initialization failure, forced context loss |
+| Surface | lobby-hand preview, active-match preview, transition between those surface kinds |
 | Preference | unset, Legacy, Modern, invalid value, unavailable storage, kill switch, active/expired failure backoff, explicit retry |
+| Lobby hand | zero through five cards, purchased and standard image paths, delayed texture, failed texture, hand replacement while loading, repeated show/hide |
 | Match state | initial hand, resumed match, occupied board, Open, Closed, Elemental, final turn |
 | Capture | Basic, Same, Same Wall, Plus, Combo, multiple simultaneous captures |
 | Flow | normal play, invalid drop, request pending, dialog, endgame, Sudden Death, review, replay, tutorial |
@@ -1619,7 +1862,7 @@ SVG node order and Three.js mesh identity may be inspected in renderer-specific 
 
 ### 19.4 Requirements-to-phase traceability
 
-Phase 0 requirements and acceptance criteria are the authorized implementation baseline as of 2026-07-23. Later requirements describe the intended target and gates; each later phase must begin with a short entry review that resolves its open questions, confirms its fixtures, and converts any remaining provisional numerical budget into an accepted measurement contract.
+Phase 0 and Phase 0.5 requirements and acceptance criteria are the authorized implementation baseline as of 2026-07-23. Later requirements describe the intended target and gates; each later phase must begin with a short entry review that resolves its open questions, confirms its fixtures, and converts any remaining provisional numerical budget into an accepted measurement contract.
 
 | Requirement family | First owning phase | Primary owner | Required evidence | Blocks Modern default |
 |---|---|---|---|---|
@@ -1633,6 +1876,7 @@ Phase 0 requirements and acceptance criteria are the authorized implementation b
 | `FR-FAIL-*` | Phase 0/3/5 | Renderer registry and recovery coordinator | Forced init, asset, context-loss, and controlled-reload tests | Yes |
 | `FR-A11Y-*` | Phase 0/2/3/5 | DOM semantic layer and intent dispatcher | Name/role/state, redaction, focus, keyboard, and announcement checklist | Yes |
 | `FR-TEST-*` | Phase 0/1 | Browser and renderer test harness | Semantic snapshots, deterministic visual fixtures, cross-renderer suite | Evidence enabler |
+| `FR-LOBBY-*` | Phase 0.5 | Menu and graphics coordinator | Five-card visual fixture, hand-only gate, async readiness, lifecycle, and fallback tests | Yes |
 | `NFR-PERF-*` | Phase 2 | Modern build and renderer | GM-P100/GM-P200 performance and bundle report | Yes |
 | `NFR-REL-*` | Phase 1/5 | Both renderers and controller | Repeated lifecycle, heap/resource, stale-revision, and severity report | Yes |
 | `NFR-SEC-*` | Phase 2 | Build/deployment boundary | CSP, same-origin, dependency, and network audit | Yes |
@@ -1733,6 +1977,9 @@ The preference should survive browser restarts. It is intentionally browser/orig
 | Replay and Sudden Death reuse render handles | Highest-risk parity paths | Snapshot-based reconstruction and dedicated fixtures |
 | Empty preview appears broken | User confusion | Clear Preview label and DOM explanation |
 | Phase 0 runtime gate accidentally becomes a renderer hot swap | Lost input, duplicate request, stale scene, or hidden targets accepting input | Do not dispose, rebuild, or transfer state in Phase 0; keep one live Legacy controller, gate both surfaces atomically, make Modern pointer-inert, and test node/state identity across toggles |
+| Lobby hand is mistaken for the in-match hand | Scope expands into game state, input, and rule sequencing before the renderer boundary exists | Keep a dedicated `lobby-hand` factory, host, card description, diagnostics identity, and acceptance suite |
+| Lobby gate hides the shared Raphael menu paper | Play, Shop, Tutorials, or the command bar disappears with the cards | Mark and gate only individual Legacy lobby-hand card elements; reject broad SVG or paper selectors |
+| A stale lobby texture load completes after navigation or Legacy selection | Old cards reappear, Legacy cards remain hidden, or an extra context survives | Generation-guard texture work, confirm current surface/mode/readiness before gating, and dispose on surface-kind transitions |
 | Remote dependency delivery violates self-contained design | Startup, CSP, and archival failure | Pin, bundle, and serve all Modern code locally |
 
 ## 22. Open design questions
@@ -1744,9 +1991,9 @@ These questions do not block Phase 0 unless noted, but each must be resolved in 
 | OQ-001 | Exact user-facing control copy | Resolved: `Graphics` with `Legacy` and `Modern`; adjacent status identifies the non-playable Preview | Phase 0 |
 | OQ-002 | Blank preview or explanatory message | Require the explanatory DOM message | Phase 0 |
 | OQ-003 | Runtime application after mode selection | Resolved: apply immediately through the Phase 0 presentation/input gate; never require or force a reload | Phase 0 |
-| OQ-004 | Perspective or orthographic primary camera | Use constrained perspective unless the spike shows unacceptable layout distortion | Phase 2 |
+| OQ-004 | Perspective or orthographic primary active-match camera | Phase 0.5 lobby hand is resolved as orthographic; use constrained perspective for the active match unless the spike shows unacceptable layout distortion | Phase 2 |
 | OQ-005 | Thin box or paired planes for a card | Decide through edge, orientation, and draw-cost measurements | Phase 2 |
-| OQ-006 | Per-card textures or atlas | Begin with cached current-match textures; add an atlas only if profiling justifies it | Phase 2 |
+| OQ-006 | Per-card textures or atlas | Phase 0.5 uses per-card current-lobby-hand textures; begin the active match with cached current-match textures and add an atlas only if profiling justifies it | Phase 2 |
 | OQ-007 | Exact shadows and lighting | Favor simple art-preserving materials and restrained contact/depth cues | Phase 2 |
 | OQ-008 | Score/rule/turn UI in WebGL or DOM | Prefer DOM where it improves accessibility and reduces texture/glyph work | Phase 3 |
 | OQ-009 | Playable-renderer switching after full decoupling | Phase 0's non-playable presentation gate does not decide this; keep later renderer reconstruction at safe boundaries unless a clear user need justifies playable hot swap | Phase 6 or later |
@@ -1787,7 +2034,7 @@ Changes to any of the following require an explicit update to this document or a
 - weakening same-origin or Content Security Policy requirements;
 - adding external telemetry;
 - making the WebGL canvas the sole accessible interaction surface;
-- expanding the initiative to other application Raphael surfaces.
+- expanding the initiative to application Raphael surfaces beyond the explicitly approved lobby-hand exception.
 
 Each revision should record:
 
@@ -1807,6 +2054,9 @@ Each revision should record:
 - [Standalone setup and tests](../README-STANDALONE.md)
 - [Triple Triad rules](rules.md)
 - Active-match implementation: `public/js/plugins/gh.game.js`
+- Lobby/main-menu implementation and five-card hand projection: `public/js/plugins/gh.menu.js`
+- Graphics-mode and surface-kind coordinator: `public/js/plugins/gh.graphics.js`
+- Modern active-match and lobby-hand source: `frontend/src/modern-graphics.js`
 - Application manager and scaling: `public/js/default/index.js`
 - Context-menu markup: `application/views/partials/overlays.phtml`
 - Active-board styles: `public/css/default/index.css`
@@ -1814,6 +2064,7 @@ Each revision should record:
 - Browser security policy: `public/.htaccess`
 - Container asset delivery: `docker/php56-apache.Dockerfile` and `.dockerignore`
 - Browser-suite configuration: `tests/browser/playwright.config.js`
+- Modern build/runtime static contract: `tests/static/modern-graphics-contract.js`
 - Legacy browser coverage: `tests/browser/smoke.spec.js`, `tests/browser/scale-interactions.spec.js`, `tests/browser/dialog-scale.spec.js`, and `tests/browser/endgame-protection.spec.js`
 
 ## 26. External technical references

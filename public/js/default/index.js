@@ -77,6 +77,7 @@ gh.load(['util', ['game'], 'cover', 'menu', ['dialog'], ['jquerytools'], 'audio'
                     me.game = new gh.game($('#content'), $('#rules'));
                     me.graphics = new gh.graphics({
                         game: me.game,
+                        menu: me.menu,
                         modernEnabled: gh.data.modernGraphicsEnabled !== false,
                         getContentScale: function() {
                             return me.contentScale;

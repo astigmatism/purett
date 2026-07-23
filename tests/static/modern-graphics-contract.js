@@ -19,12 +19,14 @@ try {
   const packageJson = JSON.parse(read('frontend/package.json'));
   const packageLock = JSON.parse(read('frontend/package-lock.json'));
   const coordinator = read('public/js/plugins/gh.graphics.js');
+  const application = read('public/js/default/index.js');
+  const lobbyMenu = read('public/js/plugins/gh.menu.js');
   const modernSource = read('frontend/src/modern-graphics.js');
   const modernBundle = read('public/js/modern/purett-modern-graphics.min.js');
   const layout = read('application/views/layouts/standalone.phtml');
   const game = read('public/js/plugins/gh.game.js');
   const boardCss = read('public/css/default/index.css');
-  const menu = read('application/views/partials/overlays.phtml');
+  const contextMenu = read('application/views/partials/overlays.phtml');
   const bootController = read('library/Standalone/Controller/Action.php');
 
   assert(packageJson.dependencies.three === '0.185.1', 'Three.js is not pinned to 0.185.1');
@@ -38,7 +40,7 @@ try {
   assert(!/window\.THREE\s*=/.test(modernSource + modernBundle), 'modern bundle overwrites the legacy snow THREE global');
   assert(fs.existsSync(path.join(root, 'public/js/modern/THREE-LICENSE.txt')), 'distributed Three.js license is missing');
 
-  assert(coordinator.includes('/js/modern/purett-modern-graphics.min.js?v=0.185.1'), 'coordinator does not use the pinned same-origin bundle');
+  assert(coordinator.includes('/js/modern/purett-modern-graphics.min.js?v=0.185.1-lobby-hand.1'), 'coordinator does not use the lobby-hand bundle cache revision');
   assert(!/https?:\/\//.test(coordinator), 'coordinator references a third-party graphics URL');
   assert(coordinator.includes("this.storageKey = 'purett.graphicsMode.v1'"), 'graphics preference does not have a stable storage key');
   assert(coordinator.includes("this.requestedMode = 'legacy'"), 'Legacy is not the safe default');
@@ -53,7 +55,23 @@ try {
   assert(game.includes('setGraphicsMode: function(mode)'), 'game surface has no runtime graphics gate');
   assert(boardCss.includes('#board.graphics-modern #svgBoard *'), 'Modern mode does not block descendant Raphael hit targets');
   assert(boardCss.includes('pointer-events: none !important'), 'Raphael pointer blocking is not authoritative');
-  assert(menu.includes('data-graphics-mode="legacy"') && menu.includes('data-graphics-mode="modern"'), 'graphics menu choices are incomplete');
+  assert(contextMenu.includes('data-graphics-mode="legacy"') && contextMenu.includes('data-graphics-mode="modern"'), 'graphics menu choices are incomplete');
+
+  assert(application.includes('menu: me.menu'), 'application does not pass the lobby menu to the graphics coordinator');
+  assert(coordinator.includes('this.menu = options.menu'), 'graphics coordinator does not retain the lobby menu bridge');
+  assert(lobbyMenu.includes('id="modernLobbyHand"'), 'lobby menu does not create a dedicated Modern hand host');
+  assert(modernSource.includes('createLobbyHandSurface(host, options)'), 'modern graphics facade has no dedicated lobby-hand factory');
+  assert(coordinator.includes("ensureSurface('lobby-hand')"), 'coordinator does not select the dedicated lobby-hand surface');
+
+  assert(lobbyMenu.includes('legacy-menu-hand-card'), 'lobby Raphael hand cards do not receive a hand-only gate class');
+  assert(boardCss.includes('#menu.graphics-modern-hand .legacy-menu-hand-card'), 'Modern lobby mode does not gate only the legacy hand-card elements');
+  assert(!boardCss.includes('#menu.graphics-modern-hand svg'), 'Modern lobby mode broadly hides the Raphael menu paper');
+  assert(lobbyMenu.includes("$('#menu').toggleClass('graphics-modern-hand', useModernHand)"), 'legacy lobby cards are not gated on confirmed Modern-hand readiness');
+
+  assert(modernSource.includes('const LOBBY_LOGICAL_WIDTH = 755'), 'Modern lobby surface does not preserve the 755px logical width');
+  assert(modernSource.includes('const LOBBY_LOGICAL_HEIGHT = 562'), 'Modern lobby surface does not preserve the 562px logical height');
+  assert(modernSource.includes('(cards || []).slice(0, 5)'), 'Modern lobby surface is not bounded to the five-card preview');
+  assert(lobbyMenu.includes('pos:        [72, 197, 322, 447, 572]'), 'lobby preview no longer carries the five legacy hand positions');
 
   console.log(`ok - modern graphics build/runtime contract (${assertions} assertions)`);
 } catch (error) {

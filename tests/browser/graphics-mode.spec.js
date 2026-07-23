@@ -45,6 +45,7 @@ test('switches a live Raphael surface to isolated Three.js and back without rebu
 
   await page.evaluate(() => {
     const game = gh.manager.game;
+    gh.manager.menu.hide();
     const gameWrapper = document.querySelector('#game-wrapper');
     gameWrapper.classList.remove('hide');
     gameWrapper.style.display = 'block';

@@ -228,6 +228,7 @@ $test->test('Take One preserves protected cards on a loss and creates a claim on
     PurettTestHarness::assertCount(1, $lossPlayer->removed, 'Take One loss did not remove exactly one card');
     PurettTestHarness::assertFalse(in_array(1, $lossPlayer->removed, true), 'Take One removed the protected card');
     PurettTestHarness::assertTrue($lossDatabase->deleted, 'completed Take One loss did not close the game');
+    PurettTestHarness::assertFalse((bool) $lossResult['takeBlockedByProtection'], 'partially protected hand was reported as fully protected');
     PurettTestHarness::assertSame(0, (int) $lossResult['coinsAwarded'], 'loss awarded coins');
 
     list($winGame, $winDatabase, $winPlayer) = purettVictoryFixture('take one', 6, 4);
@@ -319,6 +320,23 @@ $test->test('Take All removes every eligible card but never a protected card', f
     PurettTestHarness::assertSame(array(2, 3, 4, 5), $player->removed, 'Take All did not remove all eligible cards');
     PurettTestHarness::assertFalse(in_array(1, $player->removed, true), 'Take All removed a protected card');
     PurettTestHarness::assertTrue($database->deleted, 'Take All result did not close the game');
+});
+
+$test->test('all-protected losses report that Take One, Difference, and All were blocked', function () {
+    foreach (array('take one', 'take difference', 'take all') as $ruleName) {
+        list($game, $database, $player) = purettVictoryFixture($ruleName, 4, 6);
+        foreach ($game->gamecards as $card) {
+            if ((int) $card->owner === (int) $player->userid) {
+                $card->purchased = 1;
+            }
+        }
+
+        $result = purettInvokePrivate($game, 'gameover', array());
+        PurettTestHarness::assertCount(0, $player->removed, $ruleName . ' removed a protected card');
+        PurettTestHarness::assertCount(0, $result['taken'], $ruleName . ' reported a protected card as taken');
+        PurettTestHarness::assertTrue((bool) $result['takeBlockedByProtection'], $ruleName . ' did not report the blocked take');
+        PurettTestHarness::assertTrue($database->deleted, $ruleName . ' blocked loss did not close the game');
+    }
 });
 
 $test->test('a complete game persists results, responds with AI moves, and creates an owned replay', function () use (&$state, $projectRoot) {

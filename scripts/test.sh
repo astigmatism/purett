@@ -36,6 +36,7 @@ run_static() {
         exit 1
     fi
     node tests/static/repository-contract.js
+    node tests/static/endgame-behavior.js
     compose run --rm -T \
         -v "$project_dir/library:/var/www/app/library:ro" \
         -v "$project_dir/tests:/var/www/app/tests:ro" \

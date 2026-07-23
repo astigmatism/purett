@@ -42,7 +42,7 @@ gh.audio = {
             
             me.mainmenu = new buzz.sound("/audio/main", {
                 formats: [ "mp3" ]
-            }).load().loop().play().fadeTo(40);
+            }).load().loop().fadeTo(40);
             
             me.game = new buzz.sound("/audio/game", {
                 formats: [ "mp3" ]
@@ -98,7 +98,7 @@ gh.audio = {
         a.fadeOut(1000, function() {
             a.pause();
         });
-        b.play().fadeTo(40);
+        b.fadeTo(40);
     },
     forceLoad: function(item) {
         item.mute();

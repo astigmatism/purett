@@ -1483,6 +1483,21 @@ class PureTripleTriad_Game {
                 array_push($nonpurchased, $card);
             }
         }
+
+        // A losing player can completely block Take One, Take Difference, or
+        // Take All by playing a hand made entirely of protected cards.
+        // Preserve that outcome so the client can present the attempted take even
+        // though the ordinary `taken` collection is correctly empty.
+        $takeBlockedByProtection = (
+            $result == -1 &&
+            count($mycards) == 5 &&
+            count($nonpurchased) == 0 &&
+            (
+                isset($this->rules['take one']) ||
+                isset($this->rules['take difference']) ||
+                isset($this->rules['take all'])
+            )
+        );
         
         
         //handle victory claim, until this is complete, the game stays in the db
@@ -1596,6 +1611,7 @@ class PureTripleTriad_Game {
             'deckcount' => count($this->p1->deck) + $this->victoryclaim,          //used to show "deck" menu command
             'nextrules' => $rules,                          //a preview of next game's rules to display on the client
             'own'       => $this->getOwnershipCountOfOpponentsCards(),
+            'takeBlockedByProtection' => $takeBlockedByProtection,
             'coinsAwarded' => $coinsAwarded,
             'coins'     => $coinBalance
         );

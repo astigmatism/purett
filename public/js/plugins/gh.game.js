@@ -1201,6 +1201,7 @@ gh.game.prototype = {
             deckcount:  gameoverdetails.deckcount,
             nextrules:  gameoverdetails.nextrules,
             own:        gameoverdetails.own,
+            takeBlockedByProtection: gameoverdetails.takeBlockedByProtection === true,
             coinsAwarded: gameoverdetails.coinsAwarded,
             coins:      gameoverdetails.coins
         };

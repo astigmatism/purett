@@ -305,10 +305,14 @@ gh.endgame.prototype = {
     },
     taken: function(options, callback) {
         var me = this;
-        if (options.taken.length > 0) {
+        var takeBlockedByProtection = options.takeBlockedByProtection === true;
+        if (options.taken.length > 0 || takeBlockedByProtection) {
             
             var text = (options.taken.length == 5) ? 'ALL' : options.taken.length;
-            me.barset('YOUR OPPONENT TAKES ' + text + ' OF YOUR CARDS', function() {
+            var title = takeBlockedByProtection
+                ? 'YOUR OPPONENT CAN\'T TAKE ANY CARDS - ALL FIVE ARE PROTECTED'
+                : 'YOUR OPPONENT TAKES ' + text + ' OF YOUR CARDS';
+            me.barset(title, function() {
                     
                 var cards = [];
                 

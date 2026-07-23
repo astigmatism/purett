@@ -199,6 +199,7 @@ gh.menu.prototype = {
             userCardId: card.usercardid,
             cardId: card.cardid,
             textureUrl: '/images/cards/' + ((card.purchased == 1) ? 'p' : '') + gh.data.color + '/' + card.image + '.png',
+            backTextureUrl: '/images/cards/cardBack.png',
             x: this.pos[index],
             y: 203,
             width: this.cW,

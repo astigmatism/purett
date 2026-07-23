@@ -13,7 +13,7 @@ gh.graphics.prototype = {
         this.storageKey = 'purett.graphicsMode.v1';
         this.threePackageVersion = '0.185.1';
         this.threeRevision = '185';
-        this.modernScriptUrl = '/js/modern/purett-modern-graphics.min.js?v=0.185.1-lobby-hand.1';
+        this.modernScriptUrl = '/js/modern/purett-modern-graphics.min.js?v=0.185.1-lobby-flip.1';
         this.requestedMode = 'legacy';
         this.effectiveMode = 'legacy';
         this.loadState = 'idle';
@@ -209,6 +209,11 @@ gh.graphics.prototype = {
         this.updateModernStatus();
     },
     activateLegacy: function(error, reason) {
+        if (this.surfaceKind === 'lobby-hand' &&
+            this.surface &&
+            typeof this.surface.suspend === 'function') {
+            this.surface.suspend();
+        }
         this.game.setGraphicsMode('legacy');
         if (this.menu && this.menu.setGraphicsMode) {
             this.menu.setGraphicsMode('legacy');
@@ -346,6 +351,9 @@ gh.graphics.prototype = {
         }
         this.surface.setContentScale(this.getContentScale());
         if (this.surfaceKind === 'lobby-hand') {
+            if (typeof this.surface.resume === 'function') {
+                this.surface.resume();
+            }
             this.surface.setCards(this.lobbyCards);
         } else {
             this.surface.render();
@@ -375,7 +383,7 @@ gh.graphics.prototype = {
 
         surfaceState = this.surface ? this.surface.getDebugState() : null;
         if (surfaceState && surfaceState.ready) {
-            this.setStatus('Three.js ' + this.threePackageVersion + ' lobby hand active. These cards are decorative; matches still require Legacy.');
+            this.setStatus('Three.js ' + this.threePackageVersion + ' lobby hand active. Click a card to flip it; matches still require Legacy.');
         } else {
             this.setStatus('Three.js ' + this.threePackageVersion + ' is preparing the Modern lobby hand\u2026');
         }

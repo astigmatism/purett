@@ -310,7 +310,7 @@ gh.endgame.prototype = {
             
             var text = (options.taken.length == 5) ? 'ALL' : options.taken.length;
             var title = takeBlockedByProtection
-                ? 'YOUR OPPONENT CAN\'T TAKE ANY CARDS - ALL FIVE ARE PROTECTED'
+                ? 'PURCHASED CARDS ARE PROTECTED FROM BEING TAKEN'
                 : 'YOUR OPPONENT TAKES ' + text + ' OF YOUR CARDS';
             me.barset(title, function() {
                     

@@ -1613,7 +1613,8 @@ class PureTripleTriad_Game {
             'own'       => $this->getOwnershipCountOfOpponentsCards(),
             'takeBlockedByProtection' => $takeBlockedByProtection,
             'coinsAwarded' => $coinsAwarded,
-            'coins'     => $coinBalance
+            'coins'     => $coinBalance,
+            'careerStats' => $this->db->getCareerStats($this->p1->userid)
         );
         
         //if this is a closed game, return the contents of p2's hand. we cannot rely on the client because not all cards are shown yet!
@@ -1695,7 +1696,10 @@ class PureTripleTriad_Game {
             }
             $this->db->commit();
             $this->buildGameCards();
-            return array('remaining' => $remaining);
+            return array(
+                'remaining' => $remaining,
+                'careerStats' => $this->db->getCareerStats($this->p1->userid)
+            );
         } catch (Exception $e) {
             $this->db->rollBack();
             throw $e;
@@ -1803,7 +1807,8 @@ class PureTripleTriad_Game {
                 'bqpdkjaoskcjqekndckmaslkneihn'     => $this->getNextRules($this->p1->wins, $this->p1->losses, $this->p1->draws),
                 'oiqwpojcoqeijckjlkwjepficojpk'     => $this->p1->hand,
                 'uioqoiiidiioqoiwudioiuqwiowiq'     => count($this->p1->deck) + $this->victoryclaim,
-                'nbzxcvmnzbxmncvshjashkdjhkakk'     => $this->getOwnershipCountOfOpponentsCards()
+                'nbzxcvmnzbxmncvshjashkdjhkakk'     => $this->getOwnershipCountOfOpponentsCards(),
+                'careerStats'                       => $this->db->getCareerStats($this->p1->userid)
             );
             $result = array_merge($result, $additional);
         }

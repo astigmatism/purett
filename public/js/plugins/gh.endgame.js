@@ -211,6 +211,9 @@ gh.endgame.prototype = {
                                     gh.manager.error('The claim response was invalid.');
                                     return;
                                 }
+                                if (response.careerStats) {
+                                    gh.data.careerStats = response.careerStats;
+                                }
 
                                 gh.audio.draw.play();
                                 options.claim = remaining;

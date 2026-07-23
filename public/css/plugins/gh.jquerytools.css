@@ -31,6 +31,260 @@
     width: 150px;
     text-align: center;
 }
+.career-stats-tip {
+    display: none;
+    box-sizing: border-box;
+    width: 510px;
+    max-width: calc(100vw - 24px);
+    padding: 16px 18px;
+    color: #361a0c;
+    background: linear-gradient(#f8e9c9, #e1ca9f);
+    border: 1px solid rgba(79, 45, 20, 0.6);
+    border-radius: 10px;
+    box-shadow: 3px 3px 10px #000;
+    font-family: 'Spinnaker', sans-serif;
+    font-size: 13px;
+    line-height: normal;
+    text-align: left;
+    text-shadow: none;
+    z-index: 95;
+}
+.career-stats-tip:before {
+    position: absolute;
+    bottom: -8px;
+    left: 50%;
+    width: 14px;
+    height: 14px;
+    margin-left: -7px;
+    content: '';
+    background: #f8e9c9;
+    border-top: 1px solid rgba(79, 45, 20, 0.6);
+    border-left: 1px solid rgba(79, 45, 20, 0.6);
+    transform: rotate(225deg);
+}
+.career-panel-title {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin: 0 0 9px;
+    color: rgba(54, 26, 12, 0.68);
+    font-size: 11px;
+    font-weight: bold;
+    letter-spacing: 1.6px;
+}
+.career-panel-title.performance {
+    margin-top: 5px;
+}
+.career-title-icon,
+.career-copy-icon,
+.career-collection-icon {
+    display: inline-block;
+    position: relative;
+    flex: 0 0 auto;
+    color: rgba(54, 26, 12, 0.72);
+}
+.career-title-icon.cards {
+    width: 13px;
+    height: 10px;
+    border: 1px solid currentColor;
+    border-radius: 1px;
+    transform: rotate(-8deg);
+}
+.career-title-icon.cards:before {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 13px;
+    height: 10px;
+    content: '';
+    border: 1px solid currentColor;
+    border-radius: 1px;
+}
+.career-title-icon.trophy:before {
+    content: '\2605';
+    font-size: 15px;
+}
+.career-collection-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 22px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(79, 45, 20, 0.18);
+}
+.career-collection-metric {
+    min-width: 0;
+    padding: 9px 10px;
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(79, 45, 20, 0.16);
+    border-radius: 8px;
+}
+.career-collection-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-weight: bold;
+}
+.career-collection-icon.purchased {
+    width: 11px;
+    height: 10px;
+    border: 1px solid currentColor;
+    border-radius: 2px;
+}
+.career-collection-icon.purchased:before {
+    position: absolute;
+    top: -5px;
+    left: 2px;
+    width: 5px;
+    height: 5px;
+    content: '';
+    border: 1px solid currentColor;
+    border-bottom: 0;
+    border-radius: 5px 5px 0 0;
+}
+.career-collection-icon.unique:before {
+    content: '\2726';
+    font-size: 17px;
+}
+.career-collection-value {
+    margin: 7px 0 6px;
+    color: #361a0c;
+    font-size: 20px;
+}
+.career-collection-value strong {
+    font-weight: bold;
+}
+.career-collection-value span {
+    color: rgba(54, 26, 12, 0.54);
+}
+.career-collection-progress {
+    height: 6px;
+    margin-bottom: 7px;
+    overflow: hidden;
+    background: rgba(54, 26, 12, 0.13);
+    border-radius: 6px;
+}
+.career-collection-progress span {
+    display: block;
+    height: 100%;
+    background: linear-gradient(90deg, #a76729, #d49a43);
+    border-radius: 6px;
+}
+.career-collection-description {
+    min-height: 28px;
+    color: rgba(54, 26, 12, 0.62);
+    font-size: 10px;
+    line-height: 14px;
+}
+.career-ownership-summary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 9px 0;
+    white-space: nowrap;
+}
+.career-ownership-summary strong,
+.career-stat-row dd {
+    font-weight: bold;
+    font-variant-numeric: tabular-nums;
+}
+.career-copy-icon {
+    width: 10px;
+    height: 10px;
+    border: 1px solid currentColor;
+    border-radius: 1px;
+}
+.career-copy-icon:before {
+    position: absolute;
+    top: -4px;
+    left: -4px;
+    width: 10px;
+    height: 10px;
+    content: '';
+    border: 1px solid currentColor;
+    border-radius: 1px;
+}
+.career-summary-divider {
+    color: rgba(54, 26, 12, 0.45);
+}
+.career-performance-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 22px;
+}
+.career-performance-grid dl {
+    margin: 0;
+}
+.career-stat-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: 9px;
+    padding: 7px 0;
+    border-bottom: 1px solid rgba(79, 45, 20, 0.15);
+}
+.career-stat-row dt {
+    color: rgba(54, 26, 12, 0.62);
+}
+.career-stat-row dd {
+    margin: 0;
+    color: #361a0c;
+}
+.career-recent-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 10px;
+    padding-top: 10px;
+}
+.career-form-label {
+    font-weight: bold;
+}
+.career-form-results {
+    display: flex;
+    gap: 5px;
+}
+.career-form-result {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    font-size: 11px;
+    font-weight: bold;
+}
+.career-form-result.result-w {
+    color: #112f65;
+    background: rgba(65, 107, 193, 0.25);
+}
+.career-form-result.result-l {
+    color: #6f1713;
+    background: rgba(170, 51, 43, 0.22);
+}
+.career-form-result.result-d {
+    color: #4c3e2d;
+    background: rgba(102, 83, 59, 0.17);
+}
+.career-form-period,
+.career-form-empty {
+    color: rgba(54, 26, 12, 0.55);
+    font-size: 10px;
+}
+@media (max-width: 540px) {
+    .career-stats-tip {
+        padding: 14px;
+    }
+    .career-collection-grid,
+    .career-performance-grid {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+    .career-recent-form {
+        grid-template-columns: 1fr;
+    }
+}
 .decktip {
     width: 150px;
 }

@@ -171,6 +171,66 @@ gh.menu.prototype = {
     },
     updatestats: function() {
         var me = this;
+        var career = gh.data.careerStats || {};
+        var gamesPlayed = Number(career.games_played);
+        var recordedGames = Number(career.recorded_games);
+        var totalCards = Number(career.total_cards);
+        var cardsOwned = Number(career.cards_owned);
+        var uniqueCards = Number(career.unique_cards);
+        var purchasedCards = Number(career.purchased_cards);
+        var duplicateCards = Number(career.duplicate_cards);
+        var pointsAverage = Number(career.points_average);
+        var bestScore = Number(career.best_score);
+        var winRate = Number(career.win_rate);
+        var currentWinStreak = Number(career.current_win_streak);
+        var draws = Number(career.draws);
+        var recentForm = $.isArray(career.recent_form) ? career.recent_form : [];
+        var resultNames = {W: 'Win', L: 'Loss', D: 'Draw'};
+        var makeMetricRow = function(label, value) {
+            return $('<div class="career-stat-row"></div>')
+                .append($('<dt></dt>').text(label))
+                .append($('<dd></dd>').text(value));
+        };
+        var makeCollectionMetric = function(label, value, description, iconClass) {
+            var percent = (totalCards > 0) ? Math.max(0, Math.min(100, (value / totalCards) * 100)) : 0;
+            var $metric = $('<div class="career-collection-metric"></div>');
+            $metric.append(
+                $('<div class="career-collection-label"></div>')
+                    .append($('<span></span>').text(label))
+                    .append($('<span aria-hidden="true"></span>').addClass('career-collection-icon ' + iconClass))
+            );
+            $metric.append(
+                $('<div class="career-collection-value"></div>')
+                    .append($('<strong></strong>').text(value))
+                    .append($('<span></span>').text(' / ' + totalCards))
+            );
+            $metric.append(
+                $('<div class="career-collection-progress" role="progressbar"></div>')
+                    .attr({
+                        'aria-label': label,
+                        'aria-valuemin': 0,
+                        'aria-valuemax': totalCards,
+                        'aria-valuenow': value
+                    })
+                    .append($('<span></span>').css('width', percent + '%'))
+            );
+            $metric.append($('<div class="career-collection-description"></div>').text(description));
+            return $metric;
+        };
+
+        gamesPlayed = isNaN(gamesPlayed) ? gh.data.wins + gh.data.losses + gh.data.draws : gamesPlayed;
+        recordedGames = isNaN(recordedGames) ? 0 : recordedGames;
+        totalCards = isNaN(totalCards) ? 0 : totalCards;
+        cardsOwned = isNaN(cardsOwned) ? 0 : cardsOwned;
+        uniqueCards = isNaN(uniqueCards) ? 0 : uniqueCards;
+        purchasedCards = isNaN(purchasedCards) ? 0 : purchasedCards;
+        duplicateCards = isNaN(duplicateCards) ? Math.max(0, cardsOwned - uniqueCards) : duplicateCards;
+        pointsAverage = isNaN(pointsAverage) ? 0 : pointsAverage;
+        bestScore = isNaN(bestScore) ? 0 : bestScore;
+        winRate = isNaN(winRate) ? 0 : winRate;
+        currentWinStreak = isNaN(currentWinStreak) ? 0 : currentWinStreak;
+        draws = isNaN(draws) ? Number(gh.data.draws || 0) : draws;
+
         var ribbonArt = ''
             + '<svg class="record-ribbon-art" viewBox="0 0 344 60" aria-hidden="true">'
             + '<defs><linearGradient id="record-ribbon-parchment" x1="0" y1="0" x2="0" y2="1">'
@@ -184,7 +244,12 @@ gh.menu.prototype = {
             + '<path fill="#8a6038" d="M30 46H49V54Z"></path>'
             + '<path fill="#8a6038" d="M314 46H295V54Z"></path>'
             + '</g></svg>';
-        var $ribbon = $('<span class="record-ribbon"></span>').append(ribbonArt);
+        var $ribbon = $('<span class="record-ribbon" tabindex="0"></span>')
+            .attr({
+                'aria-describedby': 'career-stats-popover',
+                'aria-label': 'Career record details'
+            })
+            .append(ribbonArt);
         $ribbon.append(
             $('<span class="record-ribbon-content"></span>')
                 .append('<span class="record-caption">CAREER RECORD</span>')
@@ -194,8 +259,86 @@ gh.menu.prototype = {
                     )
                 )
         );
-        me.gamesplayed = gh.data.wins + gh.data.losses + gh.data.draws;
+
+        var $panel = $('<div id="career-stats-popover" class="career-stats-tip" role="tooltip"></div>');
+        $panel.append('<div class="career-panel-title"><span class="career-title-icon cards" aria-hidden="true"></span>CARD COLLECTION</div>');
+
+        var $collection = $('<div class="career-collection-grid"></div>');
+        $collection.append(makeCollectionMetric(
+            'Purchased Cards',
+            purchasedCards,
+            'Distinct designs acquired from the shop',
+            'purchased'
+        ));
+        $collection.append(makeCollectionMetric(
+            'Unique Cards',
+            uniqueCards,
+            totalCards > 0 ? Math.round((uniqueCards / totalCards) * 100) + '% of the complete catalog' : 'No catalog cards available',
+            'unique'
+        ));
+        $panel.append($collection);
+
+        var $ownership = $('<div class="career-ownership-summary"></div>');
+        $ownership.append('<span class="career-copy-icon" aria-hidden="true"></span>');
+        $ownership.append($('<span></span>').append($('<strong></strong>').text(cardsOwned)).append(' cards owned'));
+        $ownership.append('<span class="career-summary-divider" aria-hidden="true">\u00b7</span>');
+        $ownership.append($('<span></span>').append($('<strong></strong>').text(duplicateCards)).append(' duplicates'));
+        $panel.append($ownership);
+
+        $panel.append('<div class="career-panel-title performance"><span class="career-title-icon trophy" aria-hidden="true"></span>CAREER PERFORMANCE</div>');
+        var $performance = $('<div class="career-performance-grid"></div>');
+        var $leftMetrics = $('<dl></dl>');
+        var $rightMetrics = $('<dl></dl>');
+        $leftMetrics.append(makeMetricRow('Games Played', gamesPlayed));
+        $leftMetrics.append(makeMetricRow('Win Rate', gamesPlayed > 0 ? winRate.toFixed(1).replace(/\.0$/, '') + '%' : '\u2014'));
+        $leftMetrics.append(makeMetricRow('Draws', draws));
+        $rightMetrics.append(makeMetricRow('Points Avg.', recordedGames > 0 ? pointsAverage.toFixed(2) : '\u2014'));
+        $rightMetrics.append(makeMetricRow('Best Score', recordedGames > 0 ? bestScore : '\u2014'));
+        $rightMetrics.append(makeMetricRow('Current Win Streak', currentWinStreak));
+        $performance.append($leftMetrics).append($rightMetrics);
+        $panel.append($performance);
+
+        var $form = $('<div class="career-recent-form"></div>');
+        $form.append('<span class="career-form-label">Recent Form</span>');
+        var $formResults = $('<span class="career-form-results"></span>');
+        if (recentForm.length) {
+            $.each(recentForm, function() {
+                var result = String(this).toUpperCase();
+                if (!resultNames[result]) {
+                    return;
+                }
+                $formResults.append(
+                    $('<span></span>')
+                        .addClass('career-form-result result-' + result.toLowerCase())
+                        .attr('aria-label', resultNames[result])
+                        .text(result)
+                );
+            });
+        } else {
+            $formResults.append('<span class="career-form-empty">No games yet</span>');
+        }
+        $form.append($formResults);
+        $form.append('<span class="career-form-period">Last 5</span>');
+        $panel.append($form);
+
+        $('#career-stats-popover').remove();
+        $('body').append($panel);
+        me.gamesplayed = gamesPlayed;
         $(me.stats).empty().append($ribbon);
+
+        $ribbon.tooltip({
+            effect: 'slide',
+            position: 'top center',
+            offset: [-14, 0],
+            tip: '#career-stats-popover',
+            tipClass: 'career-stats-tip'
+        });
+        var careerTooltip = $ribbon.data('tooltip');
+        $ribbon.bind('focus', function() {
+            careerTooltip.show();
+        }).bind('blur', function() {
+            careerTooltip.hide();
+        });
     },
     updaterules: function() {
         var me = this;

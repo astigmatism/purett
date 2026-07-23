@@ -173,6 +173,8 @@ body::before {
     display: inline-block;
     width: 344px;
     height: 60px;
+    cursor: help;
+    outline-offset: 3px;
 }
 #content div.stats .record-ribbon-art {
     position: absolute;

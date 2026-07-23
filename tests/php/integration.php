@@ -423,6 +423,50 @@ $test->test('a complete game persists results, responds with AI moves, and creat
 
     $updated = $database->getUser($userid);
     PurettTestHarness::assertSame(1, (int) $updated['wins'] + (int) $updated['losses'] + (int) $updated['draws'], 'game result did not update the player record');
+    PurettTestHarness::assertTrue(isset($completion['careerStats']), 'completion payload omitted career statistics');
+    $careerStats = $database->getCareerStats($userid);
+    foreach (array(
+        'games_played',
+        'recorded_games',
+        'points_average',
+        'best_score',
+        'win_rate',
+        'current_win_streak',
+        'recent_form',
+        'draws',
+        'purchased_cards',
+        'unique_cards',
+        'cards_owned',
+        'duplicate_cards',
+        'total_cards'
+    ) as $field) {
+        PurettTestHarness::assertTrue(array_key_exists($field, $careerStats), 'career statistic is missing: ' . $field);
+    }
+    PurettTestHarness::assertSame(
+        (int) $database->db->fetchOne('SELECT COUNT(*) FROM gamehistory WHERE userid = ?', array($userid)),
+        $careerStats['recorded_games'],
+        'career recorded-game count is wrong'
+    );
+    PurettTestHarness::assertSame(
+        (int) $database->db->fetchOne('SELECT COUNT(*) FROM usercards WHERE userid = ?', array($userid)),
+        $careerStats['cards_owned'],
+        'career owned-card count is wrong'
+    );
+    PurettTestHarness::assertSame(
+        (int) $database->db->fetchOne('SELECT COUNT(DISTINCT cardid) FROM usercards WHERE userid = ?', array($userid)),
+        $careerStats['unique_cards'],
+        'career unique-card count is wrong'
+    );
+    PurettTestHarness::assertSame(
+        $careerStats['cards_owned'] - $careerStats['unique_cards'],
+        $careerStats['duplicate_cards'],
+        'career duplicate-card count is wrong'
+    );
+    PurettTestHarness::assertSame(
+        (int) $database->db->fetchOne('SELECT COUNT(*) FROM cards'),
+        $careerStats['total_cards'],
+        'career catalog total is wrong'
+    );
     foreach ($redis->getLeaderboard() as $leader) {
         PurettTestHarness::assertFalse((int) $leader['id'] === 999999999, 'completed game left the cached leaderboard stale');
     }

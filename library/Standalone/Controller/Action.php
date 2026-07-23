@@ -100,6 +100,7 @@ class Standalone_Controller_Action extends Gamehouse_Controller_Action
             'color' => base64_encode($this->user->options['color']),
             'csrf' => $this->session->csrf,
             'leaderboard' => $redis->getLeaderboard(),
+            'careerStats' => $this->database->getCareerStats($this->user->userid),
             'profile' => array(
                 'id' => (int) $this->user->userid,
                 'display_name' => $this->account['display_name']

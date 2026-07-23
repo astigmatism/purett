@@ -568,6 +568,19 @@ test('scaled menus and tooltips stay aligned with their triggers', async ({page}
   expect(contextMenuGaps.top).toBeCloseTo(contextMenuGaps.left, 0);
 
   await page.locator('#contextmenu div.close').click();
+  await page.evaluate(() => {
+    gh.data.leaderboard = [{
+      wins: 2,
+      losses: 1,
+      draws: 0,
+      games_played: 3,
+      average_points: 6,
+      display_name: 'Demo Player',
+      avatar_initials: 'DP'
+    }];
+    gh.manager.menu.updatetopplayers();
+    $('#topplayers-wrapper').show();
+  });
   const topPlayer = page.locator('#topplayers-wrapper li').filter({hasText: '1: Demo Player'});
   await topPlayer.hover();
   await expect(page.locator('.topplayertip')).toBeVisible();
@@ -583,6 +596,31 @@ test('scaled menus and tooltips stay aligned with their triggers', async ({page}
     const tip = document.querySelector('.topplayertip').getBoundingClientRect();
     return tip.top - trigger.bottom;
   })).toBeCloseTo(20, 0);
+
+  const careerRibbon = page.locator('.record-ribbon');
+  await careerRibbon.hover();
+  await expect(page.locator('.career-stats-tip')).toBeVisible();
+  await expect(page.locator('.career-stats-tip')).toContainText('Purchased Cards');
+  await expect(page.locator('.career-stats-tip')).toContainText('Unique Cards');
+  await expect(page.locator('.career-stats-tip')).toContainText('Games Played');
+  await expect(page.locator('.career-stats-tip')).toContainText('Points Avg.');
+  await expect(page.locator('.career-stats-tip')).toContainText('Best Score');
+  await expect(page.locator('.career-stats-tip')).toContainText('Current Win Streak');
+  await expect(page.locator('.career-stats-tip')).toContainText('Recent Form');
+  await expect.poll(() => page.evaluate(() => {
+    const trigger = document.querySelector('.record-ribbon').getBoundingClientRect();
+    const tip = document.querySelector('.career-stats-tip').getBoundingClientRect();
+    return Math.abs(
+      (tip.left + (tip.width / 2)) - (trigger.left + (trigger.width / 2))
+    );
+  })).toBeLessThan(1);
+  await expect.poll(() => page.evaluate(() => {
+    const trigger = document.querySelector('.record-ribbon').getBoundingClientRect();
+    const tip = document.querySelector('.career-stats-tip').getBoundingClientRect();
+    return Math.abs((trigger.top - tip.bottom) - 14);
+  })).toBeLessThanOrEqual(1);
+  await page.mouse.move(0, 0);
+  await expect(page.locator('.career-stats-tip')).toBeHidden();
 
   await page.evaluate(() => {
     gh.data.nextrules = [{name: 'Same', description: 'Matching ranks capture adjacent cards.'}];

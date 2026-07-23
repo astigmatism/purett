@@ -1178,6 +1178,9 @@ gh.game.prototype = {
         if (!gh.util.hasProperty(gameoverdetails, 'own')) {
             gameoverdetails.own = me.gameData.nbzxcvmnzbxmncvshjashkdjhkakk;
         }
+        if (!gh.util.hasProperty(gameoverdetails, 'careerStats')) {
+            gameoverdetails.careerStats = me.gameData.careerStats;
+        }
         
         //if game over details contains there proerties, override the ones already set
         if (gh.util.hasProperty(gameoverdetails, 'p2h')) {
@@ -1203,7 +1206,8 @@ gh.game.prototype = {
             own:        gameoverdetails.own,
             takeBlockedByProtection: gameoverdetails.takeBlockedByProtection === true,
             coinsAwarded: gameoverdetails.coinsAwarded,
-            coins:      gameoverdetails.coins
+            coins:      gameoverdetails.coins,
+            careerStats: gameoverdetails.careerStats
         };
         
         //console.log(details);

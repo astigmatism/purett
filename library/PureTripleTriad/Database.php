@@ -304,6 +304,87 @@ class PureTripleTriad_Database
         );
     }
 
+    public function getCareerStats($userid)
+    {
+        $userid = (int) $userid;
+        $user = $this->getUser($userid);
+        if (!$user) {
+            throw new RuntimeException('Local account not found.');
+        }
+
+        $history = $this->db->fetchRow(
+            'SELECT COUNT(*) AS recorded_games,
+                    COALESCE(AVG(p1score), 0) AS points_average,
+                    COALESCE(MAX(p1score), 0) AS best_score
+             FROM gamehistory
+             WHERE userid = ?',
+            array($userid)
+        );
+        $collection = $this->db->fetchRow(
+            'SELECT COUNT(*) AS cards_owned,
+                    COUNT(DISTINCT cardid) AS unique_cards,
+                    COUNT(DISTINCT CASE WHEN purchased = 1 THEN cardid ELSE NULL END) AS purchased_cards
+             FROM usercards
+             WHERE userid = ?',
+            array($userid)
+        );
+        $totalCards = (int) $this->db->fetchOne('SELECT COUNT(*) FROM cards');
+        $recentRows = $this->db->fetchAll(
+            'SELECT p1score, p2score
+             FROM gamehistory
+             WHERE userid = ?
+             ORDER BY completed DESC, idgamehistory DESC
+             LIMIT 5',
+            array($userid)
+        );
+        $currentWinStreak = (int) $this->db->fetchOne(
+            'SELECT COUNT(*)
+             FROM gamehistory current_game
+             WHERE current_game.userid = ?
+               AND current_game.p1score > current_game.p2score
+               AND current_game.idgamehistory > COALESCE(
+                   (
+                       SELECT MAX(previous_game.idgamehistory)
+                       FROM gamehistory previous_game
+                       WHERE previous_game.userid = ?
+                         AND previous_game.p1score <= previous_game.p2score
+                   ),
+                   0
+               )',
+            array($userid, $userid)
+        );
+
+        $recentForm = array();
+        foreach (array_reverse($recentRows) as $row) {
+            $p1score = (int) $row['p1score'];
+            $p2score = (int) $row['p2score'];
+            $recentForm[] = ($p1score > $p2score) ? 'W' : (($p1score < $p2score) ? 'L' : 'D');
+        }
+
+        $wins = (int) $user['wins'];
+        $losses = (int) $user['losses'];
+        $draws = (int) $user['draws'];
+        $gamesPlayed = $wins + $losses + $draws;
+        $cardsOwned = (int) $collection['cards_owned'];
+        $uniqueCards = (int) $collection['unique_cards'];
+
+        return array(
+            'games_played' => $gamesPlayed,
+            'recorded_games' => (int) $history['recorded_games'],
+            'points_average' => round((float) $history['points_average'], 3),
+            'best_score' => (int) $history['best_score'],
+            'win_rate' => ($gamesPlayed > 0) ? round(($wins / $gamesPlayed) * 100, 1) : 0.0,
+            'current_win_streak' => $currentWinStreak,
+            'recent_form' => $recentForm,
+            'draws' => $draws,
+            'purchased_cards' => (int) $collection['purchased_cards'],
+            'unique_cards' => $uniqueCards,
+            'cards_owned' => $cardsOwned,
+            'duplicate_cards' => max(0, $cardsOwned - $uniqueCards),
+            'total_cards' => $totalCards
+        );
+    }
+
     public function insertCard($values)
     {
         $this->db->insert('cards', array(

@@ -73,6 +73,24 @@ class PurettFixtureDatabase
         $this->cardUpdates[] = array($gamecardid, $position, $captured);
     }
     public function getWalletBalance($userid) { return $this->balance; }
+    public function getCareerStats($userid)
+    {
+        return array(
+            'games_played' => 0,
+            'recorded_games' => empty($this->history) ? 0 : 1,
+            'points_average' => 0.0,
+            'best_score' => 0,
+            'win_rate' => 0.0,
+            'current_win_streak' => 0,
+            'recent_form' => array(),
+            'draws' => 0,
+            'purchased_cards' => 0,
+            'unique_cards' => 0,
+            'cards_owned' => 0,
+            'duplicate_cards' => 0,
+            'total_cards' => 110
+        );
+    }
     public function awardMatchCoins($userid, $gameid, $amount, $details)
     {
         $reference = 'match:' . (int) $gameid;

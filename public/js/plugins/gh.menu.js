@@ -51,9 +51,7 @@ gh.menu.prototype = {
         me.updaterules();
         
         me.handshow(gh.data.hand);
-        if ((gh.data.wins + gh.data.losses) > 0) {
-            me.domshow(me.stats);
-        }
+        me.domshow(me.stats);
         if (gh.data.nextrules.length > 0 && me.gamesplayed > 0) {
             me.domshow(me.nextrules);
         }

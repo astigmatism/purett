@@ -144,9 +144,9 @@ gh.menu.prototype = {
             var x = (Math.random() * 1000) - 1000;
             var y = (Math.random() * 1000) - 500;
             var card = me.canvas.image('/images/cards/' + ((this.purchased == 1) ? 'p' : '') + gh.data.color + '/' + this.image + '.png', x, y, me.cW, me.cH).attr({'opacity' : 0, scale: 2});
-            //me.pos[index], 175
+            // Center the hand between the fixed control bar and career ribbon.
             var angle = (Math.random() * 5) - 2.5;
-            card.animate({ rotation: 720 - angle, translation: [ me.pos[index] - x, 175 - y], opacity: 1, scale: 1}, 1000, '>');
+            card.animate({ rotation: 720 - angle, translation: [ me.pos[index] - x, 203 - y], opacity: 1, scale: 1}, 1000, '>');
             me.hand.push(card);
         });
     },

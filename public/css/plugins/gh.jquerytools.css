@@ -47,6 +47,8 @@
     line-height: normal;
     text-align: left;
     text-shadow: none;
+    transform: scale(1.2);
+    transform-origin: bottom center;
     z-index: 95;
 }
 .career-stats-tip:before {

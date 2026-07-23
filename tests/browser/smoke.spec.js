@@ -604,6 +604,11 @@ test('scaled menus and tooltips stay aligned with their triggers', async ({page}
     const tip = document.querySelector('.topplayertip').getBoundingClientRect();
     return tip.top - trigger.bottom;
   })).toBeCloseTo(20, 0);
+  await page.mouse.move(0, 0);
+  await expect(page.locator('.topplayertip')).toBeHidden();
+  await page.evaluate(() => {
+    $('#topplayers-wrapper').addClass('hide').attr('aria-hidden', 'true');
+  });
 
   const careerRibbon = page.locator('.record-ribbon');
   await careerRibbon.hover();
@@ -615,6 +620,9 @@ test('scaled menus and tooltips stay aligned with their triggers', async ({page}
   await expect(page.locator('.career-stats-tip')).toContainText('Best Score');
   await expect(page.locator('.career-stats-tip')).toContainText('Current Win Streak');
   await expect(page.locator('.career-stats-tip')).toContainText('Recent Form');
+  await expect.poll(() => page.evaluate(() => (
+    document.querySelector('.career-stats-tip').getBoundingClientRect().width
+  ))).toBeCloseTo(612, 0);
   await expect.poll(() => page.evaluate(() => {
     const trigger = document.querySelector('.record-ribbon').getBoundingClientRect();
     const tip = document.querySelector('.career-stats-tip').getBoundingClientRect();

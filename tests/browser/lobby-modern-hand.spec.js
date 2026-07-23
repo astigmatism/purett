@@ -127,6 +127,23 @@ test('renders the five-card lobby hand with Three.js and preserves the Legacy lo
       surface: 'lobby-hand',
       logicalWidth: 755,
       logicalHeight: 562,
+      camera: {
+        projection: 'perspective',
+        fovDegrees: 40,
+        settledPlaneScale: 1
+      },
+      cardModel: {
+        width: 117,
+        height: 146,
+        thickness: 3
+      },
+      motionProfile: {
+        flipAxis: 'x',
+        nominalDurationMs: 2450,
+        deadlineMs: 3000,
+        liftScreenY: 18,
+        liftZ: 105
+      },
       disposed: false,
       contextLost: false,
       status: 'ready',
@@ -260,7 +277,7 @@ test('renders the five-card lobby hand with Three.js and preserves the Legacy lo
     .toEqual(expectedCards.map(card => card.textureUrl));
 });
 
-test('one Modern lobby click lifts, shows the back, returns front, and settles without application requests', async ({page}) => {
+test('one Modern lobby click performs a perspective end-over-end turn and settles without application requests', async ({page}) => {
   await page.emulateMedia({reducedMotion: 'no-preference'});
   const applicationRequests = [];
   page.on('request', request => {
@@ -283,6 +300,13 @@ test('one Modern lobby click lifts, shows the back, returns front, and settles w
         ingame: gh.data.ingame
       }),
       card,
+      otherCards: state.cards
+        .filter(otherCard => otherCard.index !== index)
+        .map(otherCard => ({
+          index: otherCard.index,
+          completedFlips: otherCard.completedFlips,
+          transform: otherCard.transform
+        })),
       completedAnimationCount: state.completedAnimationCount
     };
   }, cardIndex);
@@ -324,9 +348,13 @@ test('one Modern lobby click lifts, shows the back, returns front, and settles w
       lastPick: state.lastPick,
       lastTransition: state.lastTransition,
       card: state.cards[index],
-      otherCompletedFlips: state.cards
+      otherCards: state.cards
         .filter(card => card.index !== index)
-        .map(card => card.completedFlips)
+        .map(card => ({
+          index: card.index,
+          completedFlips: card.completedFlips,
+          transform: card.transform
+        }))
     };
   }, cardIndex);
 
@@ -342,26 +370,34 @@ test('one Modern lobby click lifts, shows the back, returns front, and settles w
     userCardId: baseline.card.userCardId,
     cardId: baseline.card.cardId
   });
-  expect(settled.lastTransition).toEqual({
+  expect(settled.lastTransition).toMatchObject({
     cardIndex: baseline.card.index,
     userCardId: baseline.card.userCardId,
     cardId: baseline.card.cardId,
     outcome: 'completed',
-    phases: ['lift', 'back', 'front', 'settled']
+    phases: ['lift', 'first-edge', 'back', 'second-edge', 'front', 'settled'],
+    flipAxis: 'x',
+    nominalDurationMs: 2450,
+    deadlineMs: 3000,
+    evidence: {
+      maxAbsFlipRotationY: 0,
+      edgePasses: 2
+    }
   });
+  expect(settled.lastTransition.evidence.maxScreenLiftY).toBeGreaterThan(20);
+  expect(settled.lastTransition.evidence.maxLiftZ).toBeGreaterThan(105);
+  expect(settled.lastTransition.evidence.maxAbsFlipRotationX).toBeCloseTo(Math.PI, 5);
+  expect(settled.lastTransition.evidence.maxPickupTilt).toBeGreaterThan(0.1);
+  expect(settled.lastTransition.evidence.maxTopBottomDepthSpan).toBeGreaterThan(130);
+  expect(settled.lastTransition.evidence.maxPerspectiveScale).toBeGreaterThan(1.14);
   expect(settled.card).toMatchObject({
     backTextureUrl: '/images/cards/cardBack.png',
     phase: 'idle',
     visibleFace: 'front',
-    completedFlips: 1,
-    transform: {
-      liftY: 0,
-      z: 0,
-      scale: 1,
-      rotationY: 0
-    }
+    completedFlips: 1
   });
-  expect(settled.otherCompletedFlips).toEqual([0, 0, 0, 0]);
+  expect(settled.card.transform).toEqual(baseline.card.transform);
+  expect(settled.otherCards).toEqual(baseline.otherCards);
   expect(applicationRequests).toEqual([]);
 });
 
@@ -475,7 +511,20 @@ test('reduced motion shows a bounded back/front proof and settles in two frames'
     lastTransition: {
       cardIndex: 3,
       outcome: 'completed-reduced-motion',
-      phases: ['back', 'front', 'settled']
+      phases: ['back', 'front', 'settled'],
+      flipAxis: 'x',
+      nominalDurationMs: 0,
+      deadlineMs: 3000,
+      evidence: {
+        maxScreenLiftY: 0,
+        maxLiftZ: 0,
+        maxAbsFlipRotationX: Math.PI,
+        maxAbsFlipRotationY: 0,
+        maxPickupTilt: 0,
+        maxTopBottomDepthSpan: 0,
+        maxPerspectiveScale: 1,
+        edgePasses: 0
+      }
     },
     card: {
       phase: 'idle',
@@ -485,7 +534,11 @@ test('reduced motion shows a bounded back/front proof and settles in two frames'
         liftY: 0,
         z: 0,
         scale: 1,
-        rotationY: 0
+        rotationX: 0,
+        rotationY: 0,
+        pickupTiltX: 0,
+        pickupTiltY: 0,
+        perspectiveScale: 1
       }
     }
   });
@@ -584,7 +637,11 @@ test('switching to Legacy cancels an in-flight Modern lobby flip and restores th
         liftY: 0,
         z: 0,
         scale: 1,
-        rotationY: 0
+        rotationX: 0,
+        rotationY: 0,
+        pickupTiltX: 0,
+        pickupTiltY: 0,
+        perspectiveScale: 1
       }
     },
     legacyCardsVisible: true
@@ -625,7 +682,11 @@ test('switching to Legacy cancels an in-flight Modern lobby flip and restores th
         card.transform.liftY === 0 &&
         card.transform.z === 0 &&
         card.transform.scale === 1 &&
-        card.transform.rotationY === 0
+        card.transform.rotationX === 0 &&
+        card.transform.rotationY === 0 &&
+        card.transform.pickupTiltX === 0 &&
+        card.transform.pickupTiltY === 0 &&
+        card.transform.perspectiveScale === 1
       )
     };
   })).toEqual({

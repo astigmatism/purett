@@ -1,15 +1,19 @@
 import {
+  BoxGeometry,
+  DirectionalLight,
   FrontSide,
   Group,
+  HemisphereLight,
   LinearFilter,
   Mesh,
-  MeshBasicMaterial,
-  OrthographicCamera,
+  MeshStandardMaterial,
+  PCFShadowMap,
   PerspectiveCamera,
   PlaneGeometry,
   Raycaster,
   REVISION,
   Scene,
+  ShadowMaterial,
   SRGBColorSpace,
   TextureLoader,
   Vector2,
@@ -23,16 +27,28 @@ const LOBBY_LOGICAL_HEIGHT = 562;
 const MAX_PIXEL_RATIO = 3;
 const LOBBY_CARD_ROTATIONS = [-1.6, 1.1, -0.6, 1.5, -1.0];
 const LOBBY_CARD_BACK_URL = '/images/cards/cardBack.png';
-const LOBBY_LIFT_Y = 16;
-const LOBBY_LIFT_Z = 4;
-const LOBBY_LIFT_SCALE = 1.08;
+const LOBBY_CAMERA_FOV = 40;
+const LOBBY_CAMERA_CENTER_X = LOBBY_LOGICAL_WIDTH / 2;
+const LOBBY_CAMERA_CENTER_Y = LOBBY_LOGICAL_HEIGHT / 2;
+const LOBBY_CAMERA_DISTANCE =
+  (LOBBY_LOGICAL_HEIGHT / 2) / Math.tan((LOBBY_CAMERA_FOV * Math.PI / 180) / 2);
+const LOBBY_CARD_THICKNESS = 3;
+const LOBBY_CARD_FACE_OFFSET = (LOBBY_CARD_THICKNESS / 2) + 0.02;
+const LOBBY_LIFT_SCREEN_Y = 18;
+const LOBBY_LIFT_Z = 105;
+const LOBBY_TURN_ARC_SCREEN_Y = 5;
+const LOBBY_TURN_ARC_Z = 12;
+const LOBBY_PICKUP_TILT_X = -8 * Math.PI / 180;
+const LOBBY_PICKUP_TILT_Y = 4 * Math.PI / 180;
 const LOBBY_FLIP_TIMINGS = Object.freeze({
-  lift: 180,
-  toBack: 280,
-  backHold: 180,
-  toFront: 280,
-  settle: 220
+  lift: 350,
+  toBack: 650,
+  backHold: 350,
+  toFront: 650,
+  settle: 450
 });
+const LOBBY_FLIP_DURATION = 2450;
+const LOBBY_FLIP_DEADLINE = 3000;
 
 class ModernGraphicsSurface {
   constructor(host, options) {
@@ -179,18 +195,73 @@ class LobbyHandSurface {
 
     try {
       this.scene = new Scene();
-      this.camera = new OrthographicCamera(
-        0,
-        LOBBY_LOGICAL_WIDTH,
-        LOBBY_LOGICAL_HEIGHT,
-        0,
-        0.1,
-        100
+      this.camera = new PerspectiveCamera(
+        LOBBY_CAMERA_FOV,
+        LOBBY_LOGICAL_WIDTH / LOBBY_LOGICAL_HEIGHT,
+        1,
+        1600
       );
-      this.camera.position.z = 10;
+      this.camera.position.set(
+        LOBBY_CAMERA_CENTER_X,
+        LOBBY_CAMERA_CENTER_Y,
+        LOBBY_CAMERA_DISTANCE
+      );
+      this.camera.lookAt(LOBBY_CAMERA_CENTER_X, LOBBY_CAMERA_CENTER_Y, 0);
       this.cardGroup = new Group();
       this.scene.add(this.cardGroup);
       this.cardGeometry = new PlaneGeometry(117, 146);
+      this.cardBodyGeometry = new BoxGeometry(
+        115.5,
+        144.5,
+        LOBBY_CARD_THICKNESS
+      );
+      this.shadowReceiverGeometry = new PlaneGeometry(
+        LOBBY_LOGICAL_WIDTH + 80,
+        LOBBY_LOGICAL_HEIGHT + 80
+      );
+      this.shadowReceiverMaterial = new ShadowMaterial({
+        color: 0x000000,
+        opacity: 0.26,
+        transparent: true,
+        depthWrite: false
+      });
+      this.shadowReceiver = new Mesh(
+        this.shadowReceiverGeometry,
+        this.shadowReceiverMaterial
+      );
+      this.shadowReceiver.position.set(
+        LOBBY_CAMERA_CENTER_X,
+        LOBBY_CAMERA_CENTER_Y,
+        -7
+      );
+      this.shadowReceiver.receiveShadow = true;
+      this.shadowReceiver.renderOrder = -100;
+      this.scene.add(this.shadowReceiver);
+
+      this.hemisphereLight = new HemisphereLight(0xfff4df, 0x251821, 0.72);
+      this.keyLight = new DirectionalLight(0xffe8bd, 1.3);
+      this.keyLight.position.set(160, 510, 650);
+      this.keyLight.target.position.set(
+        LOBBY_CAMERA_CENTER_X,
+        LOBBY_CAMERA_CENTER_Y,
+        0
+      );
+      this.keyLight.castShadow = true;
+      this.keyLight.shadow.mapSize.set(1024, 1024);
+      this.keyLight.shadow.camera.near = 100;
+      this.keyLight.shadow.camera.far = 1100;
+      this.keyLight.shadow.camera.left = -450;
+      this.keyLight.shadow.camera.right = 450;
+      this.keyLight.shadow.camera.top = 340;
+      this.keyLight.shadow.camera.bottom = -340;
+      this.keyLight.shadow.camera.updateProjectionMatrix();
+      this.keyLight.shadow.bias = -0.0005;
+      this.keyLight.shadow.normalBias = 0.4;
+      this.keyLight.shadow.radius = 3;
+      this.scene.add(this.hemisphereLight);
+      this.scene.add(this.keyLight);
+      this.scene.add(this.keyLight.target);
+
       this.textureLoader = new TextureLoader();
       this.renderer = new WebGLRenderer({
         alpha: true,
@@ -200,6 +271,8 @@ class LobbyHandSurface {
       });
       this.renderer.setClearColor(0x000000, 0);
       this.renderer.outputColorSpace = SRGBColorSpace;
+      this.renderer.shadowMap.enabled = true;
+      this.renderer.shadowMap.type = PCFShadowMap;
 
       this.canvas = this.renderer.domElement;
       this.canvas.className = 'modern-graphics-canvas modern-lobby-hand-canvas';
@@ -371,26 +444,39 @@ class LobbyHandSurface {
 
   commitCards() {
     const backMaterials = new Map();
+    const bodyMaterial = new MeshStandardMaterial({
+      color: 0x9b7438,
+      roughness: 0.58,
+      metalness: 0.08,
+      depthTest: true,
+      depthWrite: true,
+      toneMapped: false
+    });
+    this.materials.push(bodyMaterial);
 
     this.cards.forEach((card) => {
-      const frontMaterial = new MeshBasicMaterial({
+      const frontMaterial = new MeshStandardMaterial({
         map: this.textures.get(card.textureUrl),
         transparent: true,
         alphaTest: 0.01,
-        depthTest: false,
-        depthWrite: false,
+        depthTest: true,
+        depthWrite: true,
         side: FrontSide,
+        roughness: 0.82,
+        metalness: 0,
         toneMapped: false
       });
       let backMaterial = backMaterials.get(card.backTextureUrl);
       if (!backMaterial) {
-        backMaterial = new MeshBasicMaterial({
+        backMaterial = new MeshStandardMaterial({
           map: this.textures.get(card.backTextureUrl),
           transparent: true,
           alphaTest: 0.01,
-          depthTest: false,
-          depthWrite: false,
+          depthTest: true,
+          depthWrite: true,
           side: FrontSide,
+          roughness: 0.82,
+          metalness: 0,
           toneMapped: false
         });
         backMaterials.set(card.backTextureUrl, backMaterial);
@@ -399,13 +485,15 @@ class LobbyHandSurface {
 
       const motionRoot = new Group();
       const tiltRoot = new Group();
+      const pickupRoot = new Group();
       const flipRoot = new Group();
+      const bodyMesh = new Mesh(this.cardBodyGeometry, bodyMaterial);
       const frontMesh = new Mesh(this.cardGeometry, frontMaterial);
       const backMesh = new Mesh(this.cardGeometry, backMaterial);
       const basePosition = {
         x: card.x + (card.width / 2),
         y: LOBBY_LOGICAL_HEIGHT - card.y - (card.height / 2),
-        z: 0
+        z: -LOBBY_CARD_FACE_OFFSET
       };
 
       motionRoot.position.set(
@@ -414,25 +502,38 @@ class LobbyHandSurface {
         basePosition.z
       );
       tiltRoot.rotation.z = card.rotationDegrees * Math.PI / 180;
-      frontMesh.position.z = 0.01;
-      backMesh.position.z = -0.01;
-      backMesh.rotation.y = Math.PI;
+      frontMesh.position.z = LOBBY_CARD_FACE_OFFSET;
+      backMesh.position.z = -LOBBY_CARD_FACE_OFFSET;
+      backMesh.rotation.x = Math.PI;
+      bodyMesh.castShadow = true;
+      bodyMesh.receiveShadow = true;
+      bodyMesh.renderOrder = card.index;
       frontMesh.renderOrder = card.index;
       backMesh.renderOrder = card.index;
 
+      flipRoot.add(bodyMesh);
       flipRoot.add(frontMesh);
       flipRoot.add(backMesh);
-      tiltRoot.add(flipRoot);
+      pickupRoot.add(flipRoot);
+      tiltRoot.add(pickupRoot);
       motionRoot.add(tiltRoot);
 
       const entry = {
         card,
         motionRoot,
         tiltRoot,
+        pickupRoot,
         flipRoot,
+        bodyMesh,
         frontMesh,
         backMesh,
         basePosition,
+        currentMotion: {
+          screenLiftY: 0,
+          depth: 0,
+          pickupTiltX: 0,
+          pickupTiltY: 0
+        },
         phase: 'idle',
         visibleFace: 'front',
         completedFlips: 0
@@ -541,8 +642,9 @@ class LobbyHandSurface {
     const token = ++this.activationSequence;
     entry.phase = 'lifting';
     entry.visibleFace = 'front';
-    entry.frontMesh.renderOrder = 100 + this.activationSequence;
-    entry.backMesh.renderOrder = 100 + this.activationSequence;
+    entry.bodyMesh.renderOrder = 100 + token;
+    entry.frontMesh.renderOrder = 100 + token;
+    entry.backMesh.renderOrder = 100 + token;
     this.activeAnimation = {
       entry,
       startTime: window.performance && typeof window.performance.now === 'function'
@@ -556,7 +658,20 @@ class LobbyHandSurface {
       userCardId: entry.card.userCardId,
       cardId: entry.card.cardId,
       outcome: 'running',
-      phases: ['lift']
+      phases: ['lift'],
+      flipAxis: 'x',
+      nominalDurationMs: LOBBY_FLIP_DURATION,
+      deadlineMs: LOBBY_FLIP_DEADLINE,
+      evidence: {
+        maxScreenLiftY: 0,
+        maxLiftZ: 0,
+        maxAbsFlipRotationX: 0,
+        maxAbsFlipRotationY: 0,
+        maxPickupTilt: 0,
+        maxTopBottomDepthSpan: 0,
+        maxPerspectiveScale: 1,
+        edgePasses: 0
+      }
     };
     this.restoreInputCursor();
     this.scheduleAnimationFrame();
@@ -566,9 +681,11 @@ class LobbyHandSurface {
     const token = ++this.activationSequence;
     entry.phase = 'showing-back';
     entry.visibleFace = 'back';
+    entry.bodyMesh.renderOrder = 100 + token;
     entry.frontMesh.renderOrder = 100 + token;
     entry.backMesh.renderOrder = 100 + token;
-    entry.flipRoot.rotation.y = Math.PI;
+    entry.flipRoot.rotation.x = -Math.PI;
+    entry.flipRoot.rotation.y = 0;
     this.activeAnimation = {
       entry,
       startTime: null,
@@ -581,7 +698,20 @@ class LobbyHandSurface {
       userCardId: entry.card.userCardId,
       cardId: entry.card.cardId,
       outcome: 'running-reduced-motion',
-      phases: ['back']
+      phases: ['back'],
+      flipAxis: 'x',
+      nominalDurationMs: 0,
+      deadlineMs: LOBBY_FLIP_DEADLINE,
+      evidence: {
+        maxScreenLiftY: 0,
+        maxLiftZ: 0,
+        maxAbsFlipRotationX: Math.PI,
+        maxAbsFlipRotationY: 0,
+        maxPickupTilt: 0,
+        maxTopBottomDepthSpan: 0,
+        maxPerspectiveScale: 1,
+        edgePasses: 0
+      }
     };
     this.restoreInputCursor();
     this.render();
@@ -638,7 +768,8 @@ class LobbyHandSurface {
       animation.reducedStep = 1;
       animation.entry.phase = 'showing-back';
       animation.entry.visibleFace = 'back';
-      animation.entry.flipRoot.rotation.y = Math.PI;
+      animation.entry.flipRoot.rotation.x = -Math.PI;
+      animation.entry.flipRoot.rotation.y = 0;
       this.animationFrameCount += 1;
       this.render();
       this.scheduleAnimationFrame();
@@ -647,7 +778,8 @@ class LobbyHandSurface {
 
     animation.entry.phase = 'showing-front';
     animation.entry.visibleFace = 'front';
-    animation.entry.flipRoot.rotation.y = Math.PI * 2;
+    animation.entry.flipRoot.rotation.x = 0;
+    animation.entry.flipRoot.rotation.y = 0;
     this.markTransitionPhase('front');
     this.animationFrameCount += 1;
     this.render();
@@ -656,14 +788,24 @@ class LobbyHandSurface {
 
   updateAnimation(entry, elapsed) {
     const liftEnd = LOBBY_FLIP_TIMINGS.lift;
+    const firstEdge = liftEnd + (LOBBY_FLIP_TIMINGS.toBack / 2);
     const backEnd = liftEnd + LOBBY_FLIP_TIMINGS.toBack;
     const holdEnd = backEnd + LOBBY_FLIP_TIMINGS.backHold;
+    const secondEdge = holdEnd + (LOBBY_FLIP_TIMINGS.toFront / 2);
     const frontEnd = holdEnd + LOBBY_FLIP_TIMINGS.toFront;
     const settleEnd = frontEnd + LOBBY_FLIP_TIMINGS.settle;
     let progress;
+    let turnProgress;
+    let arcProgress;
 
+    if (elapsed >= firstEdge) {
+      this.markTransitionPhase('first-edge');
+    }
     if (elapsed >= backEnd) {
       this.markTransitionPhase('back');
+    }
+    if (elapsed >= secondEdge) {
+      this.markTransitionPhase('second-edge');
     }
     if (elapsed >= frontEnd) {
       this.markTransitionPhase('front');
@@ -673,53 +815,122 @@ class LobbyHandSurface {
       progress = this.easeOutCubic(elapsed / LOBBY_FLIP_TIMINGS.lift);
       entry.phase = 'lifting';
       entry.visibleFace = 'front';
-      this.applyLift(entry, progress);
+      this.applyLift(entry, progress, 0, progress);
+      entry.flipRoot.rotation.x = 0;
       entry.flipRoot.rotation.y = 0;
+      this.recordMotionEvidence(entry);
       return false;
     }
     if (elapsed < backEnd) {
-      progress = this.easeInOutCubic((elapsed - liftEnd) / LOBBY_FLIP_TIMINGS.toBack);
+      progress = (elapsed - liftEnd) / LOBBY_FLIP_TIMINGS.toBack;
+      turnProgress = this.easeInOutSine(progress);
+      arcProgress = Math.sin(Math.PI * progress);
       entry.phase = 'showing-back';
-      entry.visibleFace = progress < 0.5 ? 'front' : 'back';
-      this.applyLift(entry, 1);
-      entry.flipRoot.rotation.y = Math.PI * progress;
+      entry.visibleFace = Math.abs(Math.cos(Math.PI * turnProgress)) < 0.12
+        ? 'edge'
+        : (turnProgress < 0.5 ? 'front' : 'back');
+      this.applyLift(entry, 1, arcProgress, 1 - turnProgress);
+      entry.flipRoot.rotation.x = -Math.PI * turnProgress;
+      entry.flipRoot.rotation.y = 0;
+      this.recordMotionEvidence(entry);
       return false;
     }
     if (elapsed < holdEnd) {
       entry.phase = 'showing-back';
       entry.visibleFace = 'back';
-      this.applyLift(entry, 1);
-      entry.flipRoot.rotation.y = Math.PI;
+      this.applyLift(entry, 1, 0, 0);
+      entry.flipRoot.rotation.x = -Math.PI;
+      entry.flipRoot.rotation.y = 0;
+      this.recordMotionEvidence(entry);
       return false;
     }
     if (elapsed < frontEnd) {
-      progress = this.easeInOutCubic((elapsed - holdEnd) / LOBBY_FLIP_TIMINGS.toFront);
+      progress = (elapsed - holdEnd) / LOBBY_FLIP_TIMINGS.toFront;
+      turnProgress = this.easeInOutSine(progress);
+      arcProgress = Math.sin(Math.PI * progress);
       entry.phase = 'showing-front';
-      entry.visibleFace = progress < 0.5 ? 'back' : 'front';
-      this.applyLift(entry, 1);
-      entry.flipRoot.rotation.y = Math.PI + (Math.PI * progress);
+      entry.visibleFace = Math.abs(Math.cos(Math.PI * (1 - turnProgress))) < 0.12
+        ? 'edge'
+        : (turnProgress < 0.5 ? 'back' : 'front');
+      this.applyLift(entry, 1, arcProgress, turnProgress);
+      entry.flipRoot.rotation.x = -Math.PI * (1 - turnProgress);
+      entry.flipRoot.rotation.y = 0;
+      this.recordMotionEvidence(entry);
       return false;
     }
     if (elapsed < settleEnd) {
       progress = this.easeInOutCubic((elapsed - frontEnd) / LOBBY_FLIP_TIMINGS.settle);
       entry.phase = 'settling';
       entry.visibleFace = 'front';
-      this.applyLift(entry, 1 - progress);
-      entry.flipRoot.rotation.y = Math.PI * 2;
+      this.applyLift(entry, 1 - progress, 0, 1 - progress);
+      entry.flipRoot.rotation.x = 0;
+      entry.flipRoot.rotation.y = 0;
+      this.recordMotionEvidence(entry);
       return false;
     }
 
     return true;
   }
 
-  applyLift(entry, progress) {
+  applyLift(entry, progress, turnArc, pickupProgress) {
+    const liftProgress = Math.max(0, Math.min(1, progress));
+    const arcProgress = Math.max(0, Math.min(1, turnArc));
+    const pickup = Math.max(0, Math.min(1, pickupProgress));
+    const depth = (LOBBY_LIFT_Z * liftProgress) + (LOBBY_TURN_ARC_Z * arcProgress);
+    const screenLiftY =
+      (LOBBY_LIFT_SCREEN_Y * liftProgress) +
+      (LOBBY_TURN_ARC_SCREEN_Y * arcProgress);
+    const perspectiveCompensation = (LOBBY_CAMERA_DISTANCE - depth) / LOBBY_CAMERA_DISTANCE;
+
     entry.motionRoot.position.set(
-      entry.basePosition.x,
-      entry.basePosition.y + (LOBBY_LIFT_Y * progress),
-      entry.basePosition.z + (LOBBY_LIFT_Z * progress)
+      LOBBY_CAMERA_CENTER_X +
+        ((entry.basePosition.x - LOBBY_CAMERA_CENTER_X) * perspectiveCompensation),
+      LOBBY_CAMERA_CENTER_Y +
+        ((entry.basePosition.y + screenLiftY - LOBBY_CAMERA_CENTER_Y) * perspectiveCompensation),
+      entry.basePosition.z + depth
     );
-    const scale = 1 + ((LOBBY_LIFT_SCALE - 1) * progress);
-    entry.motionRoot.scale.set(scale, scale, scale);
+    entry.motionRoot.scale.set(1, 1, 1);
+    entry.pickupRoot.rotation.x = LOBBY_PICKUP_TILT_X * pickup;
+    entry.pickupRoot.rotation.y = LOBBY_PICKUP_TILT_Y * pickup;
+    entry.currentMotion.screenLiftY = screenLiftY;
+    entry.currentMotion.depth = depth;
+    entry.currentMotion.pickupTiltX = entry.pickupRoot.rotation.x;
+    entry.currentMotion.pickupTiltY = entry.pickupRoot.rotation.y;
+  }
+
+  recordMotionEvidence(entry) {
+    const evidence = this.lastTransition && this.lastTransition.evidence;
+    if (!evidence) {
+      return;
+    }
+
+    const combinedRotationX = entry.pickupRoot.rotation.x + entry.flipRoot.rotation.x;
+    evidence.maxScreenLiftY = Math.max(
+      evidence.maxScreenLiftY,
+      entry.currentMotion.screenLiftY
+    );
+    evidence.maxLiftZ = Math.max(evidence.maxLiftZ, entry.currentMotion.depth);
+    evidence.maxAbsFlipRotationX = Math.max(
+      evidence.maxAbsFlipRotationX,
+      Math.abs(entry.flipRoot.rotation.x)
+    );
+    evidence.maxAbsFlipRotationY = Math.max(
+      evidence.maxAbsFlipRotationY,
+      Math.abs(entry.flipRoot.rotation.y)
+    );
+    evidence.maxPickupTilt = Math.max(
+      evidence.maxPickupTilt,
+      Math.abs(entry.pickupRoot.rotation.x),
+      Math.abs(entry.pickupRoot.rotation.y)
+    );
+    evidence.maxTopBottomDepthSpan = Math.max(
+      evidence.maxTopBottomDepthSpan,
+      Math.abs(Math.sin(combinedRotationX)) * entry.card.height
+    );
+    evidence.maxPerspectiveScale = Math.max(
+      evidence.maxPerspectiveScale,
+      LOBBY_CAMERA_DISTANCE / (LOBBY_CAMERA_DISTANCE - entry.currentMotion.depth)
+    );
   }
 
   completeAnimation(outcome) {
@@ -769,9 +980,17 @@ class LobbyHandSurface {
       entry.basePosition.z
     );
     entry.motionRoot.scale.set(1, 1, 1);
+    entry.pickupRoot.rotation.x = 0;
+    entry.pickupRoot.rotation.y = 0;
+    entry.flipRoot.rotation.x = 0;
     entry.flipRoot.rotation.y = 0;
+    entry.bodyMesh.renderOrder = entry.card.index;
     entry.frontMesh.renderOrder = entry.card.index;
     entry.backMesh.renderOrder = entry.card.index;
+    entry.currentMotion.screenLiftY = 0;
+    entry.currentMotion.depth = 0;
+    entry.currentMotion.pickupTiltX = 0;
+    entry.currentMotion.pickupTiltY = 0;
     entry.phase = 'idle';
     entry.visibleFace = 'front';
   }
@@ -781,6 +1000,10 @@ class LobbyHandSurface {
       return;
     }
     this.lastTransition.phases.push(phase);
+    if ((phase === 'first-edge' || phase === 'second-edge') &&
+        this.lastTransition.evidence) {
+      this.lastTransition.evidence.edgePasses += 1;
+    }
   }
 
   easeOutCubic(value) {
@@ -793,6 +1016,11 @@ class LobbyHandSurface {
     return progress < 0.5
       ? 4 * progress * progress * progress
       : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+  }
+
+  easeInOutSine(value) {
+    const progress = Math.max(0, Math.min(1, value));
+    return -(Math.cos(Math.PI * progress) - 1) / 2;
   }
 
   suspend() {
@@ -846,6 +1074,7 @@ class LobbyHandSurface {
     const devicePixelRatio = window.devicePixelRatio || 1;
     this.renderer.setPixelRatio(Math.min(Math.max(devicePixelRatio * scale, 1), MAX_PIXEL_RATIO));
     this.renderer.setSize(LOBBY_LOGICAL_WIDTH, LOBBY_LOGICAL_HEIGHT, false);
+    this.camera.aspect = LOBBY_LOGICAL_WIDTH / LOBBY_LOGICAL_HEIGHT;
     this.camera.updateProjectionMatrix();
     this.render();
   }
@@ -892,6 +1121,29 @@ class LobbyHandSurface {
       surface: 'lobby-hand',
       logicalWidth: LOBBY_LOGICAL_WIDTH,
       logicalHeight: LOBBY_LOGICAL_HEIGHT,
+      camera: {
+        projection: 'perspective',
+        fovDegrees: LOBBY_CAMERA_FOV,
+        distance: LOBBY_CAMERA_DISTANCE,
+        position: {
+          x: this.camera.position.x,
+          y: this.camera.position.y,
+          z: this.camera.position.z
+        },
+        settledPlaneScale: 1
+      },
+      cardModel: {
+        width: 117,
+        height: 146,
+        thickness: LOBBY_CARD_THICKNESS
+      },
+      motionProfile: {
+        flipAxis: 'x',
+        nominalDurationMs: LOBBY_FLIP_DURATION,
+        deadlineMs: LOBBY_FLIP_DEADLINE,
+        liftScreenY: LOBBY_LIFT_SCREEN_Y,
+        liftZ: LOBBY_LIFT_Z
+      },
       pixelRatio: this.renderer.getPixelRatio(),
       disposed: this.disposed,
       contextLost: this.contextLost,
@@ -920,7 +1172,13 @@ class LobbyHandSurface {
         userCardId: this.lastTransition.userCardId,
         cardId: this.lastTransition.cardId,
         outcome: this.lastTransition.outcome,
-        phases: this.lastTransition.phases.slice(0)
+        phases: this.lastTransition.phases.slice(0),
+        flipAxis: this.lastTransition.flipAxis,
+        nominalDurationMs: this.lastTransition.nominalDurationMs,
+        deadlineMs: this.lastTransition.deadlineMs,
+        evidence: this.lastTransition.evidence
+          ? Object.assign({}, this.lastTransition.evidence)
+          : null
       } : null,
       prefersReducedMotion: this.prefersReducedMotion(),
       cards: this.cards.map((card, index) => {
@@ -943,10 +1201,22 @@ class LobbyHandSurface {
           visibleFace: entry ? entry.visibleFace : 'front',
           completedFlips: entry ? entry.completedFlips : 0,
           transform: entry ? {
-            liftY: entry.motionRoot.position.y - entry.basePosition.y,
-            z: entry.motionRoot.position.z,
+            liftY: entry.currentMotion.screenLiftY,
+            z: entry.currentMotion.depth,
             scale: entry.motionRoot.scale.x,
-            rotationY: entry.flipRoot.rotation.y
+            rotationX: entry.flipRoot.rotation.x,
+            rotationY: entry.flipRoot.rotation.y,
+            pickupTiltX: entry.currentMotion.pickupTiltX,
+            pickupTiltY: entry.currentMotion.pickupTiltY,
+            staticRotationZ: entry.tiltRoot.rotation.z,
+            perspectiveScale:
+              LOBBY_CAMERA_DISTANCE /
+              (LOBBY_CAMERA_DISTANCE - entry.currentMotion.depth),
+            worldPosition: {
+              x: entry.motionRoot.position.x,
+              y: entry.motionRoot.position.y,
+              z: entry.motionRoot.position.z
+            }
           } : null
         };
       })
@@ -964,6 +1234,15 @@ class LobbyHandSurface {
     this.clearCommittedCards();
     if (this.cardGeometry) {
       this.cardGeometry.dispose();
+    }
+    if (this.cardBodyGeometry) {
+      this.cardBodyGeometry.dispose();
+    }
+    if (this.shadowReceiverGeometry) {
+      this.shadowReceiverGeometry.dispose();
+    }
+    if (this.shadowReceiverMaterial) {
+      this.shadowReceiverMaterial.dispose();
     }
     if (this.inputTarget && this.handleCanvasClick) {
       this.detachInputHandlers();

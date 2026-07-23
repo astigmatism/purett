@@ -40,7 +40,7 @@ try {
   assert(!/window\.THREE\s*=/.test(modernSource + modernBundle), 'modern bundle overwrites the legacy snow THREE global');
   assert(fs.existsSync(path.join(root, 'public/js/modern/THREE-LICENSE.txt')), 'distributed Three.js license is missing');
 
-  assert(coordinator.includes('/js/modern/purett-modern-graphics.min.js?v=0.185.1-lobby-flip.1'), 'coordinator does not use the lobby-flip bundle cache revision');
+  assert(coordinator.includes('/js/modern/purett-modern-graphics.min.js?v=0.185.1-lobby-vertical-flip.1'), 'coordinator does not use the perspective vertical-flip bundle cache revision');
   assert(!/https?:\/\//.test(coordinator), 'coordinator references a third-party graphics URL');
   assert(coordinator.includes("this.storageKey = 'purett.graphicsMode.v1'"), 'graphics preference does not have a stable storage key');
   assert(coordinator.includes("this.requestedMode = 'legacy'"), 'Legacy is not the safe default');
@@ -72,9 +72,35 @@ try {
   assert(modernSource.includes('const LOBBY_LOGICAL_HEIGHT = 562'), 'Modern lobby surface does not preserve the 562px logical height');
   assert(modernSource.includes('(cards || []).slice(0, 5)'), 'Modern lobby surface is not bounded to the five-card preview');
   assert(lobbyMenu.includes('pos:        [72, 197, 322, 447, 572]'), 'lobby preview no longer carries the five legacy hand positions');
+  assert(
+    /class LobbyHandSurface[\s\S]*?this\.camera = new PerspectiveCamera\(\s*LOBBY_CAMERA_FOV/.test(modernSource),
+    'Modern lobby surface does not use its calibrated perspective camera'
+  );
+  assert(modernSource.includes("projection: 'perspective'") && modernSource.includes('settledPlaneScale: 1'), 'Modern lobby diagnostics do not identify the perspective projection and settled-plane mapping');
+  assert(modernSource.includes('new BoxGeometry(') && modernSource.includes('LOBBY_CARD_THICKNESS = 3'), 'Modern lobby cards do not include a visible three-dimensional body');
+  assert(modernSource.includes('new MeshStandardMaterial(') && modernSource.includes('new ShadowMaterial('), 'Modern lobby cards omit lit edges or the lift shadow cue');
   assert(modernSource.includes('Raycaster') && modernSource.includes('new Vector2()'), 'Modern lobby surface has no Three.js picking path');
   assert(modernSource.includes("const LOBBY_CARD_BACK_URL = '/images/cards/cardBack.png'"), 'Modern lobby flip does not use the same-origin card back');
   assert(lobbyMenu.includes("backTextureUrl: '/images/cards/cardBack.png'"), 'lobby card descriptions omit the card-back texture');
+  assert(modernSource.includes('backMesh.rotation.x = Math.PI'), 'Modern lobby card back is not oriented upright for an X-axis turn');
+  assert(
+    modernSource.includes('entry.flipRoot.rotation.x = -Math.PI * turnProgress') &&
+      modernSource.includes('entry.flipRoot.rotation.x = -Math.PI * (1 - turnProgress)') &&
+      modernSource.includes('entry.flipRoot.rotation.y = 0'),
+    'Modern lobby card does not turn end-over-end from 0 to -PI and back to 0'
+  );
+  assert(
+    modernSource.includes('const LOBBY_FLIP_DURATION = 2450') &&
+      modernSource.includes('const LOBBY_FLIP_DEADLINE = 3000'),
+    'Modern lobby vertical flip does not use the inspectable 2.45-second bounded timeline'
+  );
+  assert(
+    modernSource.includes('LOBBY_LIFT_SCREEN_Y = 18') &&
+      modernSource.includes('LOBBY_LIFT_Z = 105') &&
+      modernSource.includes('LOBBY_PICKUP_TILT_X') &&
+      modernSource.includes('LOBBY_PICKUP_TILT_Y'),
+    'Modern lobby vertical flip omits its lift-depth or pickup-tilt cues'
+  );
   assert(modernSource.includes("this.inputTarget.addEventListener('click', this.handleCanvasClick, true)"), 'Modern lobby menu bridge does not accept captured card clicks');
   assert(modernSource.includes("this.inputTarget.removeEventListener('click', this.handleCanvasClick, true)"), 'Modern lobby click listener is not removed during disposal');
   assert(
@@ -86,10 +112,24 @@ try {
   assert(modernSource.includes("typeof window.performance.now === 'function'"), 'Modern lobby flip does not anchor its deadline at accepted-click time');
   assert(
     modernSource.includes("phases: ['lift']") &&
+      modernSource.includes("this.markTransitionPhase('first-edge')") &&
       modernSource.includes("this.markTransitionPhase('back')") &&
+      modernSource.includes("this.markTransitionPhase('second-edge')") &&
       modernSource.includes("this.markTransitionPhase('front')") &&
       modernSource.includes("this.markTransitionPhase('settled')"),
-    'Modern lobby diagnostics do not expose the lift/back/front/settled sequence'
+    'Modern lobby diagnostics do not expose both edge passes in the lift/back/front/settled sequence'
+  );
+  assert(
+    modernSource.includes("flipAxis: 'x'") &&
+      modernSource.includes('maxScreenLiftY') &&
+      modernSource.includes('maxLiftZ') &&
+      modernSource.includes('maxAbsFlipRotationX') &&
+      modernSource.includes('maxAbsFlipRotationY') &&
+      modernSource.includes('maxPickupTilt') &&
+      modernSource.includes('maxTopBottomDepthSpan') &&
+      modernSource.includes('maxPerspectiveScale') &&
+      modernSource.includes('edgePasses'),
+    'Modern lobby diagnostics do not expose evidence for axis, lift, tilt, perspective, and edge passes'
   );
   assert(modernSource.includes("this.cancelAnimation('disposed')"), 'disposing the Modern lobby surface does not cancel an in-flight flip');
   assert(modernSource.includes("this.status !== 'ready'"), 'Modern lobby input handlers are not gated on confirmed readiness');

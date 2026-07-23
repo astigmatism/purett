@@ -539,6 +539,71 @@ test('game size control scales from the top and survives a tab reload', async ({
   await expect.poll(() => page.evaluate(() => gh.manager.contentScale)).toBe(1);
 });
 
+test('scaled menus and tooltips stay aligned with their triggers', async ({page}) => {
+  await page.goto('/auth/login');
+  await page.locator('input[name="username"]').fill('demo');
+  await page.locator('input[name="password"]').fill('TripleTriad!');
+  await Promise.all([
+    page.waitForURL(url => url.pathname === '/'),
+    page.locator('button[type="submit"]').click()
+  ]);
+  await expect.poll(() => page.evaluate(() => Boolean(
+    window.gh && gh.manager && gh.manager.menu
+  ))).toBe(true);
+
+  await page.locator('#title-icon').click();
+  await page.locator('#contextmenu button[data-scale="1.5"]').click();
+  await page.locator('#title-icon').click();
+  await expect(page.locator('#contextmenu')).toBeVisible();
+
+  const contextMenuGaps = await page.evaluate(() => {
+    const icon = document.querySelector('#title-icon').getBoundingClientRect();
+    const menu = document.querySelector('#contextmenu').getBoundingClientRect();
+    return {
+      left: menu.left - icon.left,
+      top: menu.top - icon.bottom
+    };
+  });
+  expect(contextMenuGaps.left).toBeCloseTo(9, 0);
+  expect(contextMenuGaps.top).toBeCloseTo(contextMenuGaps.left, 0);
+
+  await page.locator('#contextmenu div.close').click();
+  const topPlayer = page.locator('#topplayers-wrapper li').filter({hasText: '1: Demo Player'});
+  await topPlayer.hover();
+  await expect(page.locator('.topplayertip')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => {
+    const trigger = document.querySelector('#topplayers-wrapper li').getBoundingClientRect();
+    const tip = document.querySelector('.topplayertip').getBoundingClientRect();
+    return Math.abs(
+      (tip.left + (tip.width / 2)) - (trigger.left + (trigger.width / 2))
+    );
+  })).toBeLessThan(1);
+  await expect.poll(() => page.evaluate(() => {
+    const trigger = document.querySelector('#topplayers-wrapper li').getBoundingClientRect();
+    const tip = document.querySelector('.topplayertip').getBoundingClientRect();
+    return tip.top - trigger.bottom;
+  })).toBeCloseTo(20, 0);
+
+  await page.evaluate(() => {
+    gh.data.nextrules = [{name: 'Same', description: 'Matching ranks capture adjacent cards.'}];
+    gh.manager.menu.updaterules();
+    $('#rules').show();
+  });
+  const rule = page.locator('#rules span').filter({hasText: 'SAME'});
+  await rule.hover();
+  await expect(page.locator('.rulestip')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => {
+    const trigger = document.querySelector('#rules span').getBoundingClientRect();
+    const tip = document.querySelector('.rulestip').getBoundingClientRect();
+    return (tip.left + (tip.width / 2)) - (trigger.left + (trigger.width / 2));
+  })).toBeCloseTo(30, 0);
+  await expect.poll(() => page.evaluate(() => {
+    const trigger = document.querySelector('#rules span').getBoundingClientRect();
+    const tip = document.querySelector('.rulestip').getBoundingClientRect();
+    return tip.top - trigger.bottom;
+  })).toBeCloseTo(20, 0);
+});
+
 test('standalone player journey works without third-party requests', async ({page, baseURL}) => {
   const externalRequests = [];
   const pageErrors = [];

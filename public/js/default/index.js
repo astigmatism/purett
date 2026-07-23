@@ -141,10 +141,11 @@ gh.load(['util', ['game'], 'cover', 'menu', ['dialog'], ['jquerytools'], 'audio'
         },
         initOverlays: function() {
             var me = this;
+            var contextMenuInset = 6;
             //context menu
             me.contextmenu = $('#title-icon[rel]').overlay({
-                left: 6,
-                top: 71,
+                left: contextMenuInset,
+                top: $('#title-icon').outerHeight() + contextMenuInset,
                 close: $('#contextmenu div.close'),
                 onBeforeLoad: function() {
                     gh.audio.select.play();

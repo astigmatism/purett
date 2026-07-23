@@ -317,7 +317,7 @@ ul.shopmenu li.selected {
     background-size: 755px 562px;
     position: relative;
 }
-#svgBoard, #board .overlay, #svgRules {
+#svgBoard, #board .overlay, #svgRules, #modernGraphics {
     position:absolute;
     top: 30px;
     left: 30px;
@@ -327,6 +327,63 @@ ul.shopmenu li.selected {
 #svgRules {
     z-index: 1;
     display: none;
+}
+#modernGraphics {
+    display: none;
+    z-index: 1;
+    overflow: hidden;
+    pointer-events: auto;
+    background: radial-gradient(ellipse at center, rgba(63, 45, 32, 0.72) 0%, rgba(24, 18, 14, 0.9) 100%);
+}
+#modernGraphics .modern-graphics-canvas {
+    position: absolute;
+    z-index: 0;
+    top: 0;
+    left: 0;
+    width: 100% !important;
+    height: 100% !important;
+    display: block;
+    pointer-events: none;
+}
+#modernGraphics .modern-graphics-message {
+    position: absolute;
+    z-index: 1;
+    top: 50%;
+    left: 50%;
+    width: 390px;
+    padding: 18px 24px;
+    margin: -45px 0 0 -219px;
+    border: 1px solid rgba(255, 255, 255, 0.24);
+    border-radius: 9px;
+    background: rgba(0, 0, 0, 0.48);
+    color: #fff;
+    text-align: center;
+    font-family: 'Spinnaker', sans-serif;
+    text-shadow: #000 1px 1px 2px;
+}
+#modernGraphics .modern-graphics-message strong,
+#modernGraphics .modern-graphics-message span {
+    display: block;
+}
+#modernGraphics .modern-graphics-message strong {
+    margin-bottom: 7px;
+    font-size: 18px;
+}
+#modernGraphics .modern-graphics-message span {
+    font-size: 13px;
+    line-height: 18px;
+}
+#board.graphics-modern #svgBoard,
+#board.graphics-modern #svgRules {
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+#board.graphics-modern #svgBoard *,
+#board.graphics-modern #svgRules * {
+    pointer-events: none !important;
+}
+#board.graphics-modern #modernGraphics {
+    display: block;
 }
 #board .overlay {
     background-color: #000;

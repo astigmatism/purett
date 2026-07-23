@@ -1,0 +1,19 @@
+{
+  "name": "purett-modern-graphics",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build:graphics": "node scripts/build-modern-graphics.mjs",
+    "check:graphics": "node scripts/build-modern-graphics.mjs --check"
+  },
+  "engines": {
+    "node": ">=18.15.0"
+  },
+  "dependencies": {
+    "three": "0.185.1"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.1"
+  }
+}

@@ -81,6 +81,10 @@ class Standalone_Controller_Action extends Gamehouse_Controller_Action
     protected function bootData()
     {
         $rules = array();
+        $modernGraphicsEnvironment = getenv('PURETT_MODERN_GRAPHICS_ENABLED');
+        $modernGraphicsEnabled = ($modernGraphicsEnvironment === false)
+            ? (bool) $this->config->modernGraphicsEnabled
+            : !in_array(strtolower(trim((string) $modernGraphicsEnvironment)), array('0', 'false', 'off', 'no'), true);
         if (!$this->user->ingame) {
             $rules = PureTripleTriad_Game::getNextRules($this->user->wins, $this->user->losses, $this->user->draws);
         }
@@ -99,6 +103,7 @@ class Standalone_Controller_Action extends Gamehouse_Controller_Action
             'colors' => $this->user->colors,
             'color' => base64_encode($this->user->options['color']),
             'csrf' => $this->session->csrf,
+            'modernGraphicsEnabled' => $modernGraphicsEnabled,
             'leaderboard' => $redis->getLeaderboard(),
             'careerStats' => $this->database->getCareerStats($this->user->userid),
             'profile' => array(

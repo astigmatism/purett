@@ -34,6 +34,7 @@ if [ ! -f .env ]; then
         echo "PURETT_BIND_ADDRESS=${PURETT_BIND_ADDRESS:-127.0.0.1}"
         echo "PURETT_FREE_ECONOMY=0"
         echo "PURETT_TEST_MODE=0"
+        echo "PURETT_MODERN_GRAPHICS_ENABLED=1"
     } > .env
 fi
 

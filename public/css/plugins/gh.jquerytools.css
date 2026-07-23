@@ -372,16 +372,19 @@
     color: #000;
     cursor: pointer;
 }
-#contextmenu ul.menu > li.content-scale {
+#contextmenu ul.menu > li.content-scale,
+#contextmenu ul.menu > li.graphics-mode {
     cursor: default;
     padding-bottom: 4px;
 }
-#contextmenu .content-scale-options {
+#contextmenu .content-scale-options,
+#contextmenu .graphics-mode-options {
     display: flex;
     gap: 4px;
     margin-top: 6px;
 }
-#contextmenu .content-scale-options button {
+#contextmenu .content-scale-options button,
+#contextmenu .graphics-mode-options button {
     min-width: 32px;
     padding: 3px 5px;
     border: 1px solid #aaa;
@@ -392,13 +395,23 @@
     cursor: pointer;
 }
 #contextmenu .content-scale-options button:hover,
-#contextmenu .content-scale-options button:focus {
+#contextmenu .content-scale-options button:focus,
+#contextmenu .graphics-mode-options button:hover,
+#contextmenu .graphics-mode-options button:focus {
     border-color: #777;
     background: #fff;
     outline: none;
 }
-#contextmenu .content-scale-options button[aria-pressed="true"] {
+#contextmenu .content-scale-options button[aria-pressed="true"],
+#contextmenu .graphics-mode-options button[aria-pressed="true"] {
     border-color: #5c3922;
     background: #5c3922;
     color: #fff;
+}
+#contextmenu .graphics-mode-status {
+    width: 150px;
+    margin-top: 5px;
+    color: #666;
+    font-size: 10px;
+    line-height: 13px;
 }

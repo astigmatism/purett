@@ -37,6 +37,7 @@ run_static() {
     fi
     node tests/static/repository-contract.js
     node tests/static/endgame-behavior.js
+    node tests/static/modern-graphics-contract.js
     compose run --rm -T \
         -v "$project_dir/library:/var/www/app/library:ro" \
         -v "$project_dir/tests:/var/www/app/tests:ro" \

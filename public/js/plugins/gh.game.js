@@ -4,8 +4,14 @@ gh.game = function(wrapper, ruleswrapper) {
 gh.game.prototype = {
     initialize: function(wrapper, ruleswrapper) {
         var me = this;
-        $(wrapper).append('<div id="game-wrapper" class="abs hide"><div id="board"><div id="svgBoard"></div><div id="svgRules"></div><div class="overlay"></div></div></div>');
+        $(wrapper).append('<div id="game-wrapper" class="abs hide"><div id="board"><div id="svgBoard"></div><div id="svgRules"></div><div id="modernGraphics" aria-hidden="true"><div class="modern-graphics-message"><strong>Modern graphics engine active</strong><span class="modern-graphics-detail">Preparing Three.js\u2026</span></div></div><div class="overlay"></div></div></div>');
         this.ruleswrapper  = ruleswrapper;
+    },
+    setGraphicsMode: function(mode) {
+        var modern = mode === 'modern';
+        $('#board').toggleClass('graphics-modern', modern);
+        $('#svgBoard, #svgRules').attr('aria-hidden', modern ? 'true' : 'false');
+        $('#modernGraphics').attr('aria-hidden', modern ? 'false' : 'true');
     },
     build: function(gameData, gameovercallback, earlyexit, options) {
         var me = this;
@@ -1340,7 +1346,7 @@ gh.game.prototype = {
                     setTimeout(function() {
                         //disable exit opprotunity
                         $('#title').removeClass('enabled');
-                        $('#contextmenu li').removeClass('enabled');
+                        $('#contextmenu li').not('.graphics-mode').removeClass('enabled');
                         
                         me.dialogStart(dialog[index], 0, function() {
                             
@@ -1407,7 +1413,7 @@ gh.game.prototype = {
             
             //disable exit opprotunity
             $('#title').removeClass('enabled');
-            $('#contextmenu li').removeClass('enabled');
+            $('#contextmenu li').not('.graphics-mode').removeClass('enabled');
             
             if (!me.isreplay) {
                 gh.manager.loading(true);

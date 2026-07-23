@@ -1,4 +1,4 @@
-gh.load(['util', ['game'], 'cover', 'menu', ['dialog'], ['jquerytools'], 'audio'], function() {
+gh.load(['util', ['game'], 'cover', 'menu', ['dialog'], ['jquerytools'], 'audio', 'graphics'], function() {
     
     gh.manager = {
         
@@ -9,6 +9,7 @@ gh.load(['util', ['game'], 'cover', 'menu', ['dialog'], ['jquerytools'], 'audio'
         endgame:    null,
         deck:       null,
         shop:       null,
+        graphics:   null,
         
         erroroverlay:   null,
         contextmenu:    null,
@@ -74,6 +75,18 @@ gh.load(['util', ['game'], 'cover', 'menu', ['dialog'], ['jquerytools'], 'audio'
                     
                     //initialize canvases, positions
                     me.game = new gh.game($('#content'), $('#rules'));
+                    me.graphics = new gh.graphics({
+                        game: me.game,
+                        modernEnabled: gh.data.modernGraphicsEnabled !== false,
+                        getContentScale: function() {
+                            return me.contentScale;
+                        },
+                        closeMenu: function() {
+                            if (me.contextmenu) {
+                                $(me.contextmenu).overlay().close();
+                            }
+                        }
+                    });
                     
                 } else {
                     $('#browsers-wrapper').show();
@@ -118,6 +131,9 @@ gh.load(['util', ['game'], 'cover', 'menu', ['dialog'], ['jquerytools'], 'audio'
                 $(this).attr('aria-pressed', selected ? 'true' : 'false');
             });
             me.updateContentScaleLayout();
+            if (me.graphics) {
+                me.graphics.setContentScale(scale);
+            }
 
             if (persist) {
                 try {

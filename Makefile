@@ -1,4 +1,4 @@
-.PHONY: vm-up vm-down up down health test unit smoke reset grant-coins
+.PHONY: vm-up vm-down up down health test unit smoke reset grant-coins graphics-install graphics-build graphics-check
 
 vm-up:
 	vagrant up
@@ -23,6 +23,15 @@ unit:
 
 smoke:
 	./scripts/smoke-test.sh
+
+graphics-install:
+	npm --prefix frontend ci
+
+graphics-build:
+	npm --prefix frontend run build:graphics
+
+graphics-check:
+	npm --prefix frontend run check:graphics
 
 reset:
 	./scripts/reset-local.sh

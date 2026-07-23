@@ -550,6 +550,7 @@ test('scaled menus and tooltips stay aligned with their triggers', async ({page}
   await expect.poll(() => page.evaluate(() => Boolean(
     window.gh && gh.manager && gh.manager.menu
   ))).toBe(true);
+  await expect(page.locator('#content ul.mainmenu li.play')).toBeVisible();
 
   await page.locator('#title-icon').click();
   await page.locator('#contextmenu button[data-scale="1.5"]').click();
@@ -579,9 +580,16 @@ test('scaled menus and tooltips stay aligned with their triggers', async ({page}
       avatar_initials: 'DP'
     }];
     gh.manager.menu.updatetopplayers();
-    $('#topplayers-wrapper').show();
   });
   const topPlayer = page.locator('#topplayers-wrapper li').filter({hasText: '1: Demo Player'});
+  await expect(topPlayer).toHaveCount(1);
+  await expect(page.locator('#topplayers-wrapper')).toBeHidden();
+  await expect(page.locator('#topplayers-wrapper')).toHaveAttribute('aria-hidden', 'true');
+
+  await page.evaluate(() => {
+    $('#topplayers-wrapper').removeClass('hide').attr('aria-hidden', 'false');
+    gh.manager.menu.domshow(gh.manager.menu.toplayers);
+  });
   await topPlayer.hover();
   await expect(page.locator('.topplayertip')).toBeVisible();
   await expect.poll(() => page.evaluate(() => {

@@ -11,6 +11,7 @@ gh.menu.prototype = {
     cW:         117,       //static card width
     cH:         146,      //static card height
     pos:        [72, 197, 322, 447, 572],
+    showLeaderboard: false,
     
     initialize: function(wrapper, callback) {
         var me = this;
@@ -21,7 +22,7 @@ gh.menu.prototype = {
             $(wrapper).append('<div id="menu" class="abs"></div>');
             $(wrapper).append('<ul class="mainmenu"></ul>');
             $(wrapper).append('<div class="stats"></div>');
-            $(wrapper).append('<div id="topplayers-wrapper"></div>');
+            $(wrapper).append('<div id="topplayers-wrapper" class="hide" aria-hidden="true"></div>');
             
             me.ul = '#content ul.mainmenu';
             me.stats = '#content div.stats';
@@ -110,7 +111,12 @@ gh.menu.prototype = {
         }
         
         me.domshow(me.ul);
-        me.domshow(me.toplayers);
+        if (me.showLeaderboard) {
+            $(me.toplayers).removeClass('hide').attr('aria-hidden', 'false');
+            me.domshow(me.toplayers);
+        } else {
+            $(me.toplayers).addClass('hide').attr('aria-hidden', 'true').hide();
+        }
     },
     tutorial: function(callbacks) {
         var me = this;

@@ -7,7 +7,7 @@ const projectRoot = path.resolve(__dirname, '../..');
 
 async function useWorkspaceScripts(page, scripts) {
   for (const script of scripts) {
-    await page.route(`**/js/plugins/${script}`, route => route.fulfill({
+    await page.route(`**/js/plugins/${script}*`, route => route.fulfill({
       path: path.join(projectRoot, 'public/js/plugins', script),
       contentType: 'application/javascript'
     }));
@@ -108,4 +108,53 @@ test('all-protected loss displays the blocked take before finishing', async ({pa
   await expect(result).toBeVisible();
   await expect(page.locator('#end-game')).toBeHidden({timeout: 10000});
   await expect.poll(() => page.evaluate(() => window.__protectedTakeCompletions)).toBe(1);
+});
+
+test('awarded-coins victory keeps the claim title inside its scaled banner', async ({page}) => {
+  await useWorkspaceScripts(page, ['gh.endgame.js']);
+  await login(page);
+
+  await page.locator('#title-icon').click();
+  await page.locator('#contextmenu button[data-scale="1.5"]').click();
+
+  await page.evaluate(() => {
+    gh.manager.endgame = new gh.endgame($('#content'));
+    gh.manager.endgame.go({
+      victory: 1,
+      score: '6 - 4',
+      coinsAwarded: 1,
+      coins: Number(gh.data.coins) + 1,
+      coinBalanceStart: Number(gh.data.coins),
+      claim: 1,
+      p1h: [],
+      p2h: [{
+        gameCardId: 9001,
+        image: 'red/517633546449245348473e22582333307c3c252f3c6b5d3f375e27797c'
+      }],
+      own: [{gcid9001: 0}],
+      won: [],
+      taken: [],
+      given: [],
+      userid: 42,
+      gameid: 9001
+    }, function() {});
+  });
+
+  const title = page.locator('#content div.victory');
+  await expect(title).toHaveText("CLAIM 1 OF YOUR OPPONENT'S CARDS", {timeout: 12000});
+  await expect(title).toBeVisible();
+
+  const geometry = await page.evaluate(() => {
+    const endgame = gh.manager.endgame;
+    const titleBox = document.querySelector('#content div.victory').getBoundingClientRect();
+    const bannerBox = endgame.claimbar.node.getBoundingClientRect();
+    return {
+      titleClasses: document.querySelector('#content div.victory').className,
+      titleCenter: titleBox.top + (titleBox.height / 2),
+      bannerCenter: bannerBox.top + (bannerBox.height / 2)
+    };
+  });
+
+  expect(geometry.titleClasses.split(/\s+/)).not.toContain('with-award');
+  expect(Math.abs(geometry.titleCenter - geometry.bannerCenter)).toBeLessThan(1);
 });

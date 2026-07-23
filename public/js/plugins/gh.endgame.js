@@ -411,7 +411,7 @@ gh.endgame.prototype = {
     barset: function(title, callback) {
         var me = this;
         me.domhide(me.content, function() {
-            $(me.content).text(title).addClass('claim');
+            $(me.content).text(title).removeClass('with-award').addClass('claim');
             me.claimbar.animate({ translation: [0, -25], height: 50, opacity: 1 }, 1500, '<', function() {
                 me.domshow(me.content);
                 callback();

@@ -173,8 +173,31 @@ gh.menu.prototype = {
     },
     updatestats: function() {
         var me = this;
+        var ribbonArt = ''
+            + '<svg class="record-ribbon-art" viewBox="0 0 344 60" aria-hidden="true">'
+            + '<defs><linearGradient id="record-ribbon-parchment" x1="0" y1="0" x2="0" y2="1">'
+            + '<stop offset="0" stop-color="#f8e9c9"></stop>'
+            + '<stop offset="1" stop-color="#e1ca9f"></stop>'
+            + '</linearGradient></defs>'
+            + '<g opacity="0.72">'
+            + '<path fill="url(#record-ribbon-parchment)" d="M0 10H49V54H0L13 32Z"></path>'
+            + '<path fill="url(#record-ribbon-parchment)" d="M295 10H344L331 32L344 54H295Z"></path>'
+            + '<rect fill="url(#record-ribbon-parchment)" x="30" y="0" width="284" height="46"></rect>'
+            + '<path fill="#8a6038" d="M30 46H49V54Z"></path>'
+            + '<path fill="#8a6038" d="M314 46H295V54Z"></path>'
+            + '</g></svg>';
+        var $ribbon = $('<span class="record-ribbon"></span>').append(ribbonArt);
+        $ribbon.append(
+            $('<span class="record-ribbon-content"></span>')
+                .append('<span class="record-caption">CAREER RECORD</span>')
+                .append(
+                    $('<span class="record-main"></span>').text(
+                        gh.data.name.toUpperCase() + '  \u00b7  ' + gh.data.wins + '\u2013' + gh.data.losses
+                    )
+                )
+        );
         me.gamesplayed = gh.data.wins + gh.data.losses + gh.data.draws;
-        $(me.stats).text(gh.data.name.toUpperCase() + ': ' + gh.data.wins + ' - ' + gh.data.losses);
+        $(me.stats).empty().append($ribbon);
     },
     updaterules: function() {
         var me = this;

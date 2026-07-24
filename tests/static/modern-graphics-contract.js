@@ -22,6 +22,7 @@ try {
   const application = read('public/js/default/index.js');
   const lobbyMenu = read('public/js/plugins/gh.menu.js');
   const modernSource = read('frontend/src/modern-graphics.js');
+  const arrivalSource = read('frontend/src/card-arrival-animations.js');
   const modernBundle = read('public/js/modern/purett-modern-graphics.min.js');
   const layout = read('application/views/layouts/standalone.phtml');
   const game = read('public/js/plugins/gh.game.js');
@@ -40,7 +41,7 @@ try {
   assert(!/window\.THREE\s*=/.test(modernSource + modernBundle), 'modern bundle overwrites the legacy snow THREE global');
   assert(fs.existsSync(path.join(root, 'public/js/modern/THREE-LICENSE.txt')), 'distributed Three.js license is missing');
 
-  assert(coordinator.includes('/js/modern/purett-modern-graphics.min.js?v=0.185.1-lobby-concurrent-cards.1'), 'coordinator does not use the concurrent-card lobby bundle cache revision');
+  assert(coordinator.includes('/js/modern/purett-modern-graphics.min.js?v=0.185.1-lobby-card-arrival.1'), 'coordinator does not use the card-arrival lobby bundle cache revision');
   assert(!/https?:\/\//.test(coordinator), 'coordinator references a third-party graphics URL');
   assert(coordinator.includes("this.storageKey = 'purett.graphicsMode.v1'"), 'graphics preference does not have a stable storage key');
   assert(coordinator.includes("this.requestedMode = 'legacy'"), 'Legacy is not the safe default');
@@ -62,6 +63,21 @@ try {
   assert(lobbyMenu.includes('id="modernLobbyHand"'), 'lobby menu does not create a dedicated Modern hand host');
   assert(modernSource.includes('createLobbyHandSurface(host, options)'), 'modern graphics facade has no dedicated lobby-hand factory');
   assert(coordinator.includes("ensureSurface('lobby-hand')"), 'coordinator does not select the dedicated lobby-hand surface');
+  assert(
+    lobbyMenu.includes('me.presentationSequence += 1') &&
+      lobbyMenu.includes("trigger: 'command-bar-reveal'") &&
+      lobbyMenu.includes("profile: 'casual-drop-left'") &&
+      lobbyMenu.includes('startedAtMs: window.performance.now()') &&
+      lobbyMenu.includes('me.graphics.showLobbyHand(cards, me.activePresentation)'),
+    'the lobby reveal does not create and pass one explicit Modern presentation token'
+  );
+  assert(
+    coordinator.includes('showLobbyHand: function(cards, presentation)') &&
+      coordinator.includes('this.lobbyPresentation = presentation ? {') &&
+      coordinator.includes('arrival: arrival') &&
+      coordinator.includes('this.lobbyPresentationDeliveredId = String(arrival.id)'),
+    'the graphics coordinator does not preserve the lobby arrival request'
+  );
 
   assert(lobbyMenu.includes('legacy-menu-hand-card'), 'lobby Raphael hand cards do not receive a hand-only gate class');
   assert(boardCss.includes('#menu.graphics-modern-hand .legacy-menu-hand-card'), 'Modern lobby mode does not gate only the legacy hand-card elements');
@@ -140,7 +156,8 @@ try {
     modernSource.includes('const LOBBY_FLIP_DURATION = 2450') &&
       modernSource.includes('const LOBBY_FLIP_DEADLINE = 3000') &&
       modernSource.includes('const deadlineElapsed = elapsed >= animation.transition.deadlineMs') &&
-      modernSource.includes('Math.min(elapsed, animation.transition.deadlineMs)') &&
+      modernSource.includes('Math.min(') &&
+      modernSource.includes('animation.transition.deadlineMs') &&
       modernSource.includes('turn: 1650'),
     'Modern lobby vertical flip does not enforce the inspectable 2.45-second timeline and 3-second deadline'
   );
@@ -160,7 +177,8 @@ try {
   assert(
     modernSource.includes('const projectionRoot = new Group()') &&
       modernSource.includes('projectionRoot.matrixAutoUpdate = false') &&
-      modernSource.includes('projectionRoot.add(pickupRoot)') &&
+      modernSource.includes('tiltRoot.add(pickupRoot)') &&
+      modernSource.includes('projectionRoot.add(tiltRoot)') &&
       modernSource.includes('applyFlatTableProjection(entry, screenLiftY)') &&
       modernSource.includes('-shearX * LOBBY_CARD_FACE_OFFSET') &&
       modernSource.includes('-shearY * LOBBY_CARD_FACE_OFFSET'),
@@ -179,6 +197,55 @@ try {
   assert(
     /#modernLobbyHand \.modern-graphics-canvas\s*\{[^}]*pointer-events:\s*none;/.test(boardCss),
     'Modern lobby canvas is not pointer-inert'
+  );
+  assert(
+    arrivalSource.includes("name: 'casual-drop-left'") &&
+      arrivalSource.includes('export const CARD_ARRIVAL_PROFILES') &&
+      arrivalSource.includes('Unknown card-arrival profile') &&
+      arrivalSource.includes('maxBatchDurationMs: 2000') &&
+      arrivalSource.includes('function createSeededRandom(seed)') &&
+      arrivalSource.includes('export function createCardArrivalBatch(cards, request)') &&
+      arrivalSource.includes('export function sampleCardArrival(plan, elapsedMs)') &&
+      arrivalSource.includes('destination: {') &&
+      !arrivalSource.includes('Math.random'),
+    'the reusable seeded destination-driven arrival planner is incomplete'
+  );
+  assert(
+    arrivalSource.includes('x: -launchHalfExtent - randomBetween(random, 28, 118)') &&
+      arrivalSource.includes('perspectiveDistance / nearestPossibleDepth') &&
+      arrivalSource.includes('delayMs') &&
+      arrivalSource.includes("phase: 'flight'") &&
+      arrivalSource.includes("phase: 'landing'") &&
+      modernSource.includes('preparePendingArrival()') &&
+      modernSource.includes('applyArrivalPose(entry, pose)'),
+    'the casual-left arrival does not cover off-screen launch, stagger, flight, and landing'
+  );
+  assert(
+    modernSource.includes('this.consumedArrivalRequestIds = new Set()') &&
+      modernSource.includes('this.rememberConsumedArrivalRequest(request.id)') &&
+      modernSource.includes('else if (cardKey !== this.cardKey)') &&
+      !modernSource.includes('consumedArrivalRequestIds.size >') &&
+      coordinator.includes('this.lobbyPresentationDeliveredId') &&
+      modernSource.includes('elapsedBeforeReadyMs') &&
+      modernSource.includes('this.prefersReducedMotion() || this.suspended') &&
+      modernSource.includes("'skipped-reduced-motion'") &&
+      modernSource.includes('Math.pow(1 - pose.progress, 0.75)') &&
+      modernSource.includes('entry.tiltRoot.rotation.z = 0'),
+    'arrival replay, reduced-motion, or exact-settlement guards are incomplete'
+  );
+  assert(
+    modernSource.includes("kind: 'arrival'") &&
+      modernSource.includes("kind: 'flip'") &&
+      modernSource.includes("animation.kind === 'arrival'") &&
+      modernSource.includes('this.activeAnimations.set(entry, animation)') &&
+      modernSource.includes('this.scheduleAnimationFrame()'),
+    'arrival and flip motion do not share the discriminated single scheduler'
+  );
+  assert(
+    modernSource.includes('cardAnimations: Object.freeze({') &&
+      modernSource.includes('createArrivalBatch(cards, request)') &&
+      modernSource.includes('sampleArrival(plan, elapsedMs)'),
+    'the Modern facade does not expose the reusable card-arrival recipe'
   );
   assert(
     modernSource.includes('this.activeAnimations = new Map()') &&
@@ -259,6 +326,10 @@ try {
       modernSource.includes('activeCardIndices,') &&
       modernSource.includes('lockedCardIndices: activeCardIndices.slice(0)') &&
       modernSource.includes('activeAnimations: activeAnimations.map((animation) => ({') &&
+      modernSource.includes('activeArrivalCount: activeArrivalAnimations.length') &&
+      modernSource.includes('completedArrivalCount: this.completedArrivalCount') &&
+      modernSource.includes('lastArrivalBatch: this.lastArrivalBatch ? {') &&
+      modernSource.includes('recentArrivalTransitions: this.arrivalTransitionHistory.map(') &&
       modernSource.includes('peakConcurrentAnimationCount: this.peakConcurrentAnimationCount') &&
       modernSource.includes('activeAnalyticShadowCount: visibleShadows.length') &&
       modernSource.includes('recentTransitions: this.transitionHistory.map((transition) => (') &&

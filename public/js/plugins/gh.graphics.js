@@ -13,7 +13,7 @@ gh.graphics.prototype = {
         this.storageKey = 'purett.graphicsMode.v1';
         this.threePackageVersion = '0.185.1';
         this.threeRevision = '185';
-        this.modernScriptUrl = '/js/modern/purett-modern-graphics.min.js?v=0.185.1-lobby-concurrent-cards.1';
+        this.modernScriptUrl = '/js/modern/purett-modern-graphics.min.js?v=0.185.1-lobby-card-arrival.1';
         this.requestedMode = 'legacy';
         this.effectiveMode = 'legacy';
         this.loadState = 'idle';
@@ -25,6 +25,8 @@ gh.graphics.prototype = {
         this.modernGraphics = null;
         this.lobbyVisible = false;
         this.lobbyCards = [];
+        this.lobbyPresentation = null;
+        this.lobbyPresentationDeliveredId = null;
         this.scriptElement = null;
 
         var storedMode = null;
@@ -253,9 +255,18 @@ gh.graphics.prototype = {
             this.surface.setContentScale(scale);
         }
     },
-    showLobbyHand: function(cards) {
+    showLobbyHand: function(cards, presentation) {
         this.lobbyVisible = true;
         this.lobbyCards = (cards || []).slice(0);
+        this.lobbyPresentation = presentation ? {
+            id: presentation.id,
+            trigger: presentation.trigger || 'command-bar-reveal',
+            profile: presentation.profile || 'casual-drop-left',
+            seed: presentation.seed,
+            startedAtMs: presentation.startedAtMs == null
+                ? null
+                : Number(presentation.startedAtMs)
+        } : null;
         if (this.menu && this.menu.setModernHandReady) {
             this.menu.setModernHandReady(false);
         }
@@ -273,6 +284,7 @@ gh.graphics.prototype = {
     hideLobbyHand: function() {
         this.lobbyVisible = false;
         this.lobbyCards = [];
+        this.lobbyPresentation = null;
         if (this.effectiveMode === 'modern' && this.modernGraphics) {
             try {
                 this.ensureSurface('active-match');
@@ -346,6 +358,8 @@ gh.graphics.prototype = {
         this.surfaceKind = kind;
     },
     renderCurrentSurface: function() {
+        var arrival = null;
+
         if (!this.surface) {
             return;
         }
@@ -354,7 +368,17 @@ gh.graphics.prototype = {
             if (typeof this.surface.resume === 'function') {
                 this.surface.resume();
             }
-            this.surface.setCards(this.lobbyCards);
+            if (this.lobbyPresentation &&
+                this.lobbyPresentationDeliveredId !==
+                    String(this.lobbyPresentation.id)) {
+                arrival = this.lobbyPresentation;
+            }
+            this.surface.setCards(this.lobbyCards, {
+                arrival: arrival
+            });
+            if (arrival) {
+                this.lobbyPresentationDeliveredId = String(arrival.id);
+            }
         } else {
             this.surface.render();
         }
@@ -431,6 +455,11 @@ gh.graphics.prototype = {
             revision: gh.modernGraphics ? String(gh.modernGraphics.revision) : null,
             surfaceKind: this.surfaceKind,
             lobbyVisible: this.lobbyVisible,
+            lobbyPresentation: this.lobbyPresentation
+                ? $.extend({}, this.lobbyPresentation)
+                : null,
+            lobbyPresentationDeliveredId:
+                this.lobbyPresentationDeliveredId,
             surface: this.surface ? this.surface.getDebugState() : null
         };
     }

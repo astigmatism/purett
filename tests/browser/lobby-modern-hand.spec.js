@@ -106,13 +106,7 @@ test('renders the five-card lobby hand with Three.js and preserves the Legacy lo
   });
 
   await selectGraphicsMode(page, 'modern');
-  await expect.poll(() => page.evaluate(() => {
-    const state = gh.manager.graphics.getState();
-    return state.effectiveMode === 'modern' &&
-      state.surfaceKind === 'lobby-hand' &&
-      state.surface &&
-      state.surface.ready === true;
-  })).toBe(true);
+  await waitForModernLobby(page);
 
   const modernState = await page.evaluate(() => gh.manager.graphics.getState());
   expect(modernState).toMatchObject({
@@ -288,10 +282,7 @@ test('renders the five-card lobby hand with Three.js and preserves the Legacy lo
   })).toBe(true);
 
   await selectGraphicsMode(page, 'modern');
-  await expect.poll(() => page.evaluate(() => (
-    gh.manager.graphics.surfaceKind === 'lobby-hand' &&
-    gh.manager.graphics.surface.getDebugState().ready
-  ))).toBe(true);
+  await waitForModernLobby(page);
 
   await page.evaluate(() => {
     window.__disposedLobbySurface = gh.manager.graphics.surface;
@@ -314,16 +305,396 @@ test('renders the five-card lobby hand with Three.js and preserves the Legacy lo
 
   await expect(page.locator('#menu')).toBeHidden();
   await page.evaluate(() => gh.manager.menu.show(() => {}));
-  await expect.poll(() => page.evaluate(() => {
-    const state = gh.manager.graphics.getState();
-    return state.lobbyVisible &&
-      state.surfaceKind === 'lobby-hand' &&
-      state.surface &&
-      state.surface.ready;
-  })).toBe(true);
+  await waitForModernLobby(page);
   await expect(page.locator('#modernLobbyHand canvas.modern-lobby-hand-canvas')).toHaveCount(1);
   expect(await page.evaluate(() => gh.manager.graphics.getState().surface.cards.map(card => card.textureUrl)))
     .toEqual(expectedCards.map(card => card.textureUrl));
+});
+
+test('seeds one reusable casual-left arrival batch and settles it through the shared scheduler', async ({page}) => {
+  await page.emulateMedia({reducedMotion: 'no-preference'});
+  await loginWithLegacyGraphics(page);
+  await selectGraphicsMode(page, 'modern');
+  await waitForModernLobby(page);
+  await page.evaluate(() => {
+    gh.manager.graphics.disposeSurface();
+    gh.manager.graphics.ensureSurface('lobby-hand');
+    gh.manager.graphics.renderCurrentSurface();
+  });
+  await waitForModernLobby(page);
+  await page.evaluate(() => {
+    let nextFrameId = 1;
+    const queuedFrames = new Map();
+    window.__arrivalFrameHarness = {
+      queuedFrames,
+      originalRequestAnimationFrame: window.requestAnimationFrame,
+      originalCancelAnimationFrame: window.cancelAnimationFrame,
+      advance(timestamp) {
+        const frames = Array.from(queuedFrames.values());
+        queuedFrames.clear();
+        frames.forEach(callback => callback(timestamp));
+        return queuedFrames.size;
+      }
+    };
+    window.requestAnimationFrame = callback => {
+      const frameId = nextFrameId;
+      nextFrameId += 1;
+      queuedFrames.set(frameId, callback);
+      return frameId;
+    };
+    window.cancelAnimationFrame = frameId => {
+      queuedFrames.delete(frameId);
+    };
+    gh.manager.menu.hand.forEach(card => card.remove());
+    gh.manager.menu.hand = [];
+    gh.manager.menu.show(() => {});
+  });
+
+  await expect.poll(() => page.evaluate(() => {
+    const state = gh.manager.graphics.getState();
+    return Boolean(
+      state.surface &&
+      state.surface.ready &&
+      state.surface.activeArrivalCount === 5 &&
+      window.__arrivalFrameHarness.queuedFrames.size === 1
+    );
+  })).toBe(true);
+
+  const initial = await page.evaluate(() => ({
+    presentation: gh.manager.graphics.getState().lobbyPresentation,
+    deliveredPresentationId:
+      gh.manager.graphics.getState().lobbyPresentationDeliveredId,
+    surface: gh.manager.graphics.getState().surface,
+    queuedFrames: window.__arrivalFrameHarness.queuedFrames.size
+  }));
+  expect(initial.presentation).toMatchObject({
+    trigger: 'command-bar-reveal',
+    profile: 'casual-drop-left'
+  });
+  expect(initial.presentation.startedAtMs).toEqual(expect.any(Number));
+  expect(initial.deliveredPresentationId).toBe(
+    String(initial.presentation.id)
+  );
+  expect(initial.surface).toMatchObject({
+    ready: true,
+    interactive: false,
+    activeAnimationCount: 5,
+    activeArrivalCount: 5,
+    activeFlipCount: 0,
+    completedAnimationCount: 0,
+    completedArrivalCount: 0,
+    lastTransition: null,
+    motionProfile: {
+      arrival: {
+        profile: 'casual-drop-left',
+        originEdge: 'left',
+        seeded: true,
+        destinationDriven: true,
+        maxBatchDurationMs: 2000
+      }
+    },
+    lastArrivalBatch: {
+      trigger: 'command-bar-reveal',
+      profile: 'casual-drop-left',
+      originEdge: 'left',
+      outcome: 'running',
+      maxBatchDurationMs: 2000
+    }
+  });
+  expect(initial.surface.lastArrivalBatch.totalDurationMs).toBeLessThanOrEqual(2000);
+  expect(initial.surface.lastArrivalBatch.startedAtMs).toBe(
+    initial.presentation.startedAtMs
+  );
+  expect(initial.surface.lastArrivalBatch.plans).toHaveLength(5);
+  expect(new Set(
+    initial.surface.lastArrivalBatch.plans.map(plan => plan.orderIndex)
+  ).size).toBe(5);
+  expect(initial.surface.lastArrivalBatch.plans.every(plan =>
+    plan.launchHalfExtent > (117 / 2) &&
+    plan.start.x + plan.launchHalfExtent < 0
+  )).toBe(true);
+  expect(initial.surface.cards.every(card =>
+    card.animationKind === 'arrival' &&
+    card.arrivalAnimating &&
+    card.phase.startsWith('arrival-')
+  )).toBe(true);
+  expect(initial.queuedFrames).toBe(1);
+
+  const samples = await page.evaluate(() => {
+    const harness = window.__arrivalFrameHarness;
+    const frameOrigin = performance.now();
+    harness.advance(frameOrigin);
+    const firstFrame = gh.manager.graphics.getState().surface;
+    harness.advance(frameOrigin + 500);
+    const flight = gh.manager.graphics.getState().surface;
+    harness.advance(frameOrigin + 1200);
+    const landing = gh.manager.graphics.getState().surface;
+    const revealDeadline =
+      landing.lastArrivalBatch.startedAtMs +
+      landing.lastArrivalBatch.maxBatchDurationMs;
+    harness.advance(revealDeadline);
+    const settled = gh.manager.graphics.getState().surface;
+    return {
+      firstFrame,
+      flight,
+      landing,
+      settled,
+      queuedFrames: harness.queuedFrames.size
+    };
+  });
+
+  expect(samples.firstFrame.activeArrivalCount).toBe(5);
+  expect(samples.flight.cards.some(card =>
+    card.phase === 'arrival-flight' &&
+    card.transform.z > 0 &&
+    card.transform.screenPosition.x > card.lastArrivalTransition.plan.start.x
+  )).toBe(true);
+  expect(samples.landing.cards.some(card =>
+    card.phase === 'arrival-landing' || card.phase === 'idle'
+  )).toBe(true);
+  expect(samples.landing.completedArrivalCount).toBeLessThanOrEqual(5);
+  expect(samples.settled).toMatchObject({
+    interactive: true,
+    activeAnimationCount: 0,
+    activeArrivalCount: 0,
+    activeFlipCount: 0,
+    completedAnimationCount: 0,
+    completedArrivalCount: 5,
+    rafActive: false,
+    analyticShadowVisible: false,
+    lastTransition: null,
+    lastArrivalBatch: {
+      outcome: 'completed'
+    }
+  });
+  expect(samples.settled.cards.every(card =>
+    card.phase === 'idle' &&
+    card.visibleFace === 'front' &&
+    card.completedArrivals === 1 &&
+    card.completedFlips === 0 &&
+    card.animating === false &&
+    card.transform.z === 0 &&
+    card.transform.scale === 1 &&
+    card.transform.rotationX === 0 &&
+    card.transform.rotationY === 0 &&
+    card.transform.pickupTiltX === 0 &&
+    card.transform.pickupTiltY === 0 &&
+    card.transform.staticRotationZ === 0 &&
+    card.transform.screenPosition.x ===
+      card.screenRect.x + (card.screenRect.width / 2) &&
+    card.transform.screenPosition.y ===
+      562 - card.screenRect.y - (card.screenRect.height / 2)
+  )).toBe(true);
+  expect(samples.settled.recentArrivalTransitions).toHaveLength(5);
+  expect(samples.settled.recentArrivalTransitions.every(transition =>
+    transition.kind === 'arrival' &&
+    transition.outcome === 'completed-arrival' &&
+    transition.phases.at(-1) === 'settled' &&
+    transition.evidence.exactSettlement === true
+  )).toBe(true);
+  expect(samples.queuedFrames).toBe(0);
+
+  await page.evaluate(() => {
+    const harness = window.__arrivalFrameHarness;
+    window.requestAnimationFrame = harness.originalRequestAnimationFrame;
+    window.cancelAnimationFrame = harness.originalCancelAnimationFrame;
+    gh.manager.graphics.disposeSurface();
+    gh.manager.graphics.ensureSurface('lobby-hand');
+    gh.manager.graphics.renderCurrentSurface();
+  });
+  await waitForModernLobby(page);
+  const recreated = await page.evaluate(() => gh.manager.graphics.getState());
+  expect(recreated.lobbyPresentationDeliveredId).toBe(
+    String(recreated.lobbyPresentation.id)
+  );
+  expect(recreated.surface).toMatchObject({
+    interactive: true,
+    activeArrivalCount: 0,
+    completedArrivalCount: 0,
+    lastArrivalBatch: null
+  });
+
+  const catchUp = await page.evaluate(() => {
+    let nextFrameId = 1;
+    const queuedFrames = new Map();
+    const originalRequestAnimationFrame = window.requestAnimationFrame;
+    const originalCancelAnimationFrame = window.cancelAnimationFrame;
+    window.requestAnimationFrame = callback => {
+      const frameId = nextFrameId;
+      nextFrameId += 1;
+      queuedFrames.set(frameId, callback);
+      return frameId;
+    };
+    window.cancelAnimationFrame = frameId => {
+      queuedFrames.delete(frameId);
+    };
+    gh.manager.menu.presentationSequence += 1;
+    gh.manager.menu.activePresentation = {
+      id: gh.manager.menu.presentationSequence,
+      trigger: 'command-bar-reveal',
+      profile: 'casual-drop-left',
+      startedAtMs: performance.now() - 500
+    };
+    gh.manager.graphics.showLobbyHand(
+      gh.manager.menu.currentHandCards,
+      gh.manager.menu.activePresentation
+    );
+    const caughtUp = gh.manager.graphics.getState().surface;
+    const frame = Array.from(queuedFrames.values())[0];
+    queuedFrames.clear();
+    frame(
+      caughtUp.lastArrivalBatch.startedAtMs +
+      caughtUp.lastArrivalBatch.maxBatchDurationMs
+    );
+    const settled = gh.manager.graphics.getState().surface;
+    window.requestAnimationFrame = originalRequestAnimationFrame;
+    window.cancelAnimationFrame = originalCancelAnimationFrame;
+    return {caughtUp, settled, queuedFrames: queuedFrames.size};
+  });
+  expect(catchUp.caughtUp.lastArrivalBatch.elapsedBeforeReadyMs)
+    .toBeGreaterThanOrEqual(450);
+  expect(catchUp.caughtUp.cards.every(card =>
+    card.phase === 'arrival-flight' ||
+    card.phase === 'arrival-landing'
+  )).toBe(true);
+  expect(catchUp.caughtUp.cards.every(card =>
+    card.transform.screenPosition.x >
+      card.lastArrivalTransition.plan.start.x
+  )).toBe(true);
+  expect(catchUp.settled).toMatchObject({
+    interactive: true,
+    activeArrivalCount: 0,
+    completedArrivalCount: 5,
+    rafActive: false,
+    lastArrivalBatch: {
+      outcome: 'completed'
+    }
+  });
+  expect(catchUp.queuedFrames).toBe(0);
+});
+
+test('cancels an active lobby arrival atomically and cannot replay its presentation token', async ({page}) => {
+  await page.emulateMedia({reducedMotion: 'no-preference'});
+  await loginWithLegacyGraphics(page);
+  await selectGraphicsMode(page, 'modern');
+  await waitForModernLobby(page);
+  await page.evaluate(() => {
+    gh.manager.graphics.disposeSurface();
+    gh.manager.graphics.ensureSurface('lobby-hand');
+    gh.manager.graphics.renderCurrentSurface();
+  });
+  await waitForModernLobby(page);
+
+  await page.evaluate(() => {
+    let nextFrameId = 1;
+    const queuedFrames = new Map();
+    window.__arrivalCancellationHarness = {
+      queuedFrames,
+      originalRequestAnimationFrame: window.requestAnimationFrame,
+      originalCancelAnimationFrame: window.cancelAnimationFrame,
+      staleFrame: null
+    };
+    window.requestAnimationFrame = callback => {
+      const frameId = nextFrameId;
+      nextFrameId += 1;
+      queuedFrames.set(frameId, callback);
+      return frameId;
+    };
+    window.cancelAnimationFrame = frameId => {
+      queuedFrames.delete(frameId);
+    };
+    gh.manager.menu.hand.forEach(card => card.remove());
+    gh.manager.menu.hand = [];
+    gh.manager.menu.show(() => {});
+    window.__arrivalCancellationHarness.staleFrame =
+      Array.from(queuedFrames.values())[0];
+  });
+
+  await expect.poll(() => page.evaluate(() => {
+    const state = gh.manager.graphics.getState();
+    return state.surface.activeArrivalCount === 5 &&
+      window.__arrivalCancellationHarness.queuedFrames.size === 1;
+  })).toBe(true);
+  const activePresentationId = await page.evaluate(() => (
+    String(gh.manager.graphics.getState().lobbyPresentation.id)
+  ));
+
+  await selectGraphicsMode(page, 'legacy');
+  await expect.poll(() => page.evaluate(() => (
+    gh.manager.graphics.getState().effectiveMode === 'legacy'
+  ))).toBe(true);
+
+  const cancelled = await page.evaluate(() => ({
+    state: gh.manager.graphics.getState(),
+    queuedFrames:
+      window.__arrivalCancellationHarness.queuedFrames.size
+  }));
+  expect(cancelled.queuedFrames).toBe(0);
+  expect(cancelled.state.lobbyPresentationDeliveredId).toBe(
+    activePresentationId
+  );
+  expect(cancelled.state.surface).toMatchObject({
+    suspended: true,
+    activeAnimationCount: 0,
+    activeArrivalCount: 0,
+    completedArrivalCount: 0,
+    animationFrameCount: 0,
+    rafActive: false,
+    analyticShadowVisible: false,
+    lastArrivalBatch: {
+      outcome: 'cancelled'
+    }
+  });
+  expect(cancelled.state.surface.cards.every(card =>
+    card.phase === 'idle' &&
+    card.completedArrivals === 0 &&
+    card.animating === false &&
+    card.analyticShadowVisible === false &&
+    card.transform.z === 0 &&
+    card.transform.rotationX === 0 &&
+    card.transform.rotationY === 0 &&
+    card.transform.pickupTiltX === 0 &&
+    card.transform.pickupTiltY === 0 &&
+    card.transform.staticRotationZ === 0 &&
+    card.transform.screenPosition.x ===
+      card.screenRect.x + (card.screenRect.width / 2) &&
+    card.transform.screenPosition.y ===
+      562 - card.screenRect.y - (card.screenRect.height / 2)
+  )).toBe(true);
+
+  const afterStaleFrame = await page.evaluate(() => {
+    const harness = window.__arrivalCancellationHarness;
+    harness.staleFrame(performance.now() + 1000);
+    return gh.manager.graphics.getState().surface;
+  });
+  expect(afterStaleFrame).toMatchObject({
+    suspended: true,
+    activeArrivalCount: 0,
+    completedArrivalCount: 0,
+    animationFrameCount: 0,
+    rafActive: false,
+    analyticShadowVisible: false
+  });
+
+  await page.evaluate(() => {
+    const harness = window.__arrivalCancellationHarness;
+    window.requestAnimationFrame = harness.originalRequestAnimationFrame;
+    window.cancelAnimationFrame = harness.originalCancelAnimationFrame;
+  });
+  await selectGraphicsMode(page, 'modern');
+  await waitForModernLobby(page);
+  const resumed = await page.evaluate(() => gh.manager.graphics.getState());
+  expect(resumed.lobbyPresentationDeliveredId).toBe(activePresentationId);
+  expect(resumed.surface).toMatchObject({
+    suspended: false,
+    interactive: true,
+    activeArrivalCount: 0,
+    completedArrivalCount: 0,
+    rafActive: false,
+    lastArrivalBatch: {
+      outcome: 'cancelled'
+    }
+  });
 });
 
 test('keeps left, center, and right lobby cards on one flat projected plane during the lifted turn', async ({page}) => {
@@ -1012,9 +1383,39 @@ test('reduced motion shares three bounded frame boundaries across concurrent car
   await selectGraphicsMode(page, 'modern');
   await waitForModernLobby(page);
 
-  const baselineFrames = await page.evaluate(() => (
-    gh.manager.graphics.getState().surface.animationFrameCount
-  ));
+  const reducedArrival = await page.evaluate(() => {
+    const state = gh.manager.graphics.getState().surface;
+    return {
+      animationFrameCount: state.animationFrameCount,
+      completedArrivalCount: state.completedArrivalCount,
+      activeArrivalCount: state.activeArrivalCount,
+      rafActive: state.rafActive,
+      batch: state.lastArrivalBatch,
+      cards: state.cards.map(card => ({
+        completedArrivals: card.completedArrivals,
+        transform: card.transform
+      }))
+    };
+  });
+  expect(reducedArrival).toMatchObject({
+    animationFrameCount: 0,
+    completedArrivalCount: 5,
+    activeArrivalCount: 0,
+    rafActive: false,
+    batch: {
+      outcome: 'skipped-reduced-motion'
+    }
+  });
+  expect(reducedArrival.cards.every(card =>
+    card.completedArrivals === 1 &&
+    card.transform.z === 0 &&
+    card.transform.rotationX === 0 &&
+    card.transform.rotationY === 0 &&
+    card.transform.pickupTiltX === 0 &&
+    card.transform.pickupTiltY === 0 &&
+    card.transform.staticRotationZ === 0
+  )).toBe(true);
+  const baselineFrames = reducedArrival.animationFrameCount;
   const startedStates = await dispatchLobbyCardClicks(page, [1, 3]);
   expect(startedStates.at(-1)).toMatchObject({
     acceptedClicks: 2,
@@ -1363,10 +1764,7 @@ test('disposes a lost lobby context and falls back to the intact Legacy hand', a
   });
 
   await selectGraphicsMode(page, 'modern');
-  await expect.poll(() => page.evaluate(() => {
-    const state = gh.manager.graphics.getState();
-    return state.surfaceKind === 'lobby-hand' && state.surface && state.surface.ready;
-  })).toBe(true);
+  await waitForModernLobby(page);
 
   await page.evaluate(() => {
     window.__lostLobbySurface = gh.manager.graphics.surface;

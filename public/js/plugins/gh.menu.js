@@ -17,6 +17,8 @@ gh.menu.prototype = {
     modernHandReady: false,
     visible:    false,
     currentHandCards: [],
+    presentationSequence: 0,
+    activePresentation: null,
     
     initialize: function(wrapper, callback) {
         var me = this;
@@ -51,6 +53,13 @@ gh.menu.prototype = {
     show: function(callback) {
         var me = this;
         me.visible = true;
+        me.presentationSequence += 1;
+        me.activePresentation = {
+            id: me.presentationSequence,
+            trigger: 'command-bar-reveal',
+            profile: 'casual-drop-left',
+            startedAtMs: window.performance.now()
+        };
         $('#menu').show();
         me.bar.stop().attr({x:31, y:125});
         me.bar.animate({ translation: [0, -25], height: 50, opacity: 1}, 1000, '<', function() {
@@ -175,7 +184,7 @@ gh.menu.prototype = {
         me.currentHandCards = cards;
         me.setModernHandReady(false);
         if (me.graphics) {
-            me.graphics.showLobbyHand(cards);
+            me.graphics.showLobbyHand(cards, me.activePresentation);
         }
     },
     handhide: function() {
@@ -209,7 +218,7 @@ gh.menu.prototype = {
     setGraphicsCoordinator: function(graphics) {
         this.graphics = graphics;
         if (this.visible) {
-            graphics.showLobbyHand(this.currentHandCards);
+            graphics.showLobbyHand(this.currentHandCards, this.activePresentation);
         }
     },
     setGraphicsMode: function(mode) {

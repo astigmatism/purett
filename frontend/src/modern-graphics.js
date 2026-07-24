@@ -21,6 +21,11 @@ import {
   Vector3,
   WebGLRenderer
 } from 'three';
+import {
+  CASUAL_DROP_LEFT_PROFILE,
+  createCardArrivalBatch,
+  sampleCardArrival
+} from './card-arrival-animations.js';
 
 const LOGICAL_WIDTH = 693;
 const LOGICAL_HEIGHT = 500;
@@ -53,6 +58,7 @@ const LOBBY_FLIP_TIMINGS = Object.freeze({
 const LOBBY_FLIP_DURATION = 2450;
 const LOBBY_FLIP_DEADLINE = 3000;
 const LOBBY_TRANSITION_HISTORY_LIMIT = 10;
+const LOBBY_ARRIVAL_HISTORY_LIMIT = 10;
 
 class ModernGraphicsSurface {
   constructor(host, options) {
@@ -195,9 +201,16 @@ class LobbyHandSurface {
     this.ignoredClicks = 0;
     this.emptyClicks = 0;
     this.completedAnimationCount = 0;
+    this.completedArrivalCount = 0;
+    this.peakConcurrentArrivalCount = 0;
     this.lastPick = null;
     this.lastTransition = null;
     this.transitionHistory = [];
+    this.pendingArrivalRequest = null;
+    this.consumedArrivalRequestIds = new Set();
+    this.lastArrivalBatch = null;
+    this.lastArrivalTransition = null;
+    this.arrivalTransitionHistory = [];
 
     try {
       this.scene = new Scene();
@@ -348,7 +361,29 @@ class LobbyHandSurface {
     });
   }
 
-  setCards(cards) {
+  normalizeArrivalRequest(options) {
+    const request = options && options.arrival;
+    if (!request || request.id == null) {
+      return null;
+    }
+
+    return {
+      id: String(request.id),
+      trigger: request.trigger
+        ? String(request.trigger)
+        : 'command-bar-reveal',
+      profile: request.profile
+        ? String(request.profile)
+        : CASUAL_DROP_LEFT_PROFILE.name,
+      seed: request.seed == null ? null : String(request.seed),
+      startedAtMs: request.startedAtMs != null &&
+          Number.isFinite(Number(request.startedAtMs))
+        ? Number(request.startedAtMs)
+        : null
+    };
+  }
+
+  setCards(cards, options) {
     if (this.disposed || this.contextLost) {
       return;
     }
@@ -361,7 +396,6 @@ class LobbyHandSurface {
       this.reportError(error);
       return;
     }
-
     const cardKey = JSON.stringify(normalized.map((card) => [
       card.userCardId,
       card.cardId,
@@ -372,9 +406,21 @@ class LobbyHandSurface {
       card.width,
       card.height
     ]));
+    const arrivalRequest = this.normalizeArrivalRequest(options);
+    if (arrivalRequest &&
+        !this.consumedArrivalRequestIds.has(arrivalRequest.id)) {
+      this.pendingArrivalRequest = arrivalRequest;
+    } else if (cardKey !== this.cardKey) {
+      this.pendingArrivalRequest = null;
+    }
 
     if (cardKey === this.cardKey && this.status === 'ready') {
+      if (this.pendingArrivalRequest) {
+        this.cancelAnimations('replaced');
+        this.preparePendingArrival();
+      }
       this.presentReady();
+      this.scheduleAnimationFrame();
       return;
     }
     if (cardKey === this.cardKey && this.status === 'loading') {
@@ -395,6 +441,7 @@ class LobbyHandSurface {
     ), [])));
     if (!textureUrls.length) {
       this.status = 'ready';
+      this.consumePendingArrivalWithoutMotion('empty');
       this.presentReady();
       return;
     }
@@ -437,8 +484,10 @@ class LobbyHandSurface {
       try {
         loaded.forEach((entry) => this.textures.set(entry.textureUrl, entry.texture));
         this.commitCards();
+        this.preparePendingArrival();
         this.status = 'ready';
         this.presentReady();
+        this.scheduleAnimationFrame();
       } catch (error) {
         this.clearCommittedCards();
         this.status = 'failed';
@@ -542,9 +591,9 @@ class LobbyHandSurface {
       flipRoot.add(frontMesh);
       flipRoot.add(backMesh);
       pickupRoot.add(flipRoot);
-      projectionRoot.add(pickupRoot);
-      tiltRoot.add(projectionRoot);
-      motionRoot.add(tiltRoot);
+      tiltRoot.add(pickupRoot);
+      projectionRoot.add(tiltRoot);
+      motionRoot.add(projectionRoot);
 
       const entry = {
         card,
@@ -566,12 +615,16 @@ class LobbyHandSurface {
           pickupTiltY: 0,
           projectionShearX: 0,
           projectionShearY: 0,
-          previousFlipRotationX: 0
+          previousFlipRotationX: 0,
+          screenX: basePosition.x,
+          screenY: basePosition.y
         },
         phase: 'idle',
         visibleFace: 'front',
         completedFlips: 0,
-        lastTransition: null
+        completedArrivals: 0,
+        lastTransition: null,
+        lastArrivalTransition: null
       };
       frontMesh.userData.purettCardEntry = entry;
       backMesh.userData.purettCardEntry = entry;
@@ -583,6 +636,204 @@ class LobbyHandSurface {
       this.pickMeshes.push(frontMesh, backMesh);
       this.applyFlatTableProjection(entry, 0);
     });
+  }
+
+  preparePendingArrival() {
+    const request = this.pendingArrivalRequest;
+    this.pendingArrivalRequest = null;
+    if (!request || this.consumedArrivalRequestIds.has(request.id) ||
+        this.cardEntries.length === 0) {
+      return false;
+    }
+    if (request.profile !== CASUAL_DROP_LEFT_PROFILE.name) {
+      throw new Error(`Unknown card-arrival profile "${request.profile}".`);
+    }
+
+    const arrivalCards = this.cardEntries.map((entry) => ({
+      index: entry.card.index,
+      userCardId: entry.card.userCardId,
+      cardId: entry.card.cardId,
+      textureUrl: entry.card.textureUrl,
+      width: entry.card.width,
+      height: entry.card.height,
+      viewportHeight: LOBBY_LOGICAL_HEIGHT,
+      perspectiveDistance: LOBBY_CAMERA_DISTANCE,
+      destination: {
+        x: entry.basePosition.x,
+        y: entry.basePosition.y,
+        z: entry.basePosition.z
+      }
+    }));
+    const batch = createCardArrivalBatch(arrivalCards, request);
+    const elapsedBeforeReadyMs = request.startedAtMs === null
+      ? 0
+      : Math.max(0, window.performance.now() - request.startedAtMs);
+    batch.startedAtMs = request.startedAtMs;
+    batch.elapsedBeforeReadyMs = elapsedBeforeReadyMs;
+    this.rememberConsumedArrivalRequest(request.id);
+    this.lastArrivalBatch = this.cloneArrivalBatch(batch);
+
+    if (this.prefersReducedMotion() || this.suspended) {
+      const skippedOutcome = this.suspended
+        ? 'cancelled-before-ready'
+        : 'skipped-reduced-motion';
+      batch.plans.forEach((plan, index) => {
+        const entry = this.cardEntries[index];
+        this.activationSequence += 1;
+        const transition = this.createArrivalTransition(
+          entry,
+          batch,
+          plan,
+          skippedOutcome
+        );
+        transition.phases = ['settled'];
+        transition.evidence.exactSettlement = true;
+        this.recordArrivalTransition(entry, transition);
+        if (!this.suspended) {
+          entry.completedArrivals += 1;
+          this.completedArrivalCount += 1;
+        }
+        this.settleEntry(entry);
+      });
+      this.lastArrivalBatch.outcome = skippedOutcome;
+      return false;
+    }
+
+    let registeredArrival = false;
+    batch.plans.forEach((plan, index) => {
+      const entry = this.cardEntries[index];
+      const token = ++this.activationSequence;
+      const transition = this.createArrivalTransition(
+        entry,
+        batch,
+        plan,
+        'running'
+      );
+      const initialPose = sampleCardArrival(plan, elapsedBeforeReadyMs);
+      if (initialPose.complete) {
+        transition.phases = ['settled'];
+        transition.outcome = 'completed-before-ready';
+        transition.evidence.exactSettlement = true;
+        entry.completedArrivals += 1;
+        this.completedArrivalCount += 1;
+        this.recordArrivalTransition(entry, transition);
+        this.settleEntry(entry);
+        return;
+      }
+      const animation = {
+        kind: 'arrival',
+        entry,
+        plan,
+        batch,
+        startTime: request.startedAtMs,
+        initialElapsedMs: elapsedBeforeReadyMs,
+        token,
+        reducedMotion: false,
+        transition
+      };
+      this.applyArrivalPose(entry, initialPose);
+      entry.phase = `arrival-${initialPose.phase}`;
+      entry.visibleFace = 'front';
+      entry.bodyMesh.renderOrder = 100 + token;
+      entry.frontMesh.renderOrder = 100 + token;
+      entry.backMesh.renderOrder = 100 + token;
+      this.registerAnimation(animation);
+      registeredArrival = true;
+    });
+    if (!registeredArrival) {
+      this.lastArrivalBatch.outcome = 'completed-before-ready';
+    }
+    return registeredArrival;
+  }
+
+  consumePendingArrivalWithoutMotion(outcome) {
+    if (!this.pendingArrivalRequest) {
+      return;
+    }
+    this.rememberConsumedArrivalRequest(this.pendingArrivalRequest.id);
+    this.lastArrivalBatch = {
+      requestId: this.pendingArrivalRequest.id,
+      trigger: this.pendingArrivalRequest.trigger,
+      profile: this.pendingArrivalRequest.profile,
+      seed: null,
+      totalDurationMs: 0,
+      maxBatchDurationMs: CASUAL_DROP_LEFT_PROFILE.maxBatchDurationMs,
+      outcome: outcome || 'empty',
+      plans: []
+    };
+    this.pendingArrivalRequest = null;
+  }
+
+  rememberConsumedArrivalRequest(requestId) {
+    this.consumedArrivalRequestIds.add(String(requestId));
+  }
+
+  createArrivalTransition(entry, batch, plan, outcome) {
+    return {
+      kind: 'arrival',
+      cardIndex: entry.card.index,
+      userCardId: entry.card.userCardId,
+      cardId: entry.card.cardId,
+      token: this.activationSequence,
+      requestId: batch.requestId,
+      trigger: batch.trigger,
+      profile: batch.profile,
+      seed: plan.seed,
+      outcome,
+      phases: ['waiting'],
+      nominalDurationMs: plan.totalDurationMs,
+      deadlineMs: Math.min(
+        batch.maxBatchDurationMs,
+        plan.totalDurationMs + 100
+      ),
+      plan: {
+        orderIndex: plan.orderIndex,
+        delayMs: plan.delayMs,
+        durationMs: plan.durationMs,
+        totalDurationMs: plan.totalDurationMs,
+        launchHalfExtent: plan.launchHalfExtent,
+        start: Object.assign({}, plan.start),
+        destination: Object.assign({}, plan.destination),
+        impactOffset: Object.assign({}, plan.impactOffset)
+      },
+      evidence: {
+        maxDepth: plan.start.depth,
+        maxAbsRotationX: Math.abs(plan.start.rotationX),
+        maxAbsRotationY: Math.abs(plan.start.rotationY),
+        maxAbsRotationZ: Math.abs(plan.start.rotationZ),
+        startedOffscreenLeft:
+          plan.start.x + plan.launchHalfExtent < 0,
+        exactSettlement: false
+      }
+    };
+  }
+
+  cloneArrivalBatch(batch) {
+    return {
+      requestId: batch.requestId,
+      trigger: batch.trigger,
+      profile: batch.profile,
+      originEdge: batch.originEdge,
+      seed: batch.seed,
+      requestedSeed: batch.requestedSeed,
+      startedAtMs: batch.startedAtMs,
+      elapsedBeforeReadyMs: batch.elapsedBeforeReadyMs,
+      totalDurationMs: batch.totalDurationMs,
+      maxBatchDurationMs: batch.maxBatchDurationMs,
+      outcome: 'running',
+      plans: batch.plans.map((plan) => ({
+        cardIndex: plan.cardIndex,
+        seed: plan.seed,
+        orderIndex: plan.orderIndex,
+        delayMs: plan.delayMs,
+        durationMs: plan.durationMs,
+        totalDurationMs: plan.totalDurationMs,
+        launchHalfExtent: plan.launchHalfExtent,
+        start: Object.assign({}, plan.start),
+        destination: Object.assign({}, plan.destination),
+        impactOffset: Object.assign({}, plan.impactOffset)
+      }))
+    };
   }
 
   clearCommittedCards() {
@@ -604,7 +855,14 @@ class LobbyHandSurface {
     return this.status === 'ready' &&
       !this.suspended &&
       !this.disposed &&
-      !this.contextLost;
+      !this.contextLost &&
+      !this.hasActiveArrival();
+  }
+
+  hasActiveArrival() {
+    return Array.from(this.activeAnimations.values()).some((animation) => (
+      animation.kind === 'arrival'
+    ));
   }
 
   pickCard(clientX, clientY) {
@@ -701,6 +959,7 @@ class LobbyHandSurface {
     entry.frontMesh.renderOrder = 100 + token;
     entry.backMesh.renderOrder = 100 + token;
     const animation = {
+      kind: 'flip',
       entry,
       startTime: window.performance && typeof window.performance.now === 'function'
         ? window.performance.now()
@@ -731,6 +990,7 @@ class LobbyHandSurface {
     entry.flipRoot.rotation.y = 0;
     entry.currentMotion.previousFlipRotationX = -Math.PI;
     const animation = {
+      kind: 'flip',
       entry,
       startTime: null,
       token,
@@ -747,6 +1007,7 @@ class LobbyHandSurface {
 
   createTransition(entry, reducedMotion) {
     return {
+      kind: 'flip',
       cardIndex: entry.card.index,
       userCardId: entry.card.userCardId,
       cardId: entry.card.cardId,
@@ -779,20 +1040,45 @@ class LobbyHandSurface {
 
   registerAnimation(animation) {
     const entry = animation.entry;
-    entry.lastTransition = animation.transition;
-    this.lastTransition = animation.transition;
-    this.transitionHistory.push(animation.transition);
-    if (this.transitionHistory.length > LOBBY_TRANSITION_HISTORY_LIMIT) {
-      this.transitionHistory.splice(
-        0,
-        this.transitionHistory.length - LOBBY_TRANSITION_HISTORY_LIMIT
-      );
+    if (animation.kind === 'arrival') {
+      this.recordArrivalTransition(entry, animation.transition);
+    } else {
+      entry.lastTransition = animation.transition;
+      this.lastTransition = animation.transition;
+      this.transitionHistory.push(animation.transition);
+      if (this.transitionHistory.length > LOBBY_TRANSITION_HISTORY_LIMIT) {
+        this.transitionHistory.splice(
+          0,
+          this.transitionHistory.length - LOBBY_TRANSITION_HISTORY_LIMIT
+        );
+      }
     }
     this.activeAnimations.set(entry, animation);
-    this.peakConcurrentAnimationCount = Math.max(
-      this.peakConcurrentAnimationCount,
-      this.activeAnimations.size
-    );
+    const activeKindCount = Array.from(this.activeAnimations.values())
+      .filter((active) => active.kind === animation.kind).length;
+    if (animation.kind === 'arrival') {
+      this.peakConcurrentArrivalCount = Math.max(
+        this.peakConcurrentArrivalCount,
+        activeKindCount
+      );
+    } else {
+      this.peakConcurrentAnimationCount = Math.max(
+        this.peakConcurrentAnimationCount,
+        activeKindCount
+      );
+    }
+  }
+
+  recordArrivalTransition(entry, transition) {
+    entry.lastArrivalTransition = transition;
+    this.lastArrivalTransition = transition;
+    this.arrivalTransitionHistory.push(transition);
+    if (this.arrivalTransitionHistory.length > LOBBY_ARRIVAL_HISTORY_LIMIT) {
+      this.arrivalTransitionHistory.splice(
+        0,
+        this.arrivalTransitionHistory.length - LOBBY_ARRIVAL_HISTORY_LIMIT
+      );
+    }
   }
 
   scheduleAnimationFrame() {
@@ -831,16 +1117,25 @@ class LobbyHandSurface {
         }
 
         if (animation.startTime === null) {
-          animation.startTime = timestamp;
+          animation.startTime =
+            timestamp - Math.max(0, animation.initialElapsedMs || 0);
         }
         const elapsed = Math.max(0, timestamp - animation.startTime);
         const deadlineElapsed = elapsed >= animation.transition.deadlineMs;
-        const complete = this.updateAnimation(
-          animation,
-          Math.min(elapsed, animation.transition.deadlineMs)
+        const boundedElapsed = Math.min(
+          elapsed,
+          animation.transition.deadlineMs
         );
+        const complete = animation.kind === 'arrival'
+          ? this.updateArrivalAnimation(animation, boundedElapsed)
+          : this.updateAnimation(animation, boundedElapsed);
         if (complete || deadlineElapsed) {
-          completed.push({animation, outcome: 'completed'});
+          completed.push({
+            animation,
+            outcome: animation.kind === 'arrival'
+              ? 'completed-arrival'
+              : 'completed'
+          });
         }
       });
 
@@ -855,6 +1150,36 @@ class LobbyHandSurface {
       this.status = 'failed';
       this.reportError(error);
     }
+  }
+
+  updateArrivalAnimation(animation, elapsed) {
+    const pose = sampleCardArrival(animation.plan, elapsed);
+    const entry = animation.entry;
+    const transition = animation.transition;
+    entry.phase = `arrival-${pose.phase}`;
+    entry.visibleFace = 'front';
+    this.markTransitionPhase(transition, pose.phase);
+    this.applyArrivalPose(entry, pose);
+
+    if (transition.evidence) {
+      transition.evidence.maxDepth = Math.max(
+        transition.evidence.maxDepth,
+        pose.depth
+      );
+      transition.evidence.maxAbsRotationX = Math.max(
+        transition.evidence.maxAbsRotationX,
+        Math.abs(pose.rotationX)
+      );
+      transition.evidence.maxAbsRotationY = Math.max(
+        transition.evidence.maxAbsRotationY,
+        Math.abs(pose.rotationY)
+      );
+      transition.evidence.maxAbsRotationZ = Math.max(
+        transition.evidence.maxAbsRotationZ,
+        Math.abs(pose.rotationZ)
+      );
+    }
+    return pose.complete;
   }
 
   tickReducedMotionAnimation(animation) {
@@ -979,6 +1304,42 @@ class LobbyHandSurface {
     }
   }
 
+  applyArrivalPose(entry, pose) {
+    const depth = Math.max(0, pose.depth);
+    const worldZ = Number.isFinite(pose.z)
+      ? pose.z
+      : entry.basePosition.z + depth;
+    const perspectiveCompensation =
+      (LOBBY_CAMERA_DISTANCE - depth) / LOBBY_CAMERA_DISTANCE;
+    entry.motionRoot.position.set(
+      LOBBY_CAMERA_CENTER_X +
+        ((pose.screenX - LOBBY_CAMERA_CENTER_X) * perspectiveCompensation),
+      LOBBY_CAMERA_CENTER_Y +
+        ((pose.screenY - LOBBY_CAMERA_CENTER_Y) * perspectiveCompensation),
+      worldZ
+    );
+    entry.motionRoot.scale.set(1, 1, 1);
+    entry.tiltRoot.rotation.z = pose.rotationZ;
+    entry.pickupRoot.rotation.x = pose.rotationX;
+    entry.pickupRoot.rotation.y = pose.rotationY;
+    entry.flipRoot.rotation.x = 0;
+    entry.flipRoot.rotation.y = 0;
+    entry.currentMotion.screenLiftY = pose.screenY - entry.basePosition.y;
+    entry.currentMotion.depth = depth;
+    entry.currentMotion.pickupTiltX = pose.rotationX;
+    entry.currentMotion.pickupTiltY = pose.rotationY;
+    entry.currentMotion.previousFlipRotationX = 0;
+    entry.currentMotion.screenX = pose.screenX;
+    entry.currentMotion.screenY = pose.screenY;
+    this.applyFlatTableProjection(
+      entry,
+      0,
+      pose.screenX,
+      pose.screenY
+    );
+    this.updateArrivalShadow(entry, pose);
+  }
+
   applyLift(entry, progress, turnArc, pickupProgress) {
     const liftProgress = Math.max(0, Math.min(1, progress));
     const arcProgress = Math.max(0, Math.min(1, turnArc));
@@ -1003,15 +1364,23 @@ class LobbyHandSurface {
     entry.currentMotion.depth = depth;
     entry.currentMotion.pickupTiltX = entry.pickupRoot.rotation.x;
     entry.currentMotion.pickupTiltY = entry.pickupRoot.rotation.y;
+    entry.currentMotion.screenX = entry.basePosition.x;
+    entry.currentMotion.screenY = entry.basePosition.y + screenLiftY;
     this.applyFlatTableProjection(entry, screenLiftY);
     this.updateAnalyticShadow(entry, liftProgress, arcProgress);
   }
 
-  applyFlatTableProjection(entry, screenLiftY) {
+  applyFlatTableProjection(entry, screenLiftY, screenX, screenY) {
+    const anchorX = Number.isFinite(screenX)
+      ? screenX
+      : entry.basePosition.x;
+    const anchorY = Number.isFinite(screenY)
+      ? screenY
+      : entry.basePosition.y + screenLiftY;
     const horizontalOffset =
-      (entry.basePosition.x - LOBBY_CAMERA_CENTER_X) / LOBBY_CAMERA_DISTANCE;
+      (anchorX - LOBBY_CAMERA_CENTER_X) / LOBBY_CAMERA_DISTANCE;
     const verticalOffset =
-      (entry.basePosition.y + screenLiftY - LOBBY_CAMERA_CENTER_Y) /
+      (anchorY - LOBBY_CAMERA_CENTER_Y) /
       LOBBY_CAMERA_DISTANCE;
     const shearX = -horizontalOffset;
     const shearY = -verticalOffset;
@@ -1031,6 +1400,27 @@ class LobbyHandSurface {
     entry.projectionRoot.matrixWorldNeedsUpdate = true;
     entry.currentMotion.projectionShearX = shearX;
     entry.currentMotion.projectionShearY = shearY;
+  }
+
+  updateArrivalShadow(entry, pose) {
+    if (!entry.liftShadow || !entry.liftShadowMaterial) {
+      return;
+    }
+    const heightRatio = Math.max(0, Math.min(1, pose.depth / 180));
+    const spread = 0.92 + (0.5 * heightRatio);
+    const landingFade = pose.phase === 'landing'
+      ? Math.pow(1 - pose.progress, 0.75)
+      : 1;
+    entry.liftShadow.position.set(
+      pose.screenX + (14 * heightRatio),
+      pose.screenY - (12 * heightRatio),
+      LOBBY_ANALYTIC_SHADOW_Z
+    );
+    entry.liftShadow.scale.set(spread, spread * 0.94, 1);
+    entry.liftShadowMaterial.opacity =
+      (0.05 + (LOBBY_ANALYTIC_SHADOW_OPACITY * (1 - heightRatio))) *
+      landingFade;
+    entry.liftShadow.visible = true;
   }
 
   updateAnalyticShadow(entry, liftProgress, arcProgress) {
@@ -1173,10 +1563,25 @@ class LobbyHandSurface {
       this.animationFrameId = null;
     }
     this.settleEntry(entry);
-    entry.completedFlips += 1;
-    this.completedAnimationCount += 1;
+    if (animation.kind === 'arrival') {
+      entry.completedArrivals += 1;
+      this.completedArrivalCount += 1;
+    } else {
+      entry.completedFlips += 1;
+      this.completedAnimationCount += 1;
+    }
     this.markTransitionPhase(animation.transition, 'settled');
+    if (animation.transition.evidence &&
+        animation.kind === 'arrival') {
+      animation.transition.evidence.exactSettlement = true;
+    }
     animation.transition.outcome = outcome || 'completed';
+    if (animation.kind === 'arrival' &&
+        !this.hasActiveArrival() &&
+        this.lastArrivalBatch &&
+        this.lastArrivalBatch.requestId === animation.batch.requestId) {
+      this.lastArrivalBatch.outcome = 'completed';
+    }
     if (shouldRender !== false) {
       this.render();
     }
@@ -1196,11 +1601,19 @@ class LobbyHandSurface {
     animations.forEach((animation) => {
       this.settleEntry(animation.entry);
       this.markTransitionPhase(animation.transition, 'settled');
+      if (animation.transition.evidence &&
+          animation.kind === 'arrival') {
+        animation.transition.evidence.exactSettlement = true;
+      }
       if (animation.transition.outcome === 'running' ||
           animation.transition.outcome === 'running-reduced-motion') {
         animation.transition.outcome = outcome || 'cancelled';
       }
     });
+    if (animations.some((animation) => animation.kind === 'arrival') &&
+        this.lastArrivalBatch) {
+      this.lastArrivalBatch.outcome = outcome || 'cancelled';
+    }
     if (shouldRender !== false) {
       this.render();
     }
@@ -1214,6 +1627,7 @@ class LobbyHandSurface {
       entry.basePosition.z
     );
     entry.motionRoot.scale.set(1, 1, 1);
+    entry.tiltRoot.rotation.z = 0;
     entry.pickupRoot.rotation.x = 0;
     entry.pickupRoot.rotation.y = 0;
     entry.flipRoot.rotation.x = 0;
@@ -1225,6 +1639,8 @@ class LobbyHandSurface {
     entry.currentMotion.depth = 0;
     entry.currentMotion.pickupTiltX = 0;
     entry.currentMotion.pickupTiltY = 0;
+    entry.currentMotion.screenX = entry.basePosition.x;
+    entry.currentMotion.screenY = entry.basePosition.y;
     this.applyFlatTableProjection(entry, 0);
     entry.currentMotion.previousFlipRotationX = 0;
     entry.phase = 'idle';
@@ -1348,15 +1764,30 @@ class LobbyHandSurface {
 
   cloneTransition(transition) {
     return transition ? {
+      kind: transition.kind || 'flip',
       cardIndex: transition.cardIndex,
       userCardId: transition.userCardId,
       cardId: transition.cardId,
       token: transition.token,
+      requestId: transition.requestId || null,
+      trigger: transition.trigger || null,
+      profile: transition.profile || null,
+      seed: transition.seed == null ? null : transition.seed,
       outcome: transition.outcome,
       phases: transition.phases.slice(0),
-      flipAxis: transition.flipAxis,
+      flipAxis: transition.flipAxis || null,
       nominalDurationMs: transition.nominalDurationMs,
       deadlineMs: transition.deadlineMs,
+      plan: transition.plan ? {
+        orderIndex: transition.plan.orderIndex,
+        delayMs: transition.plan.delayMs,
+        durationMs: transition.plan.durationMs,
+        totalDurationMs: transition.plan.totalDurationMs,
+        launchHalfExtent: transition.plan.launchHalfExtent,
+        start: Object.assign({}, transition.plan.start),
+        destination: Object.assign({}, transition.plan.destination),
+        impactOffset: Object.assign({}, transition.plan.impactOffset)
+      } : null,
       evidence: transition.evidence
         ? Object.assign({}, transition.evidence)
         : null
@@ -1368,6 +1799,12 @@ class LobbyHandSurface {
     const isWebGL2 = typeof WebGL2RenderingContext !== 'undefined' && context instanceof WebGL2RenderingContext;
     const activeAnimations = Array.from(this.activeAnimations.values())
       .sort((left, right) => left.token - right.token);
+    const activeArrivalAnimations = activeAnimations.filter((animation) => (
+      animation.kind === 'arrival'
+    ));
+    const activeFlipAnimations = activeAnimations.filter((animation) => (
+      animation.kind !== 'arrival'
+    ));
     const activeCardIndices = activeAnimations
       .map((animation) => animation.entry.card.index)
       .sort((left, right) => left - right);
@@ -1422,7 +1859,15 @@ class LobbyHandSurface {
         deadlineMs: LOBBY_FLIP_DEADLINE,
         continuousTurnMs: LOBBY_FLIP_TIMINGS.turn,
         liftScreenY: LOBBY_LIFT_SCREEN_Y,
-        liftZ: LOBBY_LIFT_Z
+        liftZ: LOBBY_LIFT_Z,
+        arrival: {
+          profile: CASUAL_DROP_LEFT_PROFILE.name,
+          originEdge: CASUAL_DROP_LEFT_PROFILE.originEdge,
+          seeded: true,
+          destinationDriven: true,
+          maxBatchDurationMs:
+            CASUAL_DROP_LEFT_PROFILE.maxBatchDurationMs
+        }
       },
       renderPolicy: {
         faceMaterial: 'unlit',
@@ -1455,6 +1900,7 @@ class LobbyHandSurface {
       activeCardIndices,
       lockedCardIndices: activeCardIndices.slice(0),
       activeAnimations: activeAnimations.map((animation) => ({
+        kind: animation.kind,
         cardIndex: animation.entry.card.index,
         token: animation.token,
         phase: animation.entry.phase,
@@ -1462,6 +1908,9 @@ class LobbyHandSurface {
         transition: this.cloneTransition(animation.transition)
       })),
       peakConcurrentAnimationCount: this.peakConcurrentAnimationCount,
+      peakConcurrentArrivalCount: this.peakConcurrentArrivalCount,
+      activeArrivalCount: activeArrivalAnimations.length,
+      activeFlipCount: activeFlipAnimations.length,
       lockHeld: activeAnimations.length > 0,
       activeCardIndex: activeAnimations.length === 1
         ? activeAnimations[0].entry.card.index
@@ -1476,6 +1925,7 @@ class LobbyHandSurface {
       ignoredClicks: this.ignoredClicks,
       emptyClicks: this.emptyClicks,
       completedAnimationCount: this.completedAnimationCount,
+      completedArrivalCount: this.completedArrivalCount,
       activeAnalyticShadowCount: visibleShadows.length,
       analyticShadowVisible: visibleShadows.length > 0,
       analyticShadowOpacity: maxShadowOpacity,
@@ -1484,6 +1934,39 @@ class LobbyHandSurface {
       recentTransitions: this.transitionHistory.map((transition) => (
         this.cloneTransition(transition)
       )),
+      pendingArrivalRequest: this.pendingArrivalRequest
+        ? Object.assign({}, this.pendingArrivalRequest)
+        : null,
+      lastArrivalBatch: this.lastArrivalBatch ? {
+        requestId: this.lastArrivalBatch.requestId,
+        trigger: this.lastArrivalBatch.trigger,
+        profile: this.lastArrivalBatch.profile,
+        originEdge: this.lastArrivalBatch.originEdge || 'left',
+        seed: this.lastArrivalBatch.seed,
+        requestedSeed: this.lastArrivalBatch.requestedSeed,
+        startedAtMs: this.lastArrivalBatch.startedAtMs,
+        elapsedBeforeReadyMs: this.lastArrivalBatch.elapsedBeforeReadyMs,
+        totalDurationMs: this.lastArrivalBatch.totalDurationMs,
+        maxBatchDurationMs: this.lastArrivalBatch.maxBatchDurationMs,
+        outcome: this.lastArrivalBatch.outcome,
+        plans: this.lastArrivalBatch.plans.map((plan) => ({
+          cardIndex: plan.cardIndex,
+          seed: plan.seed,
+          orderIndex: plan.orderIndex,
+          delayMs: plan.delayMs,
+          durationMs: plan.durationMs,
+          totalDurationMs: plan.totalDurationMs,
+          launchHalfExtent: plan.launchHalfExtent,
+          start: Object.assign({}, plan.start),
+          destination: Object.assign({}, plan.destination),
+          impactOffset: Object.assign({}, plan.impactOffset)
+        }))
+      } : null,
+      lastArrivalTransition:
+        this.cloneTransition(this.lastArrivalTransition),
+      recentArrivalTransitions: this.arrivalTransitionHistory.map(
+        (transition) => this.cloneTransition(transition)
+      ),
       prefersReducedMotion: this.prefersReducedMotion(),
       cards: this.cards.map((card, index) => {
         const entry = this.cardEntries[index];
@@ -1504,7 +1987,17 @@ class LobbyHandSurface {
           phase: entry ? entry.phase : 'unmounted',
           visibleFace: entry ? entry.visibleFace : 'front',
           completedFlips: entry ? entry.completedFlips : 0,
+          completedArrivals: entry ? entry.completedArrivals : 0,
           animating: entry ? this.activeAnimations.has(entry) : false,
+          animationKind: entry && this.activeAnimations.has(entry)
+            ? this.activeAnimations.get(entry).kind
+            : null,
+          arrivalAnimating: entry
+            ? Boolean(
+              this.activeAnimations.get(entry) &&
+              this.activeAnimations.get(entry).kind === 'arrival'
+            )
+            : false,
           analyticShadowVisible: Boolean(
             entry && entry.liftShadow && entry.liftShadow.visible
           ),
@@ -1513,6 +2006,9 @@ class LobbyHandSurface {
             : 0,
           lastTransition: entry
             ? this.cloneTransition(entry.lastTransition)
+            : null,
+          lastArrivalTransition: entry
+            ? this.cloneTransition(entry.lastArrivalTransition)
             : null,
           transform: entry ? {
             liftY: entry.currentMotion.screenLiftY,
@@ -1525,6 +2021,10 @@ class LobbyHandSurface {
             projectionShearX: entry.currentMotion.projectionShearX,
             projectionShearY: entry.currentMotion.projectionShearY,
             staticRotationZ: entry.tiltRoot.rotation.z,
+            screenPosition: {
+              x: entry.currentMotion.screenX,
+              y: entry.currentMotion.screenY
+            },
             perspectiveScale:
               LOBBY_CAMERA_DISTANCE /
               (LOBBY_CAMERA_DISTANCE - entry.currentMotion.depth),
@@ -1582,6 +2082,17 @@ window.gh = window.gh || {};
 window.gh.modernGraphics = {
   packageVersion: __PURETT_THREE_PACKAGE_VERSION__,
   revision: REVISION,
+  cardAnimations: Object.freeze({
+    profiles: Object.freeze({
+      casualDropLeft: CASUAL_DROP_LEFT_PROFILE
+    }),
+    createArrivalBatch(cards, request) {
+      return createCardArrivalBatch(cards, request);
+    },
+    sampleArrival(plan, elapsedMs) {
+      return sampleCardArrival(plan, elapsedMs);
+    }
+  }),
   createSurface(host, options) {
     return new ModernGraphicsSurface(host, options);
   },

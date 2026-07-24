@@ -4,24 +4,185 @@ const CARD_FACE_OFFSET = 1.7;
 export const CASUAL_DROP_LEFT_PROFILE = Object.freeze({
   name: 'casual-drop-left',
   originEdge: 'left',
-  minimumReleaseGapMs: 275,
-  maximumReleaseGapMs: 280,
-  flightSpeedMin: 0.78,
-  flightSpeedMax: 0.84,
-  minimumFlightMs: 500,
-  maximumFlightMs: 980,
-  slapDurationMinMs: 88,
-  slapDurationRangeMs: 14,
-  slideDurationMinMs: 205,
-  slideDurationRangeMs: 25,
+  originPolicy: 'compact-left-hand-packet',
+  placementOrder: 'art-directed-human-scatter',
+  collisionPolicy: 'depth-separated-natural-overflight',
+  minimumReleaseGapMs: 55,
+  maximumReleaseGapMs: 340,
+  maximumReleaseWindowMs: 720,
+  minimumFlightMs: 390,
+  maximumFlightMs: 880,
   maximumAirDepth: 52,
-  maximumVertexPerspectiveScale: 1.1,
-  maxBatchDurationMs: 1950
+  maximumVertexPerspectiveScale: 1.09,
+  maxBatchDurationMs: 1500
 });
 
 export const CARD_ARRIVAL_PROFILES = Object.freeze({
   [CASUAL_DROP_LEFT_PROFILE.name]: CASUAL_DROP_LEFT_PROFILE
 });
+
+const HUMAN_SCATTER_GESTURES = Object.freeze([
+  Object.freeze({
+    name: 'long-skim',
+    speedMin: 0.88,
+    speedMax: 0.94,
+    releaseGapMinMs: 0,
+    releaseGapMaxMs: 0,
+    launchYOffset: -7,
+    launchAirGapMin: 4,
+    launchAirGapMax: 7,
+    verticalImpulseMin: 21,
+    verticalImpulseMax: 27,
+    startPitchMin: 5,
+    startPitchMax: 8,
+    startYawMin: 10,
+    startYawMax: 13,
+    contactPitchMin: 2,
+    contactPitchMax: 3.5,
+    contactYawMin: 3,
+    contactYawMax: 4.5,
+    spinMin: 8,
+    spinMax: 14,
+    slideDistanceMin: 39,
+    slideDistanceMax: 47,
+    slapDurationMinMs: 70,
+    slapDurationMaxMs: 88,
+    postContactDurationMinMs: 225,
+    postContactDurationMaxMs: 250,
+    pathBowMin: 22,
+    pathBowMax: 36,
+    launchDirectionJitterDegrees: 5,
+    skidDirectionJitterDegrees: 3
+  }),
+  Object.freeze({
+    name: 'lofted-toss',
+    speedMin: 0.72,
+    speedMax: 0.8,
+    releaseGapMinMs: 105,
+    releaseGapMaxMs: 145,
+    launchYOffset: 13,
+    launchAirGapMin: 10,
+    launchAirGapMax: 14,
+    verticalImpulseMin: 42,
+    verticalImpulseMax: 50,
+    startPitchMin: 7,
+    startPitchMax: 10,
+    startYawMin: 8,
+    startYawMax: 12,
+    contactPitchMin: 3,
+    contactPitchMax: 5,
+    contactYawMin: 2.5,
+    contactYawMax: 4,
+    spinMin: 9,
+    spinMax: 16,
+    slideDistanceMin: 30,
+    slideDistanceMax: 38,
+    slapDurationMinMs: 86,
+    slapDurationMaxMs: 108,
+    postContactDurationMinMs: 205,
+    postContactDurationMaxMs: 235,
+    pathBowMin: 38,
+    pathBowMax: 56,
+    launchDirectionJitterDegrees: 9,
+    skidDirectionJitterDegrees: 5
+  }),
+  Object.freeze({
+    name: 'quick-slip',
+    speedMin: 0.88,
+    speedMax: 0.98,
+    releaseGapMinMs: 300,
+    releaseGapMaxMs: 340,
+    launchYOffset: -17,
+    launchAirGapMin: 3,
+    launchAirGapMax: 6,
+    verticalImpulseMin: 28,
+    verticalImpulseMax: 34,
+    startPitchMin: 4,
+    startPitchMax: 7,
+    startYawMin: 8,
+    startYawMax: 11,
+    contactPitchMin: 1.5,
+    contactPitchMax: 3,
+    contactYawMin: 2.5,
+    contactYawMax: 4,
+    spinMin: 7,
+    spinMax: 13,
+    slideDistanceMin: 25,
+    slideDistanceMax: 32,
+    slapDurationMinMs: 60,
+    slapDurationMaxMs: 78,
+    postContactDurationMinMs: 165,
+    postContactDurationMaxMs: 190,
+    pathBowMin: 24,
+    pathBowMax: 40,
+    launchDirectionJitterDegrees: 7,
+    skidDirectionJitterDegrees: 4
+  }),
+  Object.freeze({
+    name: 'loose-follower',
+    speedMin: 0.72,
+    speedMax: 0.82,
+    releaseGapMinMs: 55,
+    releaseGapMaxMs: 82,
+    launchYOffset: 22,
+    launchAirGapMin: 14,
+    launchAirGapMax: 18,
+    verticalImpulseMin: 40,
+    verticalImpulseMax: 48,
+    startPitchMin: 6,
+    startPitchMax: 9,
+    startYawMin: 9,
+    startYawMax: 12,
+    contactPitchMin: 2.5,
+    contactPitchMax: 4,
+    contactYawMin: 2.5,
+    contactYawMax: 4,
+    spinMin: 7,
+    spinMax: 13,
+    slideDistanceMin: 21,
+    slideDistanceMax: 28,
+    slapDurationMinMs: 72,
+    slapDurationMaxMs: 92,
+    postContactDurationMinMs: 170,
+    postContactDurationMaxMs: 200,
+    pathBowMin: 34,
+    pathBowMax: 52,
+    launchDirectionJitterDegrees: 10,
+    skidDirectionJitterDegrees: 5
+  }),
+  Object.freeze({
+    name: 'soft-drop',
+    speedMin: 0.58,
+    speedMax: 0.68,
+    releaseGapMinMs: 105,
+    releaseGapMaxMs: 140,
+    launchYOffset: 4,
+    launchAirGapMin: 6,
+    launchAirGapMax: 10,
+    verticalImpulseMin: 7,
+    verticalImpulseMax: 13,
+    startPitchMin: 7,
+    startPitchMax: 10,
+    startYawMin: 6,
+    startYawMax: 9,
+    contactPitchMin: 3.5,
+    contactPitchMax: 5.5,
+    contactYawMin: 2,
+    contactYawMax: 3.5,
+    spinMin: 5,
+    spinMax: 10,
+    slideDistanceMin: 14,
+    slideDistanceMax: 20,
+    slapDurationMinMs: 92,
+    slapDurationMaxMs: 118,
+    postContactDurationMinMs: 145,
+    postContactDurationMaxMs: 170,
+    pathBowMin: 20,
+    pathBowMax: 32,
+    launchDirectionJitterDegrees: 6,
+    skidDirectionJitterDegrees: 4
+  })
+]);
 
 function clamp(value, minimum, maximum) {
   return Math.max(minimum, Math.min(maximum, value));
@@ -41,16 +202,14 @@ function cubicBezier(start, controlOne, controlTwo, end, progress) {
   );
 }
 
+function easeOutQuadratic(progress) {
+  const bounded = clamp(progress, 0, 1);
+  return 1 - ((1 - bounded) * (1 - bounded));
+}
+
 function easeOutCubic(progress) {
   const bounded = clamp(progress, 0, 1);
   return 1 - Math.pow(1 - bounded, 3);
-}
-
-function easeInOutCubic(progress) {
-  const bounded = clamp(progress, 0, 1);
-  return bounded < 0.5
-    ? 4 * bounded * bounded * bounded
-    : 1 - Math.pow(-2 * bounded + 2, 3) / 2;
 }
 
 function fnv1a(value) {
@@ -84,6 +243,26 @@ function randomBetween(random, minimum, maximum) {
 
 function randomSign(random) {
   return random() < 0.5 ? -1 : 1;
+}
+
+function rotateVector(vector, angle) {
+  const cosine = Math.cos(angle);
+  const sine = Math.sin(angle);
+  return {
+    x: (vector.x * cosine) - (vector.y * sine),
+    y: (vector.x * sine) + (vector.y * cosine)
+  };
+}
+
+function normalizeVector(vector) {
+  const length = Math.hypot(vector.x, vector.y);
+  if (length <= 0.000001) {
+    return {x: 1, y: 0};
+  }
+  return {
+    x: vector.x / length,
+    y: vector.y / length
+  };
 }
 
 function resolveProfile(request) {
@@ -151,12 +330,7 @@ function faceDepthRange(width, height, rotationX, rotationY) {
 }
 
 function tiltClearance(width, height, rotationX, rotationY) {
-  const range = faceDepthRange(
-    width,
-    height,
-    rotationX,
-    rotationY
-  );
+  const range = faceDepthRange(width, height, rotationX, rotationY);
   return Math.max(0, CARD_FACE_OFFSET - range.minimum);
 }
 
@@ -176,48 +350,135 @@ function conservativeLaunchHalfExtent(card, maximumDepth) {
   );
 }
 
+function createScatterOrder(cards) {
+  const remaining = cards.map((card, index) => ({
+    card,
+    index
+  })).sort((left, right) => (
+    left.card.destination.x - right.card.destination.x ||
+    left.index - right.index
+  ));
+  const order = [];
+  if (remaining.length) {
+    order.push(remaining.pop());
+  }
+  if (remaining.length) {
+    order.push(remaining.splice(Math.floor(remaining.length / 2), 1)[0]);
+  }
+  while (remaining.length) {
+    order.push(remaining.pop());
+  }
+  return order;
+}
+
+function gestureForReleaseIndex(releaseIndex) {
+  return HUMAN_SCATTER_GESTURES[
+    Math.min(releaseIndex, HUMAN_SCATTER_GESTURES.length - 1)
+  ];
+}
+
+function buildReleaseTimes(count, batchSeed, profile) {
+  const random = createSeededRandom(mixSeed(batchSeed, 'human-cadence'));
+  const releaseTimes = [];
+  let releaseAtMs = 0;
+  for (let releaseIndex = 0; releaseIndex < count; releaseIndex += 1) {
+    const gesture = gestureForReleaseIndex(releaseIndex);
+    if (releaseIndex > 0) {
+      const jitteredGap = Math.round(randomBetween(
+        random,
+        gesture.releaseGapMinMs,
+        gesture.releaseGapMaxMs
+      ));
+      releaseAtMs += clamp(
+        jitteredGap,
+        profile.minimumReleaseGapMs,
+        profile.maximumReleaseGapMs
+      );
+    }
+    releaseTimes.push(releaseAtMs);
+  }
+  if (releaseAtMs > profile.maximumReleaseWindowMs) {
+    throw new Error(
+      `${profile.name} exceeded its ${profile.maximumReleaseWindowMs}ms release window.`
+    );
+  }
+  return releaseTimes;
+}
+
 function createPlan(
   card,
   batchSeed,
-  orderIndex,
+  releaseIndex,
   fallbackIndex,
   batchPhysics,
   profile
 ) {
   const destination = card.destination;
+  const gesture = gestureForReleaseIndex(releaseIndex);
   const cardSeed = mixSeed(
     batchSeed,
     profile.name,
+    gesture.name,
     stableCardKey(card, fallbackIndex)
   );
   const random = createSeededRandom(cardSeed);
-  const startRotationX =
-    randomSign(random) *
-    randomBetween(random, 8, 11) *
-    DEGREES_TO_RADIANS;
-  const startRotationY =
-    -randomBetween(random, 12, 17) *
-    DEGREES_TO_RADIANS;
-  const startRotationZ =
-    randomBetween(random, -12, 12) *
-    DEGREES_TO_RADIANS;
+  const pitchSign = randomSign(random);
+  const spinSign = releaseIndex % 2 === 0 ? 1 : -1;
   const contactRotationX =
-    Math.sign(startRotationX) *
-    randomBetween(random, 5, 7) *
+    pitchSign *
+    randomBetween(
+      random,
+      gesture.contactPitchMin,
+      gesture.contactPitchMax
+    ) *
     DEGREES_TO_RADIANS;
   const contactRotationY =
-    -randomBetween(random, 2, 4) *
+    randomBetween(
+      random,
+      gesture.contactYawMin,
+      gesture.contactYawMax
+    ) *
     DEGREES_TO_RADIANS;
   const contactRotationZ =
-    startRotationZ * randomBetween(random, 0.28, 0.42);
+    randomBetween(random, -4.2, 4.2) *
+    DEGREES_TO_RADIANS;
+  const startRotationX =
+    pitchSign *
+    randomBetween(
+      random,
+      gesture.startPitchMin,
+      gesture.startPitchMax
+    ) *
+    DEGREES_TO_RADIANS;
+  const startRotationY =
+    randomBetween(
+      random,
+      gesture.startYawMin,
+      gesture.startYawMax
+    ) *
+    DEGREES_TO_RADIANS;
+  const startRotationZ =
+    contactRotationZ -
+    (
+      spinSign *
+      randomBetween(random, gesture.spinMin, gesture.spinMax) *
+      DEGREES_TO_RADIANS
+    );
   const launchHalfExtent = conservativeLaunchHalfExtent(
     card,
     profile.maximumAirDepth
   );
+  const launchAirGap = randomBetween(
+    random,
+    gesture.launchAirGapMin,
+    gesture.launchAirGapMax
+  );
   const start = {
-    x: batchPhysics.launchX,
+    x: batchPhysics.launchX + randomBetween(random, -4, 4),
     y: clamp(
-      batchPhysics.launchY + randomBetween(random, -10, 10),
+      batchPhysics.launchY +
+        gesture.launchYOffset +
+        randomBetween(random, -8, 8),
       card.height / 2,
       card.viewportHeight - (card.height / 2)
     ),
@@ -228,34 +489,39 @@ function createPlan(
         startRotationX,
         startRotationY
       ) +
-      randomBetween(random, 4, 6),
+      launchAirGap,
+    airGap: launchAirGap,
     rotationX: startRotationX,
     rotationY: startRotationY,
     rotationZ: startRotationZ
   };
-  const destinationVector = {
+  const directDirection = normalizeVector({
     x: destination.x - start.x,
     y: destination.y - start.y
-  };
-  const destinationDistance = Math.hypot(
-    destinationVector.x,
-    destinationVector.y
+  });
+  const skidDirection = rotateVector(
+    directDirection,
+    randomBetween(
+      random,
+      -gesture.skidDirectionJitterDegrees,
+      gesture.skidDirectionJitterDegrees
+    ) * DEGREES_TO_RADIANS
   );
-  const direction = {
-    x: destinationVector.x / destinationDistance,
-    y: destinationVector.y / destinationDistance
-  };
-  const slideDistance = randomBetween(random, 27, 36);
+  const slideDistance = randomBetween(
+    random,
+    gesture.slideDistanceMin,
+    gesture.slideDistanceMax
+  );
   const contact = {
-    x: destination.x - (direction.x * slideDistance),
-    y: destination.y - (direction.y * slideDistance),
-    depth:
-      tiltClearance(
-        card.width,
-        card.height,
-        contactRotationX,
-        contactRotationY
-      ),
+    x: destination.x - (skidDirection.x * slideDistance),
+    y: destination.y - (skidDirection.y * slideDistance),
+    depth: tiltClearance(
+      card.width,
+      card.height,
+      contactRotationX,
+      contactRotationY
+    ),
+    airGap: 0,
     rotationX: contactRotationX,
     rotationY: contactRotationY,
     rotationZ: contactRotationZ
@@ -265,55 +531,81 @@ function createPlan(
     y: contact.y - start.y
   };
   const flightDistance = Math.hypot(flightVector.x, flightVector.y);
-  const pathBow = randomBetween(random, -20, 20);
+  const sampledSpeed = randomBetween(
+    random,
+    gesture.speedMin,
+    gesture.speedMax
+  );
   const flightDurationMs = Math.round(clamp(
-    flightDistance / batchPhysics.flightSpeed,
+    flightDistance / sampledSpeed,
     profile.minimumFlightMs,
     profile.maximumFlightMs
   ));
-  const slapDurationMs = Math.round(
-    profile.slapDurationMinMs +
-    randomBetween(random, 0, profile.slapDurationRangeMs)
+  const slapDurationMs = Math.round(randomBetween(
+    random,
+    gesture.slapDurationMinMs,
+    gesture.slapDurationMaxMs
+  ));
+  const postContactDurationMs = Math.round(randomBetween(
+    random,
+    gesture.postContactDurationMinMs,
+    gesture.postContactDurationMaxMs
+  ));
+  const slideDurationMs = postContactDurationMs - slapDurationMs;
+  const durationMs = flightDurationMs + postContactDurationMs;
+  const delayMs = batchPhysics.releaseTimes[releaseIndex];
+  const impactSpeed = (2 * slideDistance) / postContactDurationMs;
+  const launchDirection = rotateVector(
+    normalizeVector(flightVector),
+    randomBetween(
+      random,
+      -gesture.launchDirectionJitterDegrees,
+      gesture.launchDirectionJitterDegrees
+    ) * DEGREES_TO_RADIANS
   );
-  const slideDurationMs = Math.round(
-    profile.slideDurationMinMs +
-    randomBetween(random, 0, profile.slideDurationRangeMs)
+  const averageFlightSpeed = flightDistance / flightDurationMs;
+  const launchSpeed = averageFlightSpeed * randomBetween(random, 1.08, 1.24);
+  const controlOneDistance = (launchSpeed * flightDurationMs) / 3;
+  const controlTwoDistance = (impactSpeed * flightDurationMs) / 3;
+  const pathNormal = {
+    x: -directDirection.y,
+    y: directDirection.x
+  };
+  const pathBow =
+    (releaseIndex % 2 === 0 ? 1 : -1) *
+    randomBetween(random, gesture.pathBowMin, gesture.pathBowMax);
+  const verticalImpulse = randomBetween(
+    random,
+    gesture.verticalImpulseMin,
+    gesture.verticalImpulseMax
   );
-  const durationMs =
-    flightDurationMs +
-    slapDurationMs +
-    slideDurationMs;
-  const postContactDurationMs = slapDurationMs + slideDurationMs;
-  const slapTravelProgress = easeOutCubic(
+  const gravityPerProgressSquared =
+    2 * (launchAirGap + verticalImpulse);
+  const apexAtProgress = verticalImpulse / gravityPerProgressSquared;
+  const apexAirGap =
+    launchAirGap +
+    (verticalImpulse * apexAtProgress) -
+    (
+      0.5 *
+      gravityPerProgressSquared *
+      apexAtProgress *
+      apexAtProgress
+    );
+  const slapTravelProgress = easeOutQuadratic(
     slapDurationMs / postContactDurationMs
   );
   const slideStart = {
-    x: interpolate(
-      contact.x,
-      destination.x,
-      slapTravelProgress
-    ),
-    y: interpolate(
-      contact.y,
-      destination.y,
-      slapTravelProgress
-    )
+    x: interpolate(contact.x, destination.x, slapTravelProgress),
+    y: interpolate(contact.y, destination.y, slapTravelProgress)
   };
-  const delayMs = batchPhysics.releaseTimes[orderIndex];
-  const linearMidDepth = (start.depth + contact.depth) / 2;
-  const apexDepth = Math.min(
-    profile.maximumAirDepth,
-    Math.max(
-      linearMidDepth + randomBetween(random, 13, 20),
-      start.depth + randomBetween(random, 8, 14)
-    )
-  );
 
   return {
     cardIndex: card.index,
     key: stableCardKey(card, fallbackIndex),
     seed: cardSeed,
-    orderIndex,
+    orderIndex: releaseIndex,
+    releaseIndex,
+    motionVariant: gesture.name,
     delayMs,
     releaseAtMs: delayMs,
     contactAtMs: delayMs + flightDurationMs,
@@ -344,18 +636,51 @@ function createPlan(
     start,
     contact,
     slideStart,
-    direction,
+    direction: {
+      x: skidDirection.x,
+      y: skidDirection.y
+    },
     path: {
       controlOne: {
-        x: start.x + (flightVector.x / 3),
-        y: start.y + (flightVector.y / 3) + pathBow
+        x:
+          start.x +
+          (launchDirection.x * controlOneDistance) +
+          (pathNormal.x * pathBow),
+        y:
+          start.y +
+          (launchDirection.y * controlOneDistance) +
+          (pathNormal.y * pathBow)
       },
       controlTwo: {
-        x: start.x + ((flightVector.x * 2) / 3),
-        y: start.y + ((flightVector.y * 2) / 3) + pathBow
+        x:
+          contact.x -
+          (skidDirection.x * controlTwoDistance),
+        y:
+          contact.y -
+          (skidDirection.y * controlTwoDistance)
       },
+      launchVelocity: {
+        x: launchDirection.x * launchSpeed,
+        y: launchDirection.y * launchSpeed,
+        depth: verticalImpulse / flightDurationMs
+      },
+      impactVelocity: {
+        x: skidDirection.x * impactSpeed,
+        y: skidDirection.y * impactSpeed,
+        depth:
+          (
+            verticalImpulse -
+            gravityPerProgressSquared
+          ) / flightDurationMs
+      },
+      gravity:
+        gravityPerProgressSquared /
+        (flightDurationMs * flightDurationMs),
+      verticalImpulse,
+      apexAtProgress,
+      apexAirGap,
       bow: pathBow,
-      apexDepth
+      slideDistance
     }
   };
 }
@@ -371,44 +696,17 @@ export function createCardArrivalBatch(cards, request) {
     ? request.seed
     : `${profile.name}:${requestId}`;
   const batchSeed = fnv1a(requestedSeed);
-  const batchRandom = createSeededRandom(mixSeed(batchSeed, 'batch-physics'));
-  const flightSpeed = randomBetween(
-    batchRandom,
-    profile.flightSpeedMin,
-    profile.flightSpeedMax
-  );
-  const farthestFirst = cards.map((card, index) => ({
-    card,
-    index
-  })).sort((left, right) => (
-    right.card.destination.x - left.card.destination.x ||
-    left.index - right.index
-  ));
+  const batchRandom = createSeededRandom(mixSeed(batchSeed, 'hand-packet'));
+  const scatterOrder = createScatterOrder(cards);
   const orderByIndex = new Map();
-  farthestFirst.forEach((ranked, orderIndex) => {
-    orderByIndex.set(ranked.index, orderIndex);
+  scatterOrder.forEach((ranked, releaseIndex) => {
+    orderByIndex.set(ranked.index, releaseIndex);
   });
-  const maximumDiagonal = cards.reduce((maximum, card) => (
-    Math.max(maximum, Math.hypot(card.width, card.height))
-  ), 0);
-  const geometryReleaseGap = Math.ceil(
-    (maximumDiagonal + 10) / flightSpeed
+  const releaseTimes = buildReleaseTimes(
+    cards.length,
+    batchSeed,
+    profile
   );
-  const minimumReleaseGap = Math.max(
-    profile.minimumReleaseGapMs,
-    geometryReleaseGap
-  );
-  const releaseTimes = [0];
-  for (let orderIndex = 1; orderIndex < cards.length; orderIndex += 1) {
-    releaseTimes.push(
-      releaseTimes[orderIndex - 1] +
-      Math.round(randomBetween(
-        batchRandom,
-        minimumReleaseGap,
-        Math.max(minimumReleaseGap, profile.maximumReleaseGapMs)
-      ))
-    );
-  }
   const averageDestinationY = cards.length
     ? cards.reduce((total, card) => total + card.destination.y, 0) / cards.length
     : 0;
@@ -419,12 +717,13 @@ export function createCardArrivalBatch(cards, request) {
     )
   ), 0);
   const batchPhysics = {
-    flightSpeed,
     releaseTimes,
     launchX:
       -maximumLaunchHalfExtent -
-      randomBetween(batchRandom, 34, 42),
-    launchY: averageDestinationY + randomBetween(batchRandom, -34, 34)
+      randomBetween(batchRandom, 36, 44),
+    launchY:
+      averageDestinationY +
+      randomBetween(batchRandom, -24, 24)
   };
   const plans = cards.map((card, index) => createPlan(
     card,
@@ -451,10 +750,13 @@ export function createCardArrivalBatch(cards, request) {
       : 'command-bar-reveal',
     profile: profile.name,
     originEdge: profile.originEdge,
-    placementOrder: 'farthest-first',
-    collisionPolicy: 'spatial-order-and-release-separation',
-    flightSpeed,
+    originPolicy: profile.originPolicy,
+    placementOrder: profile.placementOrder,
+    collisionPolicy: profile.collisionPolicy,
     releaseTimes: releaseTimes.slice(0),
+    releaseWindowMs: releaseTimes.length
+      ? releaseTimes[releaseTimes.length - 1]
+      : 0,
     seed: batchSeed,
     requestedSeed: String(requestedSeed),
     maxBatchDurationMs: profile.maxBatchDurationMs,
@@ -474,7 +776,10 @@ function createPose(plan, phase, progress, values) {
     0,
     CARD_FACE_OFFSET - depthRange.minimum
   );
-  let depth = Math.max(values.depth, requiredClearance);
+  let depth = Math.max(
+    requiredClearance,
+    requiredClearance + Math.max(0, values.airGap)
+  );
   if (plan.card.perspectiveDistance !== null) {
     const maximumRenderedDepth =
       plan.card.perspectiveDistance *
@@ -491,6 +796,7 @@ function createPose(plan, phase, progress, values) {
       );
     }
   }
+  const airGap = Math.max(0, depth - requiredClearance);
   return {
     complete: false,
     phase,
@@ -499,10 +805,12 @@ function createPose(plan, phase, progress, values) {
     screenY: values.screenY,
     depth,
     z: plan.destination.z + depth,
-    airGap: Math.max(0, depth - requiredClearance),
-    tableClearance: Math.max(0, depth - requiredClearance),
+    airGap,
+    tableClearance: airGap,
     nearestVertexDepth:
       plan.destination.z + depth + depthRange.maximum,
+    farthestVertexDepth:
+      plan.destination.z + depth + depthRange.minimum,
     rotationX: values.rotationX,
     rotationY: values.rotationY,
     rotationZ: values.rotationZ
@@ -518,7 +826,7 @@ export function sampleCardArrival(plan, elapsedMs) {
     return createPose(plan, 'waiting', 0, {
       screenX: plan.start.x,
       screenY: plan.start.y,
-      depth: plan.start.depth,
+      airGap: plan.start.airGap,
       rotationX: plan.start.rotationX,
       rotationY: plan.start.rotationY,
       rotationZ: plan.start.rotationZ
@@ -536,8 +844,8 @@ export function sampleCardArrival(plan, elapsedMs) {
       z: destination.z,
       airGap: 0,
       tableClearance: 0,
-      nearestVertexDepth:
-        destination.z + CARD_FACE_OFFSET,
+      nearestVertexDepth: destination.z + CARD_FACE_OFFSET,
+      farthestVertexDepth: destination.z + CARD_FACE_OFFSET,
       rotationX: 0,
       rotationY: 0,
       rotationZ: 0
@@ -546,20 +854,28 @@ export function sampleCardArrival(plan, elapsedMs) {
 
   if (localElapsed < plan.flightDurationMs) {
     const progress = localElapsed / plan.flightDurationMs;
-    const baselineDepth = interpolate(
-      plan.start.depth,
-      plan.contact.depth,
-      progress
+    const airGap = Math.max(
+      0,
+      plan.start.airGap +
+        (plan.path.verticalImpulse * progress) -
+        (
+          0.5 *
+          plan.path.gravity *
+          plan.flightDurationMs *
+          plan.flightDurationMs *
+          progress *
+          progress
+        )
     );
-    const midlineDepth = (plan.start.depth + plan.contact.depth) / 2;
-    const arcDepth =
-      Math.max(0, plan.path.apexDepth - midlineDepth) *
-      4 *
-      progress *
-      (1 - progress);
 
     return createPose(plan, 'flight', progress, {
-      screenX: interpolate(plan.start.x, plan.contact.x, progress),
+      screenX: cubicBezier(
+        plan.start.x,
+        plan.path.controlOne.x,
+        plan.path.controlTwo.x,
+        plan.contact.x,
+        progress
+      ),
       screenY: cubicBezier(
         plan.start.y,
         plan.path.controlOne.y,
@@ -567,7 +883,7 @@ export function sampleCardArrival(plan, elapsedMs) {
         plan.contact.y,
         progress
       ),
-      depth: baselineDepth + arcDepth,
+      airGap,
       rotationX: interpolate(
         plan.start.rotationX,
         plan.contact.rotationX,
@@ -589,7 +905,7 @@ export function sampleCardArrival(plan, elapsedMs) {
   const afterFlight = localElapsed - plan.flightDurationMs;
   const postContactProgress =
     afterFlight / plan.postContactDurationMs;
-  const frictionProgress = easeOutCubic(postContactProgress);
+  const frictionProgress = easeOutQuadratic(postContactProgress);
   const postContactScreenX = interpolate(
     plan.contact.x,
     destination.x,
@@ -600,37 +916,30 @@ export function sampleCardArrival(plan, elapsedMs) {
     destination.y,
     frictionProgress
   );
+  const rotationZ = interpolate(
+    plan.contact.rotationZ,
+    0,
+    frictionProgress
+  );
+
   if (afterFlight < plan.slapDurationMs) {
     const progress = afterFlight / plan.slapDurationMs;
-    const flattenProgress = easeInOutCubic(progress);
-    const rotationX = interpolate(
-      plan.contact.rotationX,
-      0,
-      flattenProgress
-    );
-    const rotationY = interpolate(
-      plan.contact.rotationY,
-      0,
-      flattenProgress
-    );
-    const requiredClearance = tiltClearance(
-      plan.card.width,
-      plan.card.height,
-      rotationX,
-      rotationY
-    );
-
+    const flattenProgress = easeOutCubic(progress);
     return createPose(plan, 'slap', progress, {
       screenX: postContactScreenX,
       screenY: postContactScreenY,
-      depth: requiredClearance,
-      rotationX,
-      rotationY,
-      rotationZ: interpolate(
-        plan.contact.rotationZ,
+      airGap: 0,
+      rotationX: interpolate(
+        plan.contact.rotationX,
         0,
         flattenProgress
-      )
+      ),
+      rotationY: interpolate(
+        plan.contact.rotationY,
+        0,
+        flattenProgress
+      ),
+      rotationZ
     });
   }
 
@@ -641,9 +950,9 @@ export function sampleCardArrival(plan, elapsedMs) {
   return createPose(plan, 'slide', slideProgress, {
     screenX: postContactScreenX,
     screenY: postContactScreenY,
-    depth: 0,
+    airGap: 0,
     rotationX: 0,
     rotationY: 0,
-    rotationZ: 0
+    rotationZ
   });
 }

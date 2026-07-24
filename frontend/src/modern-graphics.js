@@ -611,6 +611,10 @@ class LobbyHandSurface {
         currentMotion: {
           screenLiftY: 0,
           depth: 0,
+          airGap: 0,
+          tableClearance: 0,
+          nearestVertexDepth: basePosition.z + LOBBY_CARD_FACE_OFFSET,
+          farthestVertexDepth: basePosition.z + LOBBY_CARD_FACE_OFFSET,
           pickupTiltX: 0,
           pickupTiltY: 0,
           projectionShearX: 0,
@@ -734,9 +738,7 @@ class LobbyHandSurface {
       this.applyArrivalPose(entry, initialPose);
       entry.phase = `arrival-${initialPose.phase}`;
       entry.visibleFace = 'front';
-      const arrivalRenderOrder = 100 + (
-        batch.plans.length - plan.orderIndex
-      );
+      const arrivalRenderOrder = 100 + entry.card.index;
       entry.bodyMesh.renderOrder = arrivalRenderOrder;
       entry.frontMesh.renderOrder = arrivalRenderOrder;
       entry.backMesh.renderOrder = arrivalRenderOrder;
@@ -759,10 +761,11 @@ class LobbyHandSurface {
       trigger: this.pendingArrivalRequest.trigger,
       profile: this.pendingArrivalRequest.profile,
       originEdge: CASUAL_DROP_LEFT_PROFILE.originEdge,
-      placementOrder: 'farthest-first',
-      collisionPolicy: 'spatial-order-and-release-separation',
-      flightSpeed: null,
+      originPolicy: CASUAL_DROP_LEFT_PROFILE.originPolicy,
+      placementOrder: CASUAL_DROP_LEFT_PROFILE.placementOrder,
+      collisionPolicy: CASUAL_DROP_LEFT_PROFILE.collisionPolicy,
       releaseTimes: [],
+      releaseWindowMs: 0,
       seed: null,
       totalDurationMs: 0,
       maxBatchDurationMs: CASUAL_DROP_LEFT_PROFILE.maxBatchDurationMs,
@@ -796,6 +799,8 @@ class LobbyHandSurface {
       ),
       plan: {
         orderIndex: plan.orderIndex,
+        releaseIndex: plan.releaseIndex,
+        motionVariant: plan.motionVariant,
         delayMs: plan.delayMs,
         releaseAtMs: plan.releaseAtMs,
         contactAtMs: plan.contactAtMs,
@@ -816,8 +821,14 @@ class LobbyHandSurface {
         path: {
           controlOne: Object.assign({}, plan.path.controlOne),
           controlTwo: Object.assign({}, plan.path.controlTwo),
+          launchVelocity: Object.assign({}, plan.path.launchVelocity),
+          impactVelocity: Object.assign({}, plan.path.impactVelocity),
+          gravity: plan.path.gravity,
+          verticalImpulse: plan.path.verticalImpulse,
+          apexAtProgress: plan.path.apexAtProgress,
+          apexAirGap: plan.path.apexAirGap,
           bow: plan.path.bow,
-          apexDepth: plan.path.apexDepth
+          slideDistance: plan.path.slideDistance
         }
       },
       evidence: {
@@ -840,10 +851,11 @@ class LobbyHandSurface {
       trigger: batch.trigger,
       profile: batch.profile,
       originEdge: batch.originEdge,
+      originPolicy: batch.originPolicy,
       placementOrder: batch.placementOrder,
       collisionPolicy: batch.collisionPolicy,
-      flightSpeed: batch.flightSpeed,
       releaseTimes: batch.releaseTimes.slice(0),
+      releaseWindowMs: batch.releaseWindowMs,
       seed: batch.seed,
       requestedSeed: batch.requestedSeed,
       startedAtMs: batch.startedAtMs,
@@ -855,6 +867,8 @@ class LobbyHandSurface {
         cardIndex: plan.cardIndex,
         seed: plan.seed,
         orderIndex: plan.orderIndex,
+        releaseIndex: plan.releaseIndex,
+        motionVariant: plan.motionVariant,
         delayMs: plan.delayMs,
         releaseAtMs: plan.releaseAtMs,
         contactAtMs: plan.contactAtMs,
@@ -875,8 +889,14 @@ class LobbyHandSurface {
         path: {
           controlOne: Object.assign({}, plan.path.controlOne),
           controlTwo: Object.assign({}, plan.path.controlTwo),
+          launchVelocity: Object.assign({}, plan.path.launchVelocity),
+          impactVelocity: Object.assign({}, plan.path.impactVelocity),
+          gravity: plan.path.gravity,
+          verticalImpulse: plan.path.verticalImpulse,
+          apexAtProgress: plan.path.apexAtProgress,
+          apexAirGap: plan.path.apexAirGap,
           bow: plan.path.bow,
-          apexDepth: plan.path.apexDepth
+          slideDistance: plan.path.slideDistance
         }
       }))
     };
@@ -1384,6 +1404,10 @@ class LobbyHandSurface {
     entry.flipRoot.rotation.y = 0;
     entry.currentMotion.screenLiftY = pose.screenY - entry.basePosition.y;
     entry.currentMotion.depth = depth;
+    entry.currentMotion.airGap = pose.airGap;
+    entry.currentMotion.tableClearance = pose.tableClearance;
+    entry.currentMotion.nearestVertexDepth = pose.nearestVertexDepth;
+    entry.currentMotion.farthestVertexDepth = pose.farthestVertexDepth;
     entry.currentMotion.pickupTiltX = pose.rotationX;
     entry.currentMotion.pickupTiltY = pose.rotationY;
     entry.currentMotion.previousFlipRotationX = 0;
@@ -1469,18 +1493,19 @@ class LobbyHandSurface {
       return;
     }
     const heightRatio = Math.max(0, Math.min(1, pose.airGap / 55));
-    const spread = 0.88 + (0.22 * heightRatio);
+    const spread = 0.88 + (0.28 * heightRatio);
     const contactFade = pose.phase === 'slap'
       ? Math.pow(1 - pose.progress, 1.4)
       : 1;
     entry.liftShadow.position.set(
-      pose.screenX + (5 + (7 * heightRatio)),
-      pose.screenY - (4 + (6 * heightRatio)),
+      pose.screenX + (5 + (13 * heightRatio)),
+      pose.screenY - (4 + (11 * heightRatio)),
       LOBBY_ANALYTIC_SHADOW_Z
     );
+    entry.liftShadow.rotation.z = pose.rotationZ * 0.65;
     entry.liftShadow.scale.set(spread, spread * 0.92, 1);
     entry.liftShadowMaterial.opacity =
-      (0.04 + (0.12 * (1 - heightRatio))) *
+      (0.08 + (0.16 * (1 - heightRatio))) *
       contactFade;
     entry.liftShadow.visible = entry.liftShadowMaterial.opacity > 0.002;
   }
@@ -1699,6 +1724,12 @@ class LobbyHandSurface {
     entry.backMesh.renderOrder = entry.card.index;
     entry.currentMotion.screenLiftY = 0;
     entry.currentMotion.depth = 0;
+    entry.currentMotion.airGap = 0;
+    entry.currentMotion.tableClearance = 0;
+    entry.currentMotion.nearestVertexDepth =
+      entry.basePosition.z + LOBBY_CARD_FACE_OFFSET;
+    entry.currentMotion.farthestVertexDepth =
+      entry.basePosition.z + LOBBY_CARD_FACE_OFFSET;
     entry.currentMotion.pickupTiltX = 0;
     entry.currentMotion.pickupTiltY = 0;
     entry.currentMotion.screenX = entry.basePosition.x;
@@ -1842,6 +1873,8 @@ class LobbyHandSurface {
       deadlineMs: transition.deadlineMs,
       plan: transition.plan ? {
         orderIndex: transition.plan.orderIndex,
+        releaseIndex: transition.plan.releaseIndex,
+        motionVariant: transition.plan.motionVariant,
         delayMs: transition.plan.delayMs,
         releaseAtMs: transition.plan.releaseAtMs,
         contactAtMs: transition.plan.contactAtMs,
@@ -1868,8 +1901,20 @@ class LobbyHandSurface {
             {},
             transition.plan.path.controlTwo
           ),
+          launchVelocity: Object.assign(
+            {},
+            transition.plan.path.launchVelocity
+          ),
+          impactVelocity: Object.assign(
+            {},
+            transition.plan.path.impactVelocity
+          ),
+          gravity: transition.plan.path.gravity,
+          verticalImpulse: transition.plan.path.verticalImpulse,
+          apexAtProgress: transition.plan.path.apexAtProgress,
+          apexAirGap: transition.plan.path.apexAirGap,
           bow: transition.plan.path.bow,
-          apexDepth: transition.plan.path.apexDepth
+          slideDistance: transition.plan.path.slideDistance
         }
       } : null,
       evidence: transition.evidence
@@ -1949,11 +1994,13 @@ class LobbyHandSurface {
           originEdge: CASUAL_DROP_LEFT_PROFILE.originEdge,
           seeded: true,
           destinationDriven: true,
-          placementOrder: 'farthest-first',
-          collisionPolicy: 'spatial-order-and-release-separation',
+          originPolicy: CASUAL_DROP_LEFT_PROFILE.originPolicy,
+          placementOrder: CASUAL_DROP_LEFT_PROFILE.placementOrder,
+          collisionPolicy: CASUAL_DROP_LEFT_PROFILE.collisionPolicy,
           projectionProfile: 'flat-table-neutralized-through-arrival',
           phases: ['flight', 'slap', 'slide'],
-          landingPolicy: 'monotonic-contact-without-rebound',
+          flightPolicy: 'analytic-ballistic-human-scatter',
+          landingPolicy: 'edge-contact-and-continuous-friction',
           maxBatchDurationMs:
             CASUAL_DROP_LEFT_PROFILE.maxBatchDurationMs
         }
@@ -2031,12 +2078,13 @@ class LobbyHandSurface {
         trigger: this.lastArrivalBatch.trigger,
         profile: this.lastArrivalBatch.profile,
         originEdge: this.lastArrivalBatch.originEdge || 'left',
+        originPolicy: this.lastArrivalBatch.originPolicy,
         placementOrder: this.lastArrivalBatch.placementOrder,
         collisionPolicy: this.lastArrivalBatch.collisionPolicy,
-        flightSpeed: this.lastArrivalBatch.flightSpeed,
         releaseTimes: this.lastArrivalBatch.releaseTimes
           ? this.lastArrivalBatch.releaseTimes.slice(0)
           : [],
+        releaseWindowMs: this.lastArrivalBatch.releaseWindowMs,
         seed: this.lastArrivalBatch.seed,
         requestedSeed: this.lastArrivalBatch.requestedSeed,
         startedAtMs: this.lastArrivalBatch.startedAtMs,
@@ -2048,6 +2096,8 @@ class LobbyHandSurface {
           cardIndex: plan.cardIndex,
           seed: plan.seed,
           orderIndex: plan.orderIndex,
+          releaseIndex: plan.releaseIndex,
+          motionVariant: plan.motionVariant,
           delayMs: plan.delayMs,
           releaseAtMs: plan.releaseAtMs,
           contactAtMs: plan.contactAtMs,
@@ -2068,8 +2118,14 @@ class LobbyHandSurface {
           path: {
             controlOne: Object.assign({}, plan.path.controlOne),
             controlTwo: Object.assign({}, plan.path.controlTwo),
+            launchVelocity: Object.assign({}, plan.path.launchVelocity),
+            impactVelocity: Object.assign({}, plan.path.impactVelocity),
+            gravity: plan.path.gravity,
+            verticalImpulse: plan.path.verticalImpulse,
+            apexAtProgress: plan.path.apexAtProgress,
+            apexAirGap: plan.path.apexAirGap,
             bow: plan.path.bow,
-            apexDepth: plan.path.apexDepth
+            slideDistance: plan.path.slideDistance
           }
         }))
       } : null,
@@ -2124,6 +2180,10 @@ class LobbyHandSurface {
           transform: entry ? {
             liftY: entry.currentMotion.screenLiftY,
             z: entry.currentMotion.depth,
+            airGap: entry.currentMotion.airGap,
+            tableClearance: entry.currentMotion.tableClearance,
+            nearestVertexDepth: entry.currentMotion.nearestVertexDepth,
+            farthestVertexDepth: entry.currentMotion.farthestVertexDepth,
             scale: entry.motionRoot.scale.x,
             rotationX: entry.flipRoot.rotation.x,
             rotationY: entry.flipRoot.rotation.y,

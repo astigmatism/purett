@@ -41,7 +41,7 @@ try {
   assert(!/window\.THREE\s*=/.test(modernSource + modernBundle), 'modern bundle overwrites the legacy snow THREE global');
   assert(fs.existsSync(path.join(root, 'public/js/modern/THREE-LICENSE.txt')), 'distributed Three.js license is missing');
 
-  assert(coordinator.includes('/js/modern/purett-modern-graphics.min.js?v=0.185.1-lobby-card-arrival.2'), 'coordinator does not use the collision-safe card-arrival bundle cache revision');
+  assert(coordinator.includes('/js/modern/purett-modern-graphics.min.js?v=0.185.1-lobby-card-arrival.3'), 'coordinator does not use the human-scatter card-arrival bundle cache revision');
   assert(!/https?:\/\//.test(coordinator), 'coordinator references a third-party graphics URL');
   assert(coordinator.includes("this.storageKey = 'purett.graphicsMode.v1'"), 'graphics preference does not have a stable storage key');
   assert(coordinator.includes("this.requestedMode = 'legacy'"), 'Legacy is not the safe default');
@@ -202,8 +202,8 @@ try {
     arrivalSource.includes("name: 'casual-drop-left'") &&
       arrivalSource.includes('export const CARD_ARRIVAL_PROFILES') &&
       arrivalSource.includes('Unknown card-arrival profile') &&
-      arrivalSource.includes('maxBatchDurationMs: 1950') &&
-      arrivalSource.includes('maximumVertexPerspectiveScale: 1.1') &&
+      arrivalSource.includes('maxBatchDurationMs: 1500') &&
+      arrivalSource.includes('maximumVertexPerspectiveScale: 1.09') &&
       arrivalSource.includes('function createSeededRandom(seed)') &&
       arrivalSource.includes('export function createCardArrivalBatch(cards, request)') &&
       arrivalSource.includes('export function sampleCardArrival(plan, elapsedMs)') &&
@@ -212,9 +212,17 @@ try {
     'the reusable seeded destination-driven arrival planner is incomplete'
   );
   assert(
-    arrivalSource.includes("placementOrder: 'farthest-first'") &&
-      arrivalSource.includes("collisionPolicy: 'spatial-order-and-release-separation'") &&
-      arrivalSource.includes('maximumDiagonal + 10') &&
+    arrivalSource.includes("originPolicy: 'compact-left-hand-packet'") &&
+      arrivalSource.includes("placementOrder: 'art-directed-human-scatter'") &&
+      arrivalSource.includes("collisionPolicy: 'depth-separated-natural-overflight'") &&
+      arrivalSource.includes("name: 'long-skim'") &&
+      arrivalSource.includes("name: 'lofted-toss'") &&
+      arrivalSource.includes("name: 'quick-slip'") &&
+      arrivalSource.includes("name: 'soft-drop'") &&
+      arrivalSource.includes('motionVariant') &&
+      arrivalSource.includes('apexAtProgress') &&
+      arrivalSource.includes('gravity') &&
+      arrivalSource.includes('easeOutQuadratic') &&
       arrivalSource.includes('launchX:') &&
       arrivalSource.includes('perspectiveDistance / nearestPossibleDepth') &&
       arrivalSource.includes('releaseTimes') &&
@@ -226,8 +234,9 @@ try {
       modernSource.includes('pose.screenX,') &&
       modernSource.includes('pose.screenY') &&
       modernSource.includes("projectionProfile: 'flat-table-neutralized-through-arrival'") &&
-      modernSource.includes("landingPolicy: 'monotonic-contact-without-rebound'"),
-    'the casual-left arrival does not cover collision-safe launch, flight, contact, and slide'
+      modernSource.includes("flightPolicy: 'analytic-ballistic-human-scatter'") &&
+      modernSource.includes("landingPolicy: 'edge-contact-and-continuous-friction'"),
+    'the casual-left arrival does not cover human release, ballistic flight, contact, and friction'
   );
   assert(
     modernSource.includes('this.consumedArrivalRequestIds = new Set()') &&

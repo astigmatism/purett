@@ -390,38 +390,49 @@ test('seeds one reusable casual-left arrival batch and settles it through the sh
         originEdge: 'left',
         seeded: true,
         destinationDriven: true,
-        placementOrder: 'farthest-first',
-        collisionPolicy: 'spatial-order-and-release-separation',
+        originPolicy: 'compact-left-hand-packet',
+        placementOrder: 'art-directed-human-scatter',
+        collisionPolicy: 'depth-separated-natural-overflight',
         projectionProfile: 'flat-table-neutralized-through-arrival',
         phases: ['flight', 'slap', 'slide'],
-        landingPolicy: 'monotonic-contact-without-rebound',
-        maxBatchDurationMs: 1950
+        flightPolicy: 'analytic-ballistic-human-scatter',
+        landingPolicy: 'edge-contact-and-continuous-friction',
+        maxBatchDurationMs: 1500
       }
     },
     lastArrivalBatch: {
       trigger: 'command-bar-reveal',
       profile: 'casual-drop-left',
       originEdge: 'left',
-      placementOrder: 'farthest-first',
-      collisionPolicy: 'spatial-order-and-release-separation',
+      originPolicy: 'compact-left-hand-packet',
+      placementOrder: 'art-directed-human-scatter',
+      collisionPolicy: 'depth-separated-natural-overflight',
       outcome: 'running',
-      maxBatchDurationMs: 1950
+      maxBatchDurationMs: 1500
     }
   });
-  expect(initial.surface.lastArrivalBatch.totalDurationMs).toBeLessThanOrEqual(1950);
+  expect(initial.surface.lastArrivalBatch.totalDurationMs).toBeLessThanOrEqual(1500);
   expect(initial.surface.lastArrivalBatch.startedAtMs).toBe(
     initial.presentation.startedAtMs
   );
   expect(initial.surface.lastArrivalBatch.plans).toHaveLength(5);
   expect(new Set(
-    initial.surface.lastArrivalBatch.plans.map(plan => plan.orderIndex)
+    initial.surface.lastArrivalBatch.plans.map(plan => plan.releaseIndex)
   ).size).toBe(5);
-  expect(initial.surface.lastArrivalBatch.plans.map(plan => plan.orderIndex))
-    .toEqual([4, 3, 2, 1, 0]);
-  expect(initial.surface.lastArrivalBatch.releaseTimes.every(
-    (release, index, releases) =>
-      index === 0 || release - releases[index - 1] >= 275
-  )).toBe(true);
+  expect(initial.surface.lastArrivalBatch.plans.map(plan => plan.releaseIndex))
+    .toEqual([4, 3, 1, 2, 0]);
+  expect(new Set(
+    initial.surface.lastArrivalBatch.plans.map(plan => plan.motionVariant)
+  ).size).toBe(5);
+  const releaseGaps = initial.surface.lastArrivalBatch.releaseTimes
+    .slice(1)
+    .map((release, index, releases) => (
+      release - initial.surface.lastArrivalBatch.releaseTimes[index]
+    ));
+  expect(releaseGaps.some(gap => gap < 100)).toBe(true);
+  expect(releaseGaps.some(gap => gap > 290)).toBe(true);
+  expect(initial.surface.lastArrivalBatch.releaseWindowMs)
+    .toBeLessThanOrEqual(720);
   expect(initial.surface.lastArrivalBatch.plans.every(plan =>
     plan.launchHalfExtent > (117 / 2) &&
     plan.start.x + plan.launchHalfExtent < 0
@@ -451,7 +462,8 @@ test('seeds one reusable casual-left arrival batch and settles it through the sh
     let flight = null;
     let contact = null;
     let settled = null;
-    let overlapViolation = null;
+    let overflightViolation = null;
+    let projectedOverflightCount = 0;
     let maxPerspectiveScale = 1;
     let maxProjectedEdgeScale = 1;
     let sawSlap = false;
@@ -532,17 +544,33 @@ test('seeds one reusable casual-left arrival batch and settles it through the sh
         ) {
           const left = releasedCards[leftIndex];
           const right = releasedCards[rightIndex];
-          if (
-            !overlapViolation &&
-            polygonsOverlap(
+          if (polygonsOverlap(
               left.transform.projectedFace.corners,
               right.transform.projectedFace.corners
-            )
-          ) {
-            overlapViolation = {
-              elapsed,
-              cardIndexes: [left.index, right.index]
-            };
+            )) {
+            projectedOverflightCount += 1;
+            const centerDistance = Math.hypot(
+              left.transform.screenPosition.x -
+                right.transform.screenPosition.x,
+              left.transform.screenPosition.y -
+                right.transform.screenPosition.y
+            );
+            const centerDepthSeparation = Math.abs(
+              left.transform.worldPosition.z -
+                right.transform.worldPosition.z
+            );
+            if (
+              !overflightViolation &&
+              centerDistance < 80 &&
+              centerDepthSeparation < 1
+            ) {
+              overflightViolation = {
+                elapsed,
+                cardIndexes: [left.index, right.index],
+                centerDistance,
+                centerDepthSeparation
+              };
+            }
           }
         }
       }
@@ -553,7 +581,8 @@ test('seeds one reusable casual-left arrival batch and settles it through the sh
       flight,
       contact,
       settled,
-      overlapViolation,
+      overflightViolation,
+      projectedOverflightCount,
       maxPerspectiveScale,
       maxProjectedEdgeScale,
       sawSlap,
@@ -571,9 +600,10 @@ test('seeds one reusable casual-left arrival batch and settles it through the sh
   expect(samples.sawSlap).toBe(true);
   expect(samples.sawSlide).toBe(true);
   expect(samples.contact.completedArrivalCount).toBeLessThanOrEqual(5);
-  expect(samples.overlapViolation).toBeNull();
-  expect(samples.maxPerspectiveScale).toBeLessThanOrEqual(1.100001);
-  expect(samples.maxProjectedEdgeScale).toBeLessThanOrEqual(1.100001);
+  expect(samples.overflightViolation).toBeNull();
+  expect(samples.projectedOverflightCount).toBeGreaterThan(0);
+  expect(samples.maxPerspectiveScale).toBeLessThanOrEqual(1.090001);
+  expect(samples.maxProjectedEdgeScale).toBeLessThanOrEqual(1.090001);
   expect(samples.settled).toMatchObject({
     interactive: true,
     activeAnimationCount: 0,
@@ -612,7 +642,7 @@ test('seeds one reusable casual-left arrival batch and settles it through the sh
     transition.outcome === 'completed-arrival' &&
     transition.phases.at(-1) === 'settled' &&
     transition.evidence.exactSettlement === true &&
-    transition.evidence.maxVertexPerspectiveScale <= 1.100001 &&
+    transition.evidence.maxVertexPerspectiveScale <= 1.090001 &&
     transition.evidence.minimumTableClearance === 0
   )).toBe(true);
   expect(samples.queuedFrames).toBe(0);

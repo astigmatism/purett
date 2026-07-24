@@ -40,7 +40,7 @@ try {
   assert(!/window\.THREE\s*=/.test(modernSource + modernBundle), 'modern bundle overwrites the legacy snow THREE global');
   assert(fs.existsSync(path.join(root, 'public/js/modern/THREE-LICENSE.txt')), 'distributed Three.js license is missing');
 
-  assert(coordinator.includes('/js/modern/purett-modern-graphics.min.js?v=0.185.1-lobby-vertical-flip.1'), 'coordinator does not use the perspective vertical-flip bundle cache revision');
+  assert(coordinator.includes('/js/modern/purett-modern-graphics.min.js?v=0.185.1-lobby-full-turn.1'), 'coordinator does not use the perspective full-turn bundle cache revision');
   assert(!/https?:\/\//.test(coordinator), 'coordinator references a third-party graphics URL');
   assert(coordinator.includes("this.storageKey = 'purett.graphicsMode.v1'"), 'graphics preference does not have a stable storage key');
   assert(coordinator.includes("this.requestedMode = 'legacy'"), 'Legacy is not the safe default');
@@ -73,26 +73,66 @@ try {
   assert(modernSource.includes('(cards || []).slice(0, 5)'), 'Modern lobby surface is not bounded to the five-card preview');
   assert(lobbyMenu.includes('pos:        [72, 197, 322, 447, 572]'), 'lobby preview no longer carries the five legacy hand positions');
   assert(
-    /class LobbyHandSurface[\s\S]*?this\.camera = new PerspectiveCamera\(\s*LOBBY_CAMERA_FOV/.test(modernSource),
-    'Modern lobby surface does not use its calibrated perspective camera'
+    /class LobbyHandSurface[\s\S]*?this\.camera = new PerspectiveCamera\(\s*LOBBY_CAMERA_FOV,\s*LOBBY_LOGICAL_WIDTH \/ LOBBY_LOGICAL_HEIGHT,\s*450,\s*900\s*\)/.test(modernSource),
+    'Modern lobby surface does not use its calibrated perspective camera and depth-stable clip range'
   );
   assert(modernSource.includes("projection: 'perspective'") && modernSource.includes('settledPlaneScale: 1'), 'Modern lobby diagnostics do not identify the perspective projection and settled-plane mapping');
-  assert(modernSource.includes('new BoxGeometry(') && modernSource.includes('LOBBY_CARD_THICKNESS = 3'), 'Modern lobby cards do not include a visible three-dimensional body');
-  assert(modernSource.includes('new MeshStandardMaterial(') && modernSource.includes('new ShadowMaterial('), 'Modern lobby cards omit lit edges or the lift shadow cue');
+  assert(
+    modernSource.includes('new BoxGeometry(') &&
+      modernSource.includes('LOBBY_CARD_THICKNESS = 3') &&
+      modernSource.includes('LOBBY_CARD_FACE_BODY_CLEARANCE = 0.2'),
+    'Modern lobby cards do not include the separated three-dimensional body and face planes'
+  );
+  assert(
+    modernSource.includes('const hiddenBodyCapMaterial = new MeshBasicMaterial({') &&
+      modernSource.includes('hiddenBodyCapMaterial,') &&
+      modernSource.includes('slabFaceCaps: false'),
+    'Modern lobby body does not hide the BoxGeometry caps beneath the face planes'
+  );
+  assert(
+    modernSource.includes('const frontMaterial = new MeshBasicMaterial({') &&
+      modernSource.includes('backMaterial = new MeshBasicMaterial({') &&
+      modernSource.includes('color: 0xffffff') &&
+      modernSource.includes('toneMapped: false'),
+    'Modern lobby face and back are not color-faithful unlit materials'
+  );
+  assert(
+    modernSource.includes('texture.colorSpace = SRGBColorSpace') &&
+      modernSource.includes('this.renderer.outputColorSpace = SRGBColorSpace') &&
+      modernSource.includes('texture.minFilter = LinearMipmapLinearFilter') &&
+      modernSource.includes('texture.generateMipmaps = true') &&
+      modernSource.includes('this.renderer.capabilities.getMaxAnisotropy()'),
+    'Modern lobby textures do not use the sRGB mipmap and anisotropy policy'
+  );
+  assert(
+    modernSource.includes('createAnalyticShadowTexture()') &&
+      modernSource.includes("shadowStrategy: 'analytic-contact'") &&
+      modernSource.includes('this.renderer.shadowMap.enabled = false') &&
+      !/\bShadowMaterial\b/.test(modernSource) &&
+      !/\bPCFShadowMap\b/.test(modernSource),
+    'Modern lobby depth cue still depends on a hardware shadow map'
+  );
   assert(modernSource.includes('Raycaster') && modernSource.includes('new Vector2()'), 'Modern lobby surface has no Three.js picking path');
   assert(modernSource.includes("const LOBBY_CARD_BACK_URL = '/images/cards/cardBack.png'"), 'Modern lobby flip does not use the same-origin card back');
   assert(lobbyMenu.includes("backTextureUrl: '/images/cards/cardBack.png'"), 'lobby card descriptions omit the card-back texture');
   assert(modernSource.includes('backMesh.rotation.x = Math.PI'), 'Modern lobby card back is not oriented upright for an X-axis turn');
   assert(
-    modernSource.includes('entry.flipRoot.rotation.x = -Math.PI * turnProgress') &&
-      modernSource.includes('entry.flipRoot.rotation.x = -Math.PI * (1 - turnProgress)') &&
+    modernSource.includes('entry.flipRoot.rotation.x = -Math.PI * 2 * turnProgress') &&
+      modernSource.includes('entry.flipRoot.rotation.x = -Math.PI * 2;') &&
       modernSource.includes('entry.flipRoot.rotation.y = 0'),
-    'Modern lobby card does not turn end-over-end from 0 to -PI and back to 0'
+    'Modern lobby card does not turn continuously around local X from 0 to -2PI'
   );
   assert(
     modernSource.includes('const LOBBY_FLIP_DURATION = 2450') &&
-      modernSource.includes('const LOBBY_FLIP_DEADLINE = 3000'),
+      modernSource.includes('const LOBBY_FLIP_DEADLINE = 3000') &&
+      modernSource.includes('turn: 1650'),
     'Modern lobby vertical flip does not use the inspectable 2.45-second bounded timeline'
+  );
+  assert(
+    !modernSource.includes('LOBBY_CARD_ROTATIONS') &&
+      modernSource.includes('rotationDegrees: 0') &&
+      modernSource.includes('tiltRoot.rotation.z = 0'),
+    'Modern lobby cards are not perfectly flat and unrotated at rest'
   );
   assert(
     modernSource.includes('LOBBY_LIFT_SCREEN_Y = 18') &&
@@ -124,12 +164,19 @@ try {
       modernSource.includes('maxScreenLiftY') &&
       modernSource.includes('maxLiftZ') &&
       modernSource.includes('maxAbsFlipRotationX') &&
+      modernSource.includes('minFlipRotationX') &&
       modernSource.includes('maxAbsFlipRotationY') &&
       modernSource.includes('maxPickupTilt') &&
       modernSource.includes('maxTopBottomDepthSpan') &&
       modernSource.includes('maxPerspectiveScale') &&
+      modernSource.includes('maxAnalyticShadowOpacity') &&
+      modernSource.includes('directionReversals') &&
+      modernSource.includes('firstEdgeAngleX') &&
+      modernSource.includes('backAngleX') &&
+      modernSource.includes('secondEdgeAngleX') &&
+      modernSource.includes('frontAngleBeforeSettlement') &&
       modernSource.includes('edgePasses'),
-    'Modern lobby diagnostics do not expose evidence for axis, lift, tilt, perspective, and edge passes'
+    'Modern lobby diagnostics do not expose evidence for the monotonic full turn and artifact-free depth cues'
   );
   assert(modernSource.includes("this.cancelAnimation('disposed')"), 'disposing the Modern lobby surface does not cancel an in-flight flip');
   assert(modernSource.includes("this.status !== 'ready'"), 'Modern lobby input handlers are not gated on confirmed readiness');

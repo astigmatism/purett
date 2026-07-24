@@ -130,19 +130,35 @@ test('renders the five-card lobby hand with Three.js and preserves the Legacy lo
       camera: {
         projection: 'perspective',
         fovDegrees: 40,
+        near: 450,
+        far: 900,
         settledPlaneScale: 1
       },
       cardModel: {
         width: 117,
         height: 146,
-        thickness: 3
+        thickness: 3,
+        faceOffset: 1.7,
+        faceBodyClearance: 0.2,
+        slabFaceCaps: false
       },
       motionProfile: {
         flipAxis: 'x',
+        rotationPath: '0-to-negative-two-pi',
         nominalDurationMs: 2450,
         deadlineMs: 3000,
+        continuousTurnMs: 1650,
         liftScreenY: 18,
         liftZ: 105
+      },
+      renderPolicy: {
+        faceMaterial: 'unlit',
+        faceToneMapped: false,
+        textureColorSpace: 'srgb',
+        outputColorSpace: 'srgb',
+        textureMipmaps: true,
+        shadowStrategy: 'analytic-contact',
+        shadowMapEnabled: false
       },
       disposed: false,
       contextLost: false,
@@ -164,6 +180,19 @@ test('renders the five-card lobby hand with Three.js and preserves the Legacy lo
     screenRect: card.screenRect
   }))).toEqual(expectedCards);
   expect(modernState.surface.cards.every(card => card.visible)).toBe(true);
+  expect(modernState.surface.renderPolicy.textureAnisotropy).toBeGreaterThan(0);
+  expect(modernState.surface.cards.every(card =>
+    card.rotationDegrees === 0 &&
+    card.transform.liftY === 0 &&
+    card.transform.z === 0 &&
+    card.transform.scale === 1 &&
+    card.transform.rotationX === 0 &&
+    card.transform.rotationY === 0 &&
+    card.transform.pickupTiltX === 0 &&
+    card.transform.pickupTiltY === 0 &&
+    card.transform.staticRotationZ === 0 &&
+    card.transform.perspectiveScale === 1
+  )).toBe(true);
 
   await expect(page.locator('#modernLobbyHand canvas.modern-lobby-hand-canvas')).toHaveCount(1);
   await expect(page.locator('#menu')).toHaveClass(/graphics-modern-hand/);
@@ -304,12 +333,33 @@ test('one Modern lobby click performs a perspective end-over-end turn and settle
         .filter(otherCard => otherCard.index !== index)
         .map(otherCard => ({
           index: otherCard.index,
+          rotationDegrees: otherCard.rotationDegrees,
           completedFlips: otherCard.completedFlips,
           transform: otherCard.transform
         })),
       completedAnimationCount: state.completedAnimationCount
     };
   }, cardIndex);
+  expect(baseline.card.rotationDegrees).toBe(0);
+  expect(baseline.card.transform).toMatchObject({
+    liftY: 0,
+    z: 0,
+    scale: 1,
+    rotationX: 0,
+    rotationY: 0,
+    pickupTiltX: 0,
+    pickupTiltY: 0,
+    staticRotationZ: 0,
+    perspectiveScale: 1
+  });
+  expect(baseline.otherCards.every(card =>
+    card.rotationDegrees === 0 &&
+    card.transform.rotationX === 0 &&
+    card.transform.rotationY === 0 &&
+    card.transform.pickupTiltX === 0 &&
+    card.transform.pickupTiltY === 0 &&
+    card.transform.staticRotationZ === 0
+  )).toBe(true);
   applicationRequests.length = 0;
 
   const started = (await dispatchLobbyCardClicks(page, [cardIndex]))[0];
@@ -345,6 +395,8 @@ test('one Modern lobby click performs a perspective end-over-end turn and settle
       completedAnimationCount: state.completedAnimationCount,
       activeAnimationCount: state.activeAnimationCount,
       rafActive: state.rafActive,
+      analyticShadowVisible: state.analyticShadowVisible,
+      analyticShadowOpacity: state.analyticShadowOpacity,
       lastPick: state.lastPick,
       lastTransition: state.lastTransition,
       card: state.cards[index],
@@ -352,6 +404,7 @@ test('one Modern lobby click performs a perspective end-over-end turn and settle
         .filter(card => card.index !== index)
         .map(card => ({
           index: card.index,
+          rotationDegrees: card.rotationDegrees,
           completedFlips: card.completedFlips,
           transform: card.transform
         }))
@@ -365,6 +418,8 @@ test('one Modern lobby click performs a perspective end-over-end turn and settle
   expect(settled.completedAnimationCount).toBe(baseline.completedAnimationCount + 1);
   expect(settled.activeAnimationCount).toBe(0);
   expect(settled.rafActive).toBe(false);
+  expect(settled.analyticShadowVisible).toBe(false);
+  expect(settled.analyticShadowOpacity).toBe(0);
   expect(settled.lastPick).toEqual({
     index: baseline.card.index,
     userCardId: baseline.card.userCardId,
@@ -381,17 +436,25 @@ test('one Modern lobby click performs a perspective end-over-end turn and settle
     deadlineMs: 3000,
     evidence: {
       maxAbsFlipRotationY: 0,
+      directionReversals: 0,
+      firstEdgeAngleX: -Math.PI / 2,
+      backAngleX: -Math.PI,
+      secondEdgeAngleX: -Math.PI * 1.5,
+      frontAngleBeforeSettlement: -Math.PI * 2,
       edgePasses: 2
     }
   });
   expect(settled.lastTransition.evidence.maxScreenLiftY).toBeGreaterThan(20);
   expect(settled.lastTransition.evidence.maxLiftZ).toBeGreaterThan(105);
-  expect(settled.lastTransition.evidence.maxAbsFlipRotationX).toBeCloseTo(Math.PI, 5);
+  expect(settled.lastTransition.evidence.maxAbsFlipRotationX).toBeCloseTo(Math.PI * 2, 5);
+  expect(settled.lastTransition.evidence.minFlipRotationX).toBeCloseTo(-Math.PI * 2, 5);
   expect(settled.lastTransition.evidence.maxPickupTilt).toBeGreaterThan(0.1);
   expect(settled.lastTransition.evidence.maxTopBottomDepthSpan).toBeGreaterThan(130);
   expect(settled.lastTransition.evidence.maxPerspectiveScale).toBeGreaterThan(1.14);
+  expect(settled.lastTransition.evidence.maxAnalyticShadowOpacity).toBeGreaterThan(0.15);
   expect(settled.card).toMatchObject({
     backTextureUrl: '/images/cards/cardBack.png',
+    rotationDegrees: 0,
     phase: 'idle',
     visibleFace: 'front',
     completedFlips: 1
@@ -518,15 +581,23 @@ test('reduced motion shows a bounded back/front proof and settles in two frames'
       evidence: {
         maxScreenLiftY: 0,
         maxLiftZ: 0,
-        maxAbsFlipRotationX: Math.PI,
+        maxAbsFlipRotationX: Math.PI * 2,
+        minFlipRotationX: -Math.PI * 2,
         maxAbsFlipRotationY: 0,
         maxPickupTilt: 0,
         maxTopBottomDepthSpan: 0,
         maxPerspectiveScale: 1,
+        maxAnalyticShadowOpacity: 0,
+        directionReversals: 0,
+        firstEdgeAngleX: null,
+        backAngleX: -Math.PI,
+        secondEdgeAngleX: null,
+        frontAngleBeforeSettlement: -Math.PI * 2,
         edgePasses: 0
       }
     },
     card: {
+      rotationDegrees: 0,
       phase: 'idle',
       visibleFace: 'front',
       completedFlips: 1,
@@ -538,6 +609,7 @@ test('reduced motion shows a bounded back/front proof and settles in two frames'
         rotationY: 0,
         pickupTiltX: 0,
         pickupTiltY: 0,
+        staticRotationZ: 0,
         perspectiveScale: 1
       }
     }
@@ -605,6 +677,7 @@ test('switching to Legacy cancels an in-flight Modern lobby flip and restores th
       completedAnimationCount: state.completedAnimationCount,
       lastTransition: state.lastTransition,
       card: {
+        rotationDegrees: card.rotationDegrees,
         phase: card.phase,
         visibleFace: card.visibleFace,
         completedFlips: card.completedFlips,
@@ -630,6 +703,7 @@ test('switching to Legacy cancels an in-flight Modern lobby flip and restores th
       outcome: 'cancelled'
     },
     card: {
+      rotationDegrees: 0,
       phase: 'idle',
       visibleFace: 'front',
       completedFlips: 0,
@@ -641,6 +715,7 @@ test('switching to Legacy cancels an in-flight Modern lobby flip and restores th
         rotationY: 0,
         pickupTiltX: 0,
         pickupTiltY: 0,
+        staticRotationZ: 0,
         perspectiveScale: 1
       }
     },
@@ -679,6 +754,7 @@ test('switching to Legacy cancels an in-flight Modern lobby flip and restores th
       cardsSettled: state.cards.every(card =>
         card.phase === 'idle' &&
         card.visibleFace === 'front' &&
+        card.rotationDegrees === 0 &&
         card.transform.liftY === 0 &&
         card.transform.z === 0 &&
         card.transform.scale === 1 &&
@@ -686,6 +762,7 @@ test('switching to Legacy cancels an in-flight Modern lobby flip and restores th
         card.transform.rotationY === 0 &&
         card.transform.pickupTiltX === 0 &&
         card.transform.pickupTiltY === 0 &&
+        card.transform.staticRotationZ === 0 &&
         card.transform.perspectiveScale === 1
       )
     };

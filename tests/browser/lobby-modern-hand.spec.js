@@ -390,18 +390,25 @@ test('seeds one reusable casual-left arrival batch and settles it through the sh
         originEdge: 'left',
         seeded: true,
         destinationDriven: true,
-        maxBatchDurationMs: 2000
+        placementOrder: 'farthest-first',
+        collisionPolicy: 'spatial-order-and-release-separation',
+        projectionProfile: 'flat-table-neutralized-through-arrival',
+        phases: ['flight', 'slap', 'slide'],
+        landingPolicy: 'monotonic-contact-without-rebound',
+        maxBatchDurationMs: 1950
       }
     },
     lastArrivalBatch: {
       trigger: 'command-bar-reveal',
       profile: 'casual-drop-left',
       originEdge: 'left',
+      placementOrder: 'farthest-first',
+      collisionPolicy: 'spatial-order-and-release-separation',
       outcome: 'running',
-      maxBatchDurationMs: 2000
+      maxBatchDurationMs: 1950
     }
   });
-  expect(initial.surface.lastArrivalBatch.totalDurationMs).toBeLessThanOrEqual(2000);
+  expect(initial.surface.lastArrivalBatch.totalDurationMs).toBeLessThanOrEqual(1950);
   expect(initial.surface.lastArrivalBatch.startedAtMs).toBe(
     initial.presentation.startedAtMs
   );
@@ -409,6 +416,12 @@ test('seeds one reusable casual-left arrival batch and settles it through the sh
   expect(new Set(
     initial.surface.lastArrivalBatch.plans.map(plan => plan.orderIndex)
   ).size).toBe(5);
+  expect(initial.surface.lastArrivalBatch.plans.map(plan => plan.orderIndex))
+    .toEqual([4, 3, 2, 1, 0]);
+  expect(initial.surface.lastArrivalBatch.releaseTimes.every(
+    (release, index, releases) =>
+      index === 0 || release - releases[index - 1] >= 275
+  )).toBe(true);
   expect(initial.surface.lastArrivalBatch.plans.every(plan =>
     plan.launchHalfExtent > (117 / 2) &&
     plan.start.x + plan.launchHalfExtent < 0
@@ -422,23 +435,129 @@ test('seeds one reusable casual-left arrival batch and settles it through the sh
 
   const samples = await page.evaluate(() => {
     const harness = window.__arrivalFrameHarness;
-    const frameOrigin = performance.now();
-    harness.advance(frameOrigin);
-    const firstFrame = gh.manager.graphics.getState().surface;
-    harness.advance(frameOrigin + 500);
-    const flight = gh.manager.graphics.getState().surface;
-    harness.advance(frameOrigin + 1200);
-    const landing = gh.manager.graphics.getState().surface;
-    const revealDeadline =
-      landing.lastArrivalBatch.startedAtMs +
-      landing.lastArrivalBatch.maxBatchDurationMs;
-    harness.advance(revealDeadline);
-    const settled = gh.manager.graphics.getState().surface;
+    const initialSurface = gh.manager.graphics.getState().surface;
+    const revealOrigin = initialSurface.lastArrivalBatch.startedAtMs;
+    const timeline = Array.from(
+      new Set([
+        ...Array.from({length: 123}, (_, index) => index * 16),
+        500,
+        1200,
+        initialSurface.lastArrivalBatch.maxBatchDurationMs
+      ])
+    ).filter(elapsed => (
+      elapsed <= initialSurface.lastArrivalBatch.maxBatchDurationMs
+    )).sort((left, right) => left - right);
+    let firstFrame = null;
+    let flight = null;
+    let contact = null;
+    let settled = null;
+    let overlapViolation = null;
+    let maxPerspectiveScale = 1;
+    let maxProjectedEdgeScale = 1;
+    let sawSlap = false;
+    let sawSlide = false;
+
+    function polygonsOverlap(left, right) {
+      for (const polygon of [left, right]) {
+        for (let index = 0; index < polygon.length; index += 1) {
+          const start = polygon[index];
+          const end = polygon[(index + 1) % polygon.length];
+          const axisX = -(end.y - start.y);
+          const axisY = end.x - start.x;
+          const leftProjection = left.map(
+            point => (point.x * axisX) + (point.y * axisY)
+          );
+          const rightProjection = right.map(
+            point => (point.x * axisX) + (point.y * axisY)
+          );
+          if (
+            Math.max(...leftProjection) <=
+              Math.min(...rightProjection) + 0.01 ||
+            Math.max(...rightProjection) <=
+              Math.min(...leftProjection) + 0.01
+          ) {
+            return false;
+          }
+        }
+      }
+      return true;
+    }
+
+    timeline.forEach(elapsed => {
+      harness.advance(revealOrigin + elapsed);
+      const state = gh.manager.graphics.getState().surface;
+      if (elapsed === 0) firstFrame = state;
+      if (elapsed === 500) flight = state;
+      if (elapsed === 1200) contact = state;
+      if (elapsed === initialSurface.lastArrivalBatch.maxBatchDurationMs) {
+        settled = state;
+      }
+      sawSlap = sawSlap || state.cards.some(
+        card => card.phase === 'arrival-slap'
+      );
+      sawSlide = sawSlide || state.cards.some(
+        card => card.phase === 'arrival-slide'
+      );
+      state.cards.forEach(card => {
+        maxPerspectiveScale = Math.max(
+          maxPerspectiveScale,
+          card.transform.perspectiveScale
+        );
+        const corners = card.transform.projectedFace.corners;
+        const edgeLength = (start, end) => Math.hypot(
+          end.x - start.x,
+          end.y - start.y
+        );
+        maxProjectedEdgeScale = Math.max(
+          maxProjectedEdgeScale,
+          edgeLength(corners[0], corners[1]) / card.screenRect.width,
+          edgeLength(corners[2], corners[3]) / card.screenRect.width,
+          edgeLength(corners[0], corners[3]) / card.screenRect.height,
+          edgeLength(corners[1], corners[2]) / card.screenRect.height
+        );
+      });
+      const releasedCards = state.cards.filter(card => (
+        (card.arrivalAnimating && card.phase !== 'arrival-waiting') ||
+        card.completedArrivals > 0
+      ));
+      for (
+        let leftIndex = 0;
+        leftIndex < releasedCards.length;
+        leftIndex += 1
+      ) {
+        for (
+          let rightIndex = leftIndex + 1;
+          rightIndex < releasedCards.length;
+          rightIndex += 1
+        ) {
+          const left = releasedCards[leftIndex];
+          const right = releasedCards[rightIndex];
+          if (
+            !overlapViolation &&
+            polygonsOverlap(
+              left.transform.projectedFace.corners,
+              right.transform.projectedFace.corners
+            )
+          ) {
+            overlapViolation = {
+              elapsed,
+              cardIndexes: [left.index, right.index]
+            };
+          }
+        }
+      }
+    });
+
     return {
       firstFrame,
       flight,
-      landing,
+      contact,
       settled,
+      overlapViolation,
+      maxPerspectiveScale,
+      maxProjectedEdgeScale,
+      sawSlap,
+      sawSlide,
       queuedFrames: harness.queuedFrames.size
     };
   });
@@ -449,10 +568,12 @@ test('seeds one reusable casual-left arrival batch and settles it through the sh
     card.transform.z > 0 &&
     card.transform.screenPosition.x > card.lastArrivalTransition.plan.start.x
   )).toBe(true);
-  expect(samples.landing.cards.some(card =>
-    card.phase === 'arrival-landing' || card.phase === 'idle'
-  )).toBe(true);
-  expect(samples.landing.completedArrivalCount).toBeLessThanOrEqual(5);
+  expect(samples.sawSlap).toBe(true);
+  expect(samples.sawSlide).toBe(true);
+  expect(samples.contact.completedArrivalCount).toBeLessThanOrEqual(5);
+  expect(samples.overlapViolation).toBeNull();
+  expect(samples.maxPerspectiveScale).toBeLessThanOrEqual(1.100001);
+  expect(samples.maxProjectedEdgeScale).toBeLessThanOrEqual(1.100001);
   expect(samples.settled).toMatchObject({
     interactive: true,
     activeAnimationCount: 0,
@@ -490,7 +611,9 @@ test('seeds one reusable casual-left arrival batch and settles it through the sh
     transition.kind === 'arrival' &&
     transition.outcome === 'completed-arrival' &&
     transition.phases.at(-1) === 'settled' &&
-    transition.evidence.exactSettlement === true
+    transition.evidence.exactSettlement === true &&
+    transition.evidence.maxVertexPerspectiveScale <= 1.100001 &&
+    transition.evidence.minimumTableClearance === 0
   )).toBe(true);
   expect(samples.queuedFrames).toBe(0);
 
@@ -554,10 +677,13 @@ test('seeds one reusable casual-left arrival batch and settles it through the sh
   expect(catchUp.caughtUp.lastArrivalBatch.elapsedBeforeReadyMs)
     .toBeGreaterThanOrEqual(450);
   expect(catchUp.caughtUp.cards.every(card =>
+    card.phase === 'arrival-waiting' ||
     card.phase === 'arrival-flight' ||
-    card.phase === 'arrival-landing'
+    card.phase === 'arrival-slap' ||
+    card.phase === 'arrival-slide'
   )).toBe(true);
-  expect(catchUp.caughtUp.cards.every(card =>
+  expect(catchUp.caughtUp.cards.some(card =>
+    card.phase !== 'arrival-waiting' &&
     card.transform.screenPosition.x >
       card.lastArrivalTransition.plan.start.x
   )).toBe(true);

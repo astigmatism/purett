@@ -41,7 +41,7 @@ try {
   assert(!/window\.THREE\s*=/.test(modernSource + modernBundle), 'modern bundle overwrites the legacy snow THREE global');
   assert(fs.existsSync(path.join(root, 'public/js/modern/THREE-LICENSE.txt')), 'distributed Three.js license is missing');
 
-  assert(coordinator.includes('/js/modern/purett-modern-graphics.min.js?v=0.185.1-lobby-card-arrival.1'), 'coordinator does not use the card-arrival lobby bundle cache revision');
+  assert(coordinator.includes('/js/modern/purett-modern-graphics.min.js?v=0.185.1-lobby-card-arrival.2'), 'coordinator does not use the collision-safe card-arrival bundle cache revision');
   assert(!/https?:\/\//.test(coordinator), 'coordinator references a third-party graphics URL');
   assert(coordinator.includes("this.storageKey = 'purett.graphicsMode.v1'"), 'graphics preference does not have a stable storage key');
   assert(coordinator.includes("this.requestedMode = 'legacy'"), 'Legacy is not the safe default');
@@ -202,7 +202,8 @@ try {
     arrivalSource.includes("name: 'casual-drop-left'") &&
       arrivalSource.includes('export const CARD_ARRIVAL_PROFILES') &&
       arrivalSource.includes('Unknown card-arrival profile') &&
-      arrivalSource.includes('maxBatchDurationMs: 2000') &&
+      arrivalSource.includes('maxBatchDurationMs: 1950') &&
+      arrivalSource.includes('maximumVertexPerspectiveScale: 1.1') &&
       arrivalSource.includes('function createSeededRandom(seed)') &&
       arrivalSource.includes('export function createCardArrivalBatch(cards, request)') &&
       arrivalSource.includes('export function sampleCardArrival(plan, elapsedMs)') &&
@@ -211,14 +212,22 @@ try {
     'the reusable seeded destination-driven arrival planner is incomplete'
   );
   assert(
-    arrivalSource.includes('x: -launchHalfExtent - randomBetween(random, 28, 118)') &&
+    arrivalSource.includes("placementOrder: 'farthest-first'") &&
+      arrivalSource.includes("collisionPolicy: 'spatial-order-and-release-separation'") &&
+      arrivalSource.includes('maximumDiagonal + 10') &&
+      arrivalSource.includes('launchX:') &&
       arrivalSource.includes('perspectiveDistance / nearestPossibleDepth') &&
-      arrivalSource.includes('delayMs') &&
-      arrivalSource.includes("phase: 'flight'") &&
-      arrivalSource.includes("phase: 'landing'") &&
+      arrivalSource.includes('releaseTimes') &&
+      arrivalSource.includes("createPose(plan, 'flight'") &&
+      arrivalSource.includes("createPose(plan, 'slap'") &&
+      arrivalSource.includes("createPose(plan, 'slide'") &&
       modernSource.includes('preparePendingArrival()') &&
-      modernSource.includes('applyArrivalPose(entry, pose)'),
-    'the casual-left arrival does not cover off-screen launch, stagger, flight, and landing'
+      modernSource.includes('applyArrivalPose(entry, pose)') &&
+      modernSource.includes('pose.screenX,') &&
+      modernSource.includes('pose.screenY') &&
+      modernSource.includes("projectionProfile: 'flat-table-neutralized-through-arrival'") &&
+      modernSource.includes("landingPolicy: 'monotonic-contact-without-rebound'"),
+    'the casual-left arrival does not cover collision-safe launch, flight, contact, and slide'
   );
   assert(
     modernSource.includes('this.consumedArrivalRequestIds = new Set()') &&
@@ -229,7 +238,8 @@ try {
       modernSource.includes('elapsedBeforeReadyMs') &&
       modernSource.includes('this.prefersReducedMotion() || this.suspended') &&
       modernSource.includes("'skipped-reduced-motion'") &&
-      modernSource.includes('Math.pow(1 - pose.progress, 0.75)') &&
+      modernSource.includes('Math.pow(1 - pose.progress, 1.4)') &&
+      modernSource.includes("pose.phase === 'slide'") &&
       modernSource.includes('entry.tiltRoot.rotation.z = 0'),
     'arrival replay, reduced-motion, or exact-settlement guards are incomplete'
   );

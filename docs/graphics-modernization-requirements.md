@@ -2,13 +2,13 @@
 
 | Field | Value |
 |---|---|
-| Status | Phase 0.7 seeded lobby-card arrival baseline |
-| Version | 0.9 |
+| Status | Phase 0.7 collision-safe lobby-card arrival baseline |
+| Version | 1.0 |
 | Last updated | 2026-07-23 |
 | Scope | Active-match graphics roadmap plus Modern lobby-hand rendering, reusable entrance choreography, and bounded decorative per-card flip interactions |
 | Modern renderer | Three.js `0.185.1` (`r185`) with `WebGLRenderer`, selected for Phase 0 and provisional for the playable renderer |
 
-> **Implementation status — 2026-07-23:** Phase 0 established the runtime Graphics switch, the safe Legacy fallback, and an inert active-match Modern surface. Phase 0.5 rendered only the five hand cards shown in the main-menu/lobby viewport beneath the Play, Shop, and Tutorials bar. Phase 0.6 added the calibrated, flat-table Three.js card model and independent decorative double flips. Phase 0.7 now gives each lobby appearance one seeded `casual-drop-left` presentation: the same menu-show event that begins the black command-bar reveal queues five varied off-screen-left card flights, 3D tilts, analytic contact shadows, and damped landings. Every batch is generated once from plain destinations, shares the existing demand-driven frame scheduler, finishes within two seconds, and restores the exact unrotated lobby slots. The recipe is renderer-side and destination-driven so a later Three.js shop surface can invoke it without copying lobby coordinates or motion math. Reduced motion skips travel, and Legacy selection or any lobby lifecycle cancellation immediately restores the intact settled hand. This remains decorative renderer validation, not a game action. The playable active-match renderer remains intentionally blank and follows the renderer-neutral roadmap described later in this document.
+> **Implementation status — 2026-07-23:** Phase 0 established the runtime Graphics switch, the safe Legacy fallback, and an inert active-match Modern surface. Phase 0.5 rendered only the five hand cards shown in the main-menu/lobby viewport beneath the Play, Shop, and Tutorials bar. Phase 0.6 added the calibrated, flat-table Three.js card model and independent decorative double flips. Phase 0.7 now gives each lobby appearance one seeded `casual-drop-left` presentation: the same menu-show event that begins the black command-bar reveal queues a collision-safe rightmost-to-leftmost deal from one off-screen-left hand position. Each front-up card travels edge-first with bounded 3D pitch, yaw, roll, and height, makes one clean leading-edge contact, and completes one continuously decelerating friction movement while it flattens and slides—without crossing another released card, penetrating the table, stopping and relaunching, rebounding, oscillating, or swelling through excessive perspective scale. Every batch is generated once from plain destinations, shares the existing demand-driven frame scheduler, finishes within 1,950 milliseconds, and restores the exact unrotated lobby slots. The recipe is renderer-side and destination-driven so a later Three.js shop surface can invoke it without copying lobby coordinates or motion math; a later non-row layout must add and pass its own layout-specific collision corpus before adoption. Reduced motion skips travel, and Legacy selection or any lobby lifecycle cancellation immediately restores the intact settled hand. This remains decorative renderer validation, not a game action. The playable active-match renderer remains intentionally blank and follows the renderer-neutral roadmap described later in this document.
 
 ## Contents
 
@@ -268,8 +268,9 @@ These decisions are part of the baseline requirements.
 | DEC-026 | Each Modern lobby card owns an independent re-entry lock while its bounded animation is active. A repeated activation of that same card is ignored and cannot queue work until its exact settlement; any other settled card remains eligible, so up to five cards may animate concurrently. |
 | DEC-027 | The lobby renderer uses one demand-driven scheduler with at most one pending `requestAnimationFrame` callback to advance every active card animation. Legacy selection, lobby hide, hand or surface replacement, disposal, and WebGL context loss atomically invalidate all active animations, release every per-card lock, stop the shared frame request, hide every analytic shadow, and restore deterministic settled state without waiting for motion to finish. |
 | DEC-028 | The Phase 0.6 lobby is a flat table viewed head-on. Lift and settlement introduce exactly zero auxiliary pitch, yaw, and roll; only the approved continuous local-X turn changes card orientation. Because a single perspective camera otherwise gives rotated off-axis planes an opposite lateral lean at the left and right slots, each card uses a face-anchored projection neutralizer outside its rotation hierarchy. The neutralizer preserves perspective enlargement and centered foreshortening while translating the same normalized silhouette to every slot, and it resets to its canonical zero-lift state on settlement and every reusable cancellation path. |
-| DEC-029 | Phase 0.7 owns one seeded `casual-drop-left` batch per menu presentation. The pure planner samples transient order, launch, depth, tilt, path, timing, and impact once from caller-supplied destinations and a stable seed; the sampler never owns lobby coordinates, Raphael nodes, or game state. |
+| DEC-029 | Phase 0.7 owns one seeded `casual-drop-left` batch per menu presentation. The pure planner derives a fixed spatial placement order and samples launch, depth, tilt, path, timing, and contact variation once from caller-supplied destinations and a stable seed; the sampler never owns lobby coordinates, Raphael nodes, or game state. |
 | DEC-030 | Arrival and click effects share the lobby surface's sole demand-driven frame scheduler and per-card animation map, but keep separate diagnostics and completion counts. A presentation token is consumed once, reduced motion skips travel, and every lifecycle cancellation restores exact settled state. |
+| DEC-031 | `casual-drop-left` places cards from the destination farthest from the left launch edge back toward that edge. Release separation is derived from the card diagonal and flight speed and is never less than 275 milliseconds. This prevents a later card's route from crossing an already placed card and prevents simultaneously released projected faces from intersecting in the validated lobby row. Every pose retains physical local-card perspective but applies the established flat-table off-axis neutralizer so camera-center lean cannot recreate the rejected radial/curved-surface appearance. Contact is a monotonic `flight` → `slap` → `slide` sequence whose position follows one continuous deceleration curve with no second kick, bounce, end oscillation, or overshoot. |
 
 ## 7. Goals
 
@@ -771,19 +772,23 @@ Before beta, this flow requires automated accessible-tree and keyboard assertion
 
 **FR-LOBBY-ARRIVAL-003** — Arrival planning must be a reusable, pure, destination-driven facility. A caller supplies card dimensions, semantic identity when available, viewport bounds, exact destination, projection distance when applicable, profile, and seed/request identity. The planner must reject unknown profiles and invalid geometry, must not hard-code lobby slot positions, and must produce plain plans that a later Three.js shop surface can reuse.
 
-**FR-LOBBY-ARRIVAL-004** — The `casual-drop-left` planner must use a deterministic seeded generator and sample each card's order, stagger, wholly off-screen-left launch point, vertical launch variation, bounded depth, pitch, yaw, roll, flight controls, duration, and landing character exactly once before frame advancement. It must never call nondeterministic randomness per frame.
+**FR-LOBBY-ARRIVAL-004** — The `casual-drop-left` planner must derive a fixed spatial placement order from the caller-supplied destinations: the card farthest from the left launch edge is placed first, followed by each successively nearer destination. It must use a deterministic seeded generator to sample the shared flight speed and off-screen launch rail plus each card's release separation, vertical launch variation, bounded depth, pitch, yaw, roll, flight bow, duration, contact point, and slide duration exactly once before frame advancement. Seed variation must never change the spatial order or exact destinations, and the sampler must never call nondeterministic randomness per frame.
 
-**FR-LOBBY-ARRIVAL-005** — Normal motion must present each card as a restrained physical toss and drop rather than a flat translation or 720-degree pinwheel. Every card begins beyond the left edge, follows its individually sampled path above the table with bounded front-preserving tilt and an independently controlled analytic shadow, contacts near its supplied destination, performs a small damped landing, and settles at the exact supplied x, y, and base depth with unit scale and zero temporary X, Y, and Z rotation.
+**FR-LOBBY-ARRIVAL-005** — Normal motion must present each card as a restrained physical deal and drop rather than a flat translation, scale-in, pinwheel, or bouncing sprite. Every front-up card begins beyond the left edge at the common launch rail, travels edge-first above the table with visible but front-preserving X/Y tilt, bounded Z roll, a shallow vertical bow, and an independently controlled analytic shadow, makes leading-edge contact short of its supplied destination, flattens once during a brief slap, and slides on the table. Translation from contact through settlement must use one continuously decelerating friction curve; the slap/slide phase boundary may change orientation ownership but must not stop and relaunch the card. There must be no direction reversal, velocity restart, positional overshoot, post-contact rise, landing oscillation, end jiggle, or manual scale animation. Settlement restores the exact supplied x, y, and base depth with unit scale and zero temporary X, Y, and Z rotation.
 
-**FR-LOBBY-ARRIVAL-006** — All five cards must settle no later than 2,000 milliseconds after the command-bar reveal timestamp. Stagger delay and asynchronous renderer/texture readiness are part of that presentation deadline: a surface becoming ready after the trigger must begin at the corresponding sampled point, and a surface becoming ready after the complete timeline must commit the already-settled hand without replay. The batch and click flips must share the surface's one demand-driven animation-frame scheduler and per-card exclusion map; no per-card timer, second scheduler, or idle loop is permitted.
+**FR-LOBBY-ARRIVAL-006** — All five cards must settle no later than 2,000 milliseconds after the command-bar reveal timestamp; the current profile must cap its generated timeline at 1,950 milliseconds. Release separation and asynchronous renderer/texture readiness are part of that presentation deadline: a surface becoming ready after the trigger must begin at the corresponding sampled point, and a surface becoming ready after the complete timeline must commit the already-settled hand without replay. The batch and click flips must share the surface's one demand-driven animation-frame scheduler and per-card exclusion map; no per-card timer, second scheduler, or idle loop is permitted.
 
-**FR-LOBBY-ARRIVAL-007** — Before the readiness gate reveals it, the Modern canvas must be committed at each plan's current reveal-relative sample—launch, flight, landing, or settled—preventing either a destination-frame flash followed by a jump off-screen or a late restart after loading. Card flip input must remain ineligible while any entrance card is active. After the final entrance settles, the Phase 0.6 independent click-flip behavior becomes eligible without rebuilding the hand.
+**FR-LOBBY-ARRIVAL-007** — Before the readiness gate reveals it, the Modern canvas must be committed at each plan's current reveal-relative sample—waiting, flight, slap, slide, or settled—preventing either a destination-frame flash followed by a jump off-screen or a late restart after loading. Card flip input must remain ineligible while any entrance card is active. After the final entrance settles, the Phase 0.6 independent click-flip behavior becomes eligible without rebuilding the hand.
 
 **FR-LOBBY-ARRIVAL-008** — `prefers-reduced-motion: reduce` must skip off-screen travel, depth, translation, tilt, roll, rebound, and arrival frame scheduling. The complete hand must be committed directly at the canonical destinations before readiness is exposed.
 
 **FR-LOBBY-ARRIVAL-009** — Legacy selection, lobby hide, hand replacement, surface replacement or disposal, context loss, and superseding presentation must cancel the current batch through the existing shared lifecycle path, remove its pending frame, settle reusable cards exactly, hide their shadows, release locks, and prevent stale async completion from reapplying the Modern gate.
 
-**FR-LOBBY-ARRIVAL-010** — Diagnostics must report the current or last presentation request, trigger, profile, stable batch seed, bounded total duration, per-card order/seed/delay/duration/start/destination/impact sample, active arrival count and kind, completion/cancellation outcome, and exact settlement evidence without exposing Three.js objects or becoming production state.
+**FR-LOBBY-ARRIVAL-010** — Diagnostics must report the current or last presentation request, trigger, profile, spatial placement policy, collision policy, stable batch seed, shared flight speed, release times, bounded total duration, and each card's seed, order, release/contact/flat/settle milestones, phase durations, launch, contact, slide-start, path, and exact destination. They must also expose active arrival count and kind, completion/cancellation outcome, and exact settlement evidence without exposing Three.js objects or becoming production state.
+
+**FR-LOBBY-ARRIVAL-011** — Simultaneously released cards must never intersect in projected screen space, and no tilted face corner may pass below the table plane. The planner must conservatively account for card dimensions, perspective distance, maximum flight depth, and release speed; the sampler must retain at least the geometric tilt clearance at every airborne and slap sample. A card already flat in an adjacent destination may not be intersected by the next arriving face. Dense deterministic sampling across the supported seed space is required as regression evidence.
+
+**FR-LOBBY-ARRIVAL-012** — Airborne cards must retain the perspective camera's physical local-card foreshortening so pitch and yaw read as motion in space, while the existing position-neutral flat-table projection must remain anchored at each moving screen position to remove only the camera-center-dependent lateral lean previously perceived as a curved support. It must not remove the card's own X/Y tilt, Z roll, edge foreshortening, or depth. No rendered front-face vertex perspective factor and no intrinsic projected face edge may exceed 1.10 times its settled baseline.
 
 ## 12. Phase 0: graphics preference and inert Modern preview
 
@@ -1593,23 +1598,26 @@ The coordinator marks the token delivered before any later surface recreation ca
 
 #### 12.10.3 Seeded motion profile
 
-Each card receives a stable per-card seed derived from the batch seed, semantic card identity when available, and slot index. The batch uses those seeds to create a deterministic shuffled order and bounded stagger. A plan includes:
+Each card receives a stable per-card seed derived from the batch seed, semantic card identity when available, and slot index. Seeded variation changes character without changing traffic: the batch always fills destinations rightmost-to-leftmost so no later route crosses a card already on the table. All cards leave one coherent launch rail, and release gaps combine a 275-millisecond floor with a geometry-derived card-diagonal/flight-speed clearance. A plan includes:
 
 - a launch center far enough left that the card's conservative rotated and perspective-scaled footprint is outside the viewport;
-- a varied but bounded launch y and depth;
-- small front-preserving X/Y tilt and Z roll;
-- two control points for the flight path;
-- a near-destination contact offset;
-- bounded flutter, flight depth, duration, and landing oscillation;
-- the exact destination and a deadline that includes its stagger.
+- a launch y within a narrow shared hand region and a depth derived from the initial tilt's table clearance;
+- visible front-preserving X/Y edge tilt and bounded Z roll;
+- a constant-speed screen-x flight with a shallow seeded cubic y bow and one bounded depth arc;
+- a contact point 27–36 logical pixels before the destination with depth derived from the contact tilt's table clearance;
+- one 88–102 millisecond flattening slap and one 205–230 millisecond flat slide whose positions are samples of the same continuous post-contact friction curve;
+- the exact destination and a deadline that includes its release time.
 
-Normal sampling has three renderer-neutral phases:
+Normal sampling has four renderer-neutral phases:
 
-1. **Waiting:** retain the sampled off-screen launch pose during that card's stagger.
-2. **Flight:** follow a deterministic cubic path toward the supplied destination while bounded depth and small X/Y/Z variation make the card read as a physical object above a flat table.
-3. **Landing:** damp the sampled contact offset, shallow residual tilt, and depth to zero.
+1. **Waiting:** retain the sampled off-screen launch pose until that card's collision-safe release time.
+2. **Flight:** advance monotonically along the table while bounded depth, pitch, yaw, roll, y bow, local-card perspective, the moving flat-table neutralizer, and a separated release lane make the card read as a free object above one flat surface.
+3. **Slap:** begin at exact leading-edge contact, keep that edge at the table while flattening X, Y, and Z rotation once, and continue along the shared decelerating contact-to-destination curve.
+4. **Slide:** remain completely flat with zero temporary rotation and continue the same curve to the exact destination without a velocity restart at the phase boundary.
 
-All plans in the batch complete within 2,000 milliseconds from the command-bar reveal timestamp. Exact settlement, rather than the last floating-point sample, restores destination x/y/base-z, unit scale, zero temporary X/Y/Z rotation, the canonical projection neutralizer, front visibility, ordinary render order, and no shadow.
+No phase contains sine/cosine landing cycles, bounce, rebound, overshoot, or per-frame randomness. The projected faces of every released or already placed card remain disjoint, exact transformed-face clearance keeps every visible corner at or above the table, and the perspective factor of every rendered vertex and intrinsic edge remains at or below 1.10. All plans in the implementation batch complete within 1,950 milliseconds from the command-bar reveal timestamp, retaining 50 milliseconds of margin inside the product's 2,000-millisecond requirement. Exact settlement, rather than the last floating-point sample, restores destination x/y/base-z, unit scale, zero temporary X/Y/Z rotation, the canonical flat-table projection neutralizer, front visibility, ordinary render order, and no shadow.
+
+The Phase 0.7 safety proof is intentionally scoped to the five-card, nonoverlapping monotone lobby row. The planner and sampler remain destination-driven and reusable, but a later shop or grid consumer must supply its own dimensions and destinations, add a layout-specific dense collision fixture, and pass that evidence before claiming the same collision guarantee.
 
 #### 12.10.4 Scheduling, input, and cancellation
 
@@ -1625,13 +1633,13 @@ Reduced motion commits the cards at their final destinations before the first re
 
 Given the lobby begins a new presentation, the bar reveal and Modern presentation token originate in the same `menu.show()` call, one batch consumes the token, and repeated render/resume/mode operations do not replay it. A later lobby presentation receives a different token.
 
-**AC-P07-002 — Deterministic varied plans**
+**AC-P07-002 — Deterministic varied, spatially ordered plans**
 
-Given identical descriptors, destinations, request identity, and seed, two planner calls produce identical plans. The five plans have deterministic individual order, stagger, launch, depth, tilt, path, and landing values; every complete card begins left of the viewport and every declared total duration is at most 2,000 milliseconds. Changing the seed changes at least one transient value but never a destination.
+Given identical descriptors, destinations, request identity, and seed, two planner calls produce identical plans. The five plans always order destinations farthest-from-launch first, use release gaps of at least 275 milliseconds, and have deterministic seeded launch, depth, tilt, bow, contact, and slide values; every complete card begins left of the viewport and every declared total duration is at most 1,950 milliseconds. Changing the seed changes at least one transient value but never the spatial order or a destination.
 
 **AC-P07-003 — Visible physical arrival**
 
-With normal motion, prompt renderer readiness, and a controlled clock derived from the reveal timestamp, the revealed first frame contains no card at its destination, mid-flight samples show distinct screen positions, depths, and orientations with front faces preserved, landing samples approach the flat destination, and the complete batch leaves all five cards at the exact Phase 0.6 baseline transforms with no visible shadow or pending frame. Delayed readiness catches up rather than restarting the clock.
+With normal motion, prompt renderer readiness, and a controlled clock derived from the reveal timestamp, the revealed first frame contains no card at its destination; flight samples show separated screen positions, flat-table-neutralized local perspective, and visible edge-leading 3D orientation; the first slap sample has exact leading-edge table contact; slap and slide positions follow one non-increasing-velocity curve while orientation flattens once; and the complete batch leaves all five cards at the exact Phase 0.6 baseline transforms with no visible shadow or pending frame. Delayed readiness catches up rather than restarting the clock.
 
 **AC-P07-004 — Reduced motion**
 
@@ -1645,9 +1653,13 @@ When Legacy, hide, replacement, disposal, or context loss interrupts any entranc
 
 Static and pure-function evidence verifies that the planner and sampler live outside lobby orchestration, accept caller-supplied destinations, expose the `casual-drop-left` profile through the Modern facade, use no per-frame randomness, and require no Raphael node.
 
+**AC-P07-007 — Collision, table, and rebound safety**
+
+Across at least 256 deterministic seeds sampled at no more than four-millisecond intervals with the exact renderer transform order, face offset, moving projection neutralizer, and camera projection, no arriving projected card polygon intersects another released or already placed card; every visible face corner stays at or above the table; every rendered-vertex and intrinsic-edge perspective factor stays at or below 1.10; flight x never reverses; contact clearance is zero; post-contact displacement per equal interval never increases; signed destination error and rotation do not cross zero; the slide remains flat; the final pre-settlement sample is within snap tolerance; and settlement persists exactly.
+
 #### 12.10.6 Definition of done
 
-Phase 0.7 is complete only when the menu/coordinator/surface presentation token is covered; pure deterministic planner evidence covers bounds and exact destinations; controlled browser or harness evidence covers initial, flight, landing, settlement, reduced motion, and cancellation; the generated bundle cache identity advances; all Phase 0.6 flip and Legacy tests remain green; and no server, database, game-rule, shop, economy, or protocol behavior changes.
+Phase 0.7 is complete only when the menu/coordinator/surface presentation token is covered; pure deterministic planner evidence covers bounds, spatial order, projected collision avoidance, table clearance, monotonic contact, and exact destinations across the required seed sample; controlled browser or harness evidence covers initial, flight, slap, slide, settlement, reduced motion, and cancellation; the generated bundle is served under cache identity `/js/modern/purett-modern-graphics.min.js?v=0.185.1-lobby-card-arrival.2`; all Phase 0.6 flip and Legacy tests remain green; and no server, database, game-rule, shop, economy, or protocol behavior changes.
 
 ## 13. Target renderer contract
 
@@ -2110,7 +2122,9 @@ Exit gate:
 
 - The menu-show event that begins the black bar reveal creates one presentation token and supplies it with the plain lobby destinations.
 - The reusable `casual-drop-left` planner produces deterministic per-card variation without hard-coded lobby slots or per-frame randomness.
-- Reveal-relative poses are rendered before the Modern hand is revealed; prompt readiness shows the complete distinct flights and landings, while delayed readiness catches up without exceeding the two-second presentation deadline.
+- Reveal-relative poses are rendered before the Modern hand is revealed; prompt readiness shows the separated edge-leading flights, single contacts, and flat friction slides, while delayed readiness catches up without exceeding the 1,950-millisecond implementation deadline.
+- Fixed farthest-first traffic, geometry-derived release spacing, and dense seeded regression sampling prevent released card faces from clipping each other or penetrating the table.
+- Post-contact translation is one continuously decelerating curve across slap and slide: there is no stop/relaunch, bounce, oscillation, overshoot, end jiggle, or rendered vertex/edge perspective factor above 1.10.
 - Every completion and cancellation restores the exact Phase 0.6 flat destination, ordinary render order, hidden shadow, and idle scheduler.
 - Reduced motion skips entrance travel and returns an immediately settled, clickable hand.
 - Repeated same-token delivery cannot replay the entrance, while a later menu presentation can.
@@ -2358,7 +2372,7 @@ Phase 0, Phase 0.5, Phase 0.6, and Phase 0.7 requirements and acceptance criteri
 | `FR-TEST-*` | Phase 0/1 | Browser and renderer test harness | Semantic snapshots, deterministic visual fixtures, cross-renderer suite | Evidence enabler |
 | `FR-LOBBY-*` | Phase 0.5 | Menu and graphics coordinator | Five-card visual fixture, hand-only gate, async readiness, lifecycle, and fallback tests | Yes |
 | `FR-LOBBY-FLIP-*` | Phase 0.6 | Modern lobby surface and graphics coordinator | Choreography, canonical-back, per-card re-entry locks, independent-card concurrency, one bounded shared frame scheduler, per-card shadows, atomic lifecycle cancellation, reduced-motion, request-isolation, and Legacy-regression tests | Yes |
-| `FR-LOBBY-ARRIVAL-*` | Phase 0.7 | Menu, graphics coordinator, and reusable Modern card-animation module | One-use trigger, deterministic planner/sampler, controlled waiting/flight/landing clock, exact settlement, reduced motion, cancellation, and Legacy-regression tests | Yes |
+| `FR-LOBBY-ARRIVAL-*` | Phase 0.7 | Menu, graphics coordinator, and reusable Modern card-animation module | One-use trigger, deterministic planner/sampler, controlled waiting/flight/slap/slide clock, collision and table-clearance sampling, monotonic contact, exact settlement, reduced motion, cancellation, and Legacy-regression tests | Yes |
 | `NFR-PERF-*` | Phase 2 | Modern build and renderer | GM-P100/GM-P200 performance and bundle report | Yes |
 | `NFR-REL-*` | Phase 1/5 | Both renderers and controller | Repeated lifecycle, heap/resource, stale-revision, and severity report | Yes |
 | `NFR-SEC-*` | Phase 2 | Build/deployment boundary | CSP, same-origin, dependency, and network audit | Yes |

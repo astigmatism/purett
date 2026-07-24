@@ -734,9 +734,12 @@ class LobbyHandSurface {
       this.applyArrivalPose(entry, initialPose);
       entry.phase = `arrival-${initialPose.phase}`;
       entry.visibleFace = 'front';
-      entry.bodyMesh.renderOrder = 100 + token;
-      entry.frontMesh.renderOrder = 100 + token;
-      entry.backMesh.renderOrder = 100 + token;
+      const arrivalRenderOrder = 100 + (
+        batch.plans.length - plan.orderIndex
+      );
+      entry.bodyMesh.renderOrder = arrivalRenderOrder;
+      entry.frontMesh.renderOrder = arrivalRenderOrder;
+      entry.backMesh.renderOrder = arrivalRenderOrder;
       this.registerAnimation(animation);
       registeredArrival = true;
     });
@@ -755,6 +758,11 @@ class LobbyHandSurface {
       requestId: this.pendingArrivalRequest.id,
       trigger: this.pendingArrivalRequest.trigger,
       profile: this.pendingArrivalRequest.profile,
+      originEdge: CASUAL_DROP_LEFT_PROFILE.originEdge,
+      placementOrder: 'farthest-first',
+      collisionPolicy: 'spatial-order-and-release-separation',
+      flightSpeed: null,
+      releaseTimes: [],
       seed: null,
       totalDurationMs: 0,
       maxBatchDurationMs: CASUAL_DROP_LEFT_PROFILE.maxBatchDurationMs,
@@ -789,18 +797,36 @@ class LobbyHandSurface {
       plan: {
         orderIndex: plan.orderIndex,
         delayMs: plan.delayMs,
+        releaseAtMs: plan.releaseAtMs,
+        contactAtMs: plan.contactAtMs,
+        flatAtMs: plan.flatAtMs,
+        settleAtMs: plan.settleAtMs,
+        flightDurationMs: plan.flightDurationMs,
+        slapDurationMs: plan.slapDurationMs,
+        slideDurationMs: plan.slideDurationMs,
+        postContactDurationMs: plan.postContactDurationMs,
         durationMs: plan.durationMs,
         totalDurationMs: plan.totalDurationMs,
         launchHalfExtent: plan.launchHalfExtent,
         start: Object.assign({}, plan.start),
+        contact: Object.assign({}, plan.contact),
+        slideStart: Object.assign({}, plan.slideStart),
         destination: Object.assign({}, plan.destination),
-        impactOffset: Object.assign({}, plan.impactOffset)
+        direction: Object.assign({}, plan.direction),
+        path: {
+          controlOne: Object.assign({}, plan.path.controlOne),
+          controlTwo: Object.assign({}, plan.path.controlTwo),
+          bow: plan.path.bow,
+          apexDepth: plan.path.apexDepth
+        }
       },
       evidence: {
         maxDepth: plan.start.depth,
         maxAbsRotationX: Math.abs(plan.start.rotationX),
         maxAbsRotationY: Math.abs(plan.start.rotationY),
         maxAbsRotationZ: Math.abs(plan.start.rotationZ),
+        maxVertexPerspectiveScale: 1,
+        minimumTableClearance: null,
         startedOffscreenLeft:
           plan.start.x + plan.launchHalfExtent < 0,
         exactSettlement: false
@@ -814,6 +840,10 @@ class LobbyHandSurface {
       trigger: batch.trigger,
       profile: batch.profile,
       originEdge: batch.originEdge,
+      placementOrder: batch.placementOrder,
+      collisionPolicy: batch.collisionPolicy,
+      flightSpeed: batch.flightSpeed,
+      releaseTimes: batch.releaseTimes.slice(0),
       seed: batch.seed,
       requestedSeed: batch.requestedSeed,
       startedAtMs: batch.startedAtMs,
@@ -826,12 +856,28 @@ class LobbyHandSurface {
         seed: plan.seed,
         orderIndex: plan.orderIndex,
         delayMs: plan.delayMs,
+        releaseAtMs: plan.releaseAtMs,
+        contactAtMs: plan.contactAtMs,
+        flatAtMs: plan.flatAtMs,
+        settleAtMs: plan.settleAtMs,
+        flightDurationMs: plan.flightDurationMs,
+        slapDurationMs: plan.slapDurationMs,
+        slideDurationMs: plan.slideDurationMs,
+        postContactDurationMs: plan.postContactDurationMs,
         durationMs: plan.durationMs,
         totalDurationMs: plan.totalDurationMs,
         launchHalfExtent: plan.launchHalfExtent,
         start: Object.assign({}, plan.start),
+        contact: Object.assign({}, plan.contact),
+        slideStart: Object.assign({}, plan.slideStart),
         destination: Object.assign({}, plan.destination),
-        impactOffset: Object.assign({}, plan.impactOffset)
+        direction: Object.assign({}, plan.direction),
+        path: {
+          controlOne: Object.assign({}, plan.path.controlOne),
+          controlTwo: Object.assign({}, plan.path.controlTwo),
+          bow: plan.path.bow,
+          apexDepth: plan.path.apexDepth
+        }
       }))
     };
   }
@@ -1178,6 +1224,18 @@ class LobbyHandSurface {
         transition.evidence.maxAbsRotationZ,
         Math.abs(pose.rotationZ)
       );
+      transition.evidence.maxVertexPerspectiveScale = Math.max(
+        transition.evidence.maxVertexPerspectiveScale,
+        LOBBY_CAMERA_DISTANCE /
+          (LOBBY_CAMERA_DISTANCE - pose.nearestVertexDepth)
+      );
+      transition.evidence.minimumTableClearance =
+        transition.evidence.minimumTableClearance === null
+          ? pose.tableClearance
+          : Math.min(
+            transition.evidence.minimumTableClearance,
+            pose.tableClearance
+          );
     }
     return pose.complete;
   }
@@ -1406,21 +1464,25 @@ class LobbyHandSurface {
     if (!entry.liftShadow || !entry.liftShadowMaterial) {
       return;
     }
-    const heightRatio = Math.max(0, Math.min(1, pose.depth / 180));
-    const spread = 0.92 + (0.5 * heightRatio);
-    const landingFade = pose.phase === 'landing'
-      ? Math.pow(1 - pose.progress, 0.75)
+    if (pose.phase === 'slide' || pose.phase === 'settled') {
+      this.hideAnalyticShadow(entry);
+      return;
+    }
+    const heightRatio = Math.max(0, Math.min(1, pose.airGap / 55));
+    const spread = 0.88 + (0.22 * heightRatio);
+    const contactFade = pose.phase === 'slap'
+      ? Math.pow(1 - pose.progress, 1.4)
       : 1;
     entry.liftShadow.position.set(
-      pose.screenX + (14 * heightRatio),
-      pose.screenY - (12 * heightRatio),
+      pose.screenX + (5 + (7 * heightRatio)),
+      pose.screenY - (4 + (6 * heightRatio)),
       LOBBY_ANALYTIC_SHADOW_Z
     );
-    entry.liftShadow.scale.set(spread, spread * 0.94, 1);
+    entry.liftShadow.scale.set(spread, spread * 0.92, 1);
     entry.liftShadowMaterial.opacity =
-      (0.05 + (LOBBY_ANALYTIC_SHADOW_OPACITY * (1 - heightRatio))) *
-      landingFade;
-    entry.liftShadow.visible = true;
+      (0.04 + (0.12 * (1 - heightRatio))) *
+      contactFade;
+    entry.liftShadow.visible = entry.liftShadowMaterial.opacity > 0.002;
   }
 
   updateAnalyticShadow(entry, liftProgress, arcProgress) {
@@ -1781,12 +1843,34 @@ class LobbyHandSurface {
       plan: transition.plan ? {
         orderIndex: transition.plan.orderIndex,
         delayMs: transition.plan.delayMs,
+        releaseAtMs: transition.plan.releaseAtMs,
+        contactAtMs: transition.plan.contactAtMs,
+        flatAtMs: transition.plan.flatAtMs,
+        settleAtMs: transition.plan.settleAtMs,
+        flightDurationMs: transition.plan.flightDurationMs,
+        slapDurationMs: transition.plan.slapDurationMs,
+        slideDurationMs: transition.plan.slideDurationMs,
+        postContactDurationMs: transition.plan.postContactDurationMs,
         durationMs: transition.plan.durationMs,
         totalDurationMs: transition.plan.totalDurationMs,
         launchHalfExtent: transition.plan.launchHalfExtent,
         start: Object.assign({}, transition.plan.start),
+        contact: Object.assign({}, transition.plan.contact),
+        slideStart: Object.assign({}, transition.plan.slideStart),
         destination: Object.assign({}, transition.plan.destination),
-        impactOffset: Object.assign({}, transition.plan.impactOffset)
+        direction: Object.assign({}, transition.plan.direction),
+        path: {
+          controlOne: Object.assign(
+            {},
+            transition.plan.path.controlOne
+          ),
+          controlTwo: Object.assign(
+            {},
+            transition.plan.path.controlTwo
+          ),
+          bow: transition.plan.path.bow,
+          apexDepth: transition.plan.path.apexDepth
+        }
       } : null,
       evidence: transition.evidence
         ? Object.assign({}, transition.evidence)
@@ -1865,6 +1949,11 @@ class LobbyHandSurface {
           originEdge: CASUAL_DROP_LEFT_PROFILE.originEdge,
           seeded: true,
           destinationDriven: true,
+          placementOrder: 'farthest-first',
+          collisionPolicy: 'spatial-order-and-release-separation',
+          projectionProfile: 'flat-table-neutralized-through-arrival',
+          phases: ['flight', 'slap', 'slide'],
+          landingPolicy: 'monotonic-contact-without-rebound',
           maxBatchDurationMs:
             CASUAL_DROP_LEFT_PROFILE.maxBatchDurationMs
         }
@@ -1942,6 +2031,12 @@ class LobbyHandSurface {
         trigger: this.lastArrivalBatch.trigger,
         profile: this.lastArrivalBatch.profile,
         originEdge: this.lastArrivalBatch.originEdge || 'left',
+        placementOrder: this.lastArrivalBatch.placementOrder,
+        collisionPolicy: this.lastArrivalBatch.collisionPolicy,
+        flightSpeed: this.lastArrivalBatch.flightSpeed,
+        releaseTimes: this.lastArrivalBatch.releaseTimes
+          ? this.lastArrivalBatch.releaseTimes.slice(0)
+          : [],
         seed: this.lastArrivalBatch.seed,
         requestedSeed: this.lastArrivalBatch.requestedSeed,
         startedAtMs: this.lastArrivalBatch.startedAtMs,
@@ -1954,12 +2049,28 @@ class LobbyHandSurface {
           seed: plan.seed,
           orderIndex: plan.orderIndex,
           delayMs: plan.delayMs,
+          releaseAtMs: plan.releaseAtMs,
+          contactAtMs: plan.contactAtMs,
+          flatAtMs: plan.flatAtMs,
+          settleAtMs: plan.settleAtMs,
+          flightDurationMs: plan.flightDurationMs,
+          slapDurationMs: plan.slapDurationMs,
+          slideDurationMs: plan.slideDurationMs,
+          postContactDurationMs: plan.postContactDurationMs,
           durationMs: plan.durationMs,
           totalDurationMs: plan.totalDurationMs,
           launchHalfExtent: plan.launchHalfExtent,
           start: Object.assign({}, plan.start),
+          contact: Object.assign({}, plan.contact),
+          slideStart: Object.assign({}, plan.slideStart),
           destination: Object.assign({}, plan.destination),
-          impactOffset: Object.assign({}, plan.impactOffset)
+          direction: Object.assign({}, plan.direction),
+          path: {
+            controlOne: Object.assign({}, plan.path.controlOne),
+            controlTwo: Object.assign({}, plan.path.controlTwo),
+            bow: plan.path.bow,
+            apexDepth: plan.path.apexDepth
+          }
         }))
       } : null,
       lastArrivalTransition:

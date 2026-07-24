@@ -13,7 +13,7 @@ gh.graphics.prototype = {
         this.storageKey = 'purett.graphicsMode.v1';
         this.threePackageVersion = '0.185.1';
         this.threeRevision = '185';
-        this.modernScriptUrl = '/js/modern/purett-modern-graphics.min.js?v=0.185.1-lobby-card-arrival.1';
+        this.modernScriptUrl = '/js/modern/purett-modern-graphics.min.js?v=0.185.1-lobby-card-arrival.2';
         this.requestedMode = 'legacy';
         this.effectiveMode = 'legacy';
         this.loadState = 'idle';

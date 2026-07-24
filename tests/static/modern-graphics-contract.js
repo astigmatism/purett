@@ -40,7 +40,7 @@ try {
   assert(!/window\.THREE\s*=/.test(modernSource + modernBundle), 'modern bundle overwrites the legacy snow THREE global');
   assert(fs.existsSync(path.join(root, 'public/js/modern/THREE-LICENSE.txt')), 'distributed Three.js license is missing');
 
-  assert(coordinator.includes('/js/modern/purett-modern-graphics.min.js?v=0.185.1-lobby-full-turn.1'), 'coordinator does not use the perspective full-turn bundle cache revision');
+  assert(coordinator.includes('/js/modern/purett-modern-graphics.min.js?v=0.185.1-lobby-concurrent-cards.1'), 'coordinator does not use the concurrent-card lobby bundle cache revision');
   assert(!/https?:\/\//.test(coordinator), 'coordinator references a third-party graphics URL');
   assert(coordinator.includes("this.storageKey = 'purett.graphicsMode.v1'"), 'graphics preference does not have a stable storage key');
   assert(coordinator.includes("this.requestedMode = 'legacy'"), 'Legacy is not the safe default');
@@ -112,6 +112,20 @@ try {
       !/\bPCFShadowMap\b/.test(modernSource),
     'Modern lobby depth cue still depends on a hardware shadow map'
   );
+  assert(
+    modernSource.includes('this.liftShadowGeometry = new PlaneGeometry(132, 164)') &&
+      modernSource.includes('this.liftShadowTexture = this.createAnalyticShadowTexture()') &&
+      modernSource.includes('const liftShadowMaterial = new MeshBasicMaterial({') &&
+      modernSource.includes('map: this.liftShadowTexture') &&
+      modernSource.includes('const liftShadow = new Mesh(this.liftShadowGeometry, liftShadowMaterial)') &&
+      modernSource.includes('this.scene.add(liftShadow)') &&
+      modernSource.includes('this.scene.remove(entry.liftShadow)') &&
+      modernSource.includes('updateAnalyticShadow(entry, liftProgress, arcProgress)') &&
+      modernSource.includes('hideAnalyticShadow(entry)') &&
+      !modernSource.includes('this.liftShadowMaterial =') &&
+      !modernSource.includes('this.liftShadow ='),
+    'Modern lobby cards do not own independent analytic shadows backed by shared geometry and texture'
+  );
   assert(modernSource.includes('Raycaster') && modernSource.includes('new Vector2()'), 'Modern lobby surface has no Three.js picking path');
   assert(modernSource.includes("const LOBBY_CARD_BACK_URL = '/images/cards/cardBack.png'"), 'Modern lobby flip does not use the same-origin card back');
   assert(lobbyMenu.includes("backTextureUrl: '/images/cards/cardBack.png'"), 'lobby card descriptions omit the card-back texture');
@@ -125,8 +139,10 @@ try {
   assert(
     modernSource.includes('const LOBBY_FLIP_DURATION = 2450') &&
       modernSource.includes('const LOBBY_FLIP_DEADLINE = 3000') &&
+      modernSource.includes('const deadlineElapsed = elapsed >= animation.transition.deadlineMs') &&
+      modernSource.includes('Math.min(elapsed, animation.transition.deadlineMs)') &&
       modernSource.includes('turn: 1650'),
-    'Modern lobby vertical flip does not use the inspectable 2.45-second bounded timeline'
+    'Modern lobby vertical flip does not enforce the inspectable 2.45-second timeline and 3-second deadline'
   );
   assert(
     !modernSource.includes('LOBBY_CARD_ROTATIONS') &&
@@ -137,9 +153,26 @@ try {
   assert(
     modernSource.includes('LOBBY_LIFT_SCREEN_Y = 18') &&
       modernSource.includes('LOBBY_LIFT_Z = 105') &&
-      modernSource.includes('LOBBY_PICKUP_TILT_X') &&
-      modernSource.includes('LOBBY_PICKUP_TILT_Y'),
-    'Modern lobby vertical flip omits its lift-depth or pickup-tilt cues'
+      modernSource.includes('const LOBBY_PICKUP_TILT_X = 0') &&
+      modernSource.includes('const LOBBY_PICKUP_TILT_Y = 0'),
+    'Modern lobby vertical flip does not preserve lift depth with a neutral pickup plane'
+  );
+  assert(
+    modernSource.includes('const projectionRoot = new Group()') &&
+      modernSource.includes('projectionRoot.matrixAutoUpdate = false') &&
+      modernSource.includes('projectionRoot.add(pickupRoot)') &&
+      modernSource.includes('applyFlatTableProjection(entry, screenLiftY)') &&
+      modernSource.includes('-shearX * LOBBY_CARD_FACE_OFFSET') &&
+      modernSource.includes('-shearY * LOBBY_CARD_FACE_OFFSET'),
+    'Modern lobby cards do not neutralize off-axis perspective outside the pickup and flip transforms'
+  );
+  assert(
+    modernSource.includes("projectionProfile: 'flat-table-neutralized'") &&
+      modernSource.includes("pickupTiltPolicy: 'none'") &&
+      modernSource.includes('projectionShearX') &&
+      modernSource.includes('projectionShearY') &&
+      modernSource.includes('projectedFace: this.getProjectedFaceMetrics(entry)'),
+    'Modern lobby diagnostics do not expose the flat-table projection policy and per-card projection state'
   );
   assert(modernSource.includes("this.inputTarget.addEventListener('click', this.handleCanvasClick, true)"), 'Modern lobby menu bridge does not accept captured card clicks');
   assert(modernSource.includes("this.inputTarget.removeEventListener('click', this.handleCanvasClick, true)"), 'Modern lobby click listener is not removed during disposal');
@@ -147,17 +180,42 @@ try {
     /#modernLobbyHand \.modern-graphics-canvas\s*\{[^}]*pointer-events:\s*none;/.test(boardCss),
     'Modern lobby canvas is not pointer-inert'
   );
-  assert(modernSource.includes('this.activeAnimation') && modernSource.includes('this.ignoredClicks'), 'Modern lobby flip has no click lock state');
-  assert(modernSource.includes('window.requestAnimationFrame') && modernSource.includes('window.cancelAnimationFrame'), 'Modern lobby flip does not own and cancel its animation frames');
+  assert(
+    modernSource.includes('this.activeAnimations = new Map()') &&
+      modernSource.includes('if (this.activeAnimations.has(entry))') &&
+      modernSource.includes('this.activeAnimations.set(entry, animation)') &&
+      modernSource.includes('this.activeAnimations.delete(entry)') &&
+      modernSource.includes('this.ignoredClicks') &&
+      !modernSource.includes('this.activeAnimation ='),
+    'Modern lobby flip does not guard re-entry per card while allowing independent cards to animate'
+  );
+  assert(
+    modernSource.includes('window.requestAnimationFrame') &&
+      modernSource.includes('window.cancelAnimationFrame') &&
+      modernSource.includes('tickAnimations(timestamp)') &&
+      modernSource.includes('Array.from(this.activeAnimations.values()).forEach((animation) => {') &&
+      modernSource.includes('completed.forEach((entry) => {') &&
+      modernSource.includes('this.scheduleAnimationFrame()'),
+    'Modern lobby flips are not advanced together by one cancellable animation-frame scheduler'
+  );
   assert(modernSource.includes("typeof window.performance.now === 'function'"), 'Modern lobby flip does not anchor its deadline at accepted-click time');
   assert(
-    modernSource.includes("phases: ['lift']") &&
-      modernSource.includes("this.markTransitionPhase('first-edge')") &&
-      modernSource.includes("this.markTransitionPhase('back')") &&
-      modernSource.includes("this.markTransitionPhase('second-edge')") &&
-      modernSource.includes("this.markTransitionPhase('front')") &&
-      modernSource.includes("this.markTransitionPhase('settled')"),
+    modernSource.includes("phases: [reducedMotion ? 'back' : 'lift']") &&
+      modernSource.includes("this.markTransitionPhase(transition, 'first-edge')") &&
+      modernSource.includes("this.markTransitionPhase(transition, 'back')") &&
+      modernSource.includes("this.markTransitionPhase(transition, 'second-edge')") &&
+      modernSource.includes("this.markTransitionPhase(transition, 'front')") &&
+      modernSource.includes("this.markTransitionPhase(animation.transition, 'settled')"),
     'Modern lobby diagnostics do not expose both edge passes in the lift/back/front/settled sequence'
+  );
+  assert(
+    modernSource.includes('const transition = animation.transition') &&
+      modernSource.includes('updateAnimation(animation, elapsed)') &&
+      modernSource.includes('markTurnMilestones(transition, turnProgress)') &&
+      modernSource.includes('recordMotionEvidence(entry, transition)') &&
+      modernSource.includes('markTransitionPhase(transition, phase)') &&
+      modernSource.includes('completeAnimation(animation, outcome, shouldRender)'),
+    'Concurrent lobby animations do not keep phase and motion evidence on their own transitions'
   );
   assert(
     modernSource.includes("flipAxis: 'x'") &&
@@ -170,6 +228,7 @@ try {
       modernSource.includes('maxTopBottomDepthSpan') &&
       modernSource.includes('maxPerspectiveScale') &&
       modernSource.includes('maxAnalyticShadowOpacity') &&
+      modernSource.includes('maxAbsProjectedLateralShear') &&
       modernSource.includes('directionReversals') &&
       modernSource.includes('firstEdgeAngleX') &&
       modernSource.includes('backAngleX') &&
@@ -178,7 +237,35 @@ try {
       modernSource.includes('edgePasses'),
     'Modern lobby diagnostics do not expose evidence for the monotonic full turn and artifact-free depth cues'
   );
-  assert(modernSource.includes("this.cancelAnimation('disposed')"), 'disposing the Modern lobby surface does not cancel an in-flight flip');
+  assert(
+    modernSource.includes('getProjectedFaceMetrics(entry)') &&
+      modernSource.includes('new Vector3(corner[0], corner[1], 0)') &&
+      modernSource.includes('lateralShear: topMidpointX - bottomMidpointX') &&
+      modernSource.includes('topWidth: edgeLength(corners[0], corners[1])') &&
+      modernSource.includes('bottomWidth: edgeLength(corners[3], corners[2])'),
+    'Modern lobby diagnostics cannot measure the projected card silhouette or lateral shear'
+  );
+  assert(
+    modernSource.includes('cancelAnimations(outcome, shouldRender)') &&
+      modernSource.includes("this.cancelAnimations('context-lost', false)") &&
+      modernSource.includes("this.cancelAnimations('replaced')") &&
+      modernSource.includes("this.cancelAnimations('cleared')") &&
+      modernSource.includes("this.cancelAnimations('cancelled')") &&
+      modernSource.includes("this.cancelAnimations('disposed', false)"),
+    'Modern lobby lifecycle does not cancel and settle every in-flight card animation'
+  );
+  assert(
+    modernSource.includes('activeAnimationCount: activeAnimations.length') &&
+      modernSource.includes('activeCardIndices,') &&
+      modernSource.includes('lockedCardIndices: activeCardIndices.slice(0)') &&
+      modernSource.includes('activeAnimations: activeAnimations.map((animation) => ({') &&
+      modernSource.includes('peakConcurrentAnimationCount: this.peakConcurrentAnimationCount') &&
+      modernSource.includes('activeAnalyticShadowCount: visibleShadows.length') &&
+      modernSource.includes('recentTransitions: this.transitionHistory.map((transition) => (') &&
+      modernSource.includes('animating: entry ? this.activeAnimations.has(entry) : false') &&
+      modernSource.includes('lastTransition: entry'),
+    'Modern lobby diagnostics do not expose concurrent card locks, transitions, and per-card shadows'
+  );
   assert(modernSource.includes("this.status !== 'ready'"), 'Modern lobby input handlers are not gated on confirmed readiness');
   assert(coordinator.includes('this.surface.suspend()') && coordinator.includes('this.surface.resume()'), 'runtime graphics switching does not suspend and resume lobby interaction');
   assert(modernSource.includes('startReducedMotionAnimation(entry)') && modernSource.includes('tickReducedMotionAnimation(animation)'), 'reduced motion has no bounded back/front proof');

@@ -18,6 +18,7 @@ import {
   SRGBColorSpace,
   TextureLoader,
   Vector2,
+  Vector3,
   WebGLRenderer
 } from 'three';
 
@@ -40,8 +41,8 @@ const LOBBY_LIFT_SCREEN_Y = 18;
 const LOBBY_LIFT_Z = 105;
 const LOBBY_TURN_ARC_SCREEN_Y = 5;
 const LOBBY_TURN_ARC_Z = 12;
-const LOBBY_PICKUP_TILT_X = -8 * Math.PI / 180;
-const LOBBY_PICKUP_TILT_Y = 4 * Math.PI / 180;
+const LOBBY_PICKUP_TILT_X = 0;
+const LOBBY_PICKUP_TILT_Y = 0;
 const LOBBY_ANALYTIC_SHADOW_Z = -4;
 const LOBBY_ANALYTIC_SHADOW_OPACITY = 0.22;
 const LOBBY_FLIP_TIMINGS = Object.freeze({
@@ -51,6 +52,7 @@ const LOBBY_FLIP_TIMINGS = Object.freeze({
 });
 const LOBBY_FLIP_DURATION = 2450;
 const LOBBY_FLIP_DEADLINE = 3000;
+const LOBBY_TRANSITION_HISTORY_LIMIT = 10;
 
 class ModernGraphicsSurface {
   constructor(host, options) {
@@ -184,16 +186,18 @@ class LobbyHandSurface {
     this.raycaster = new Raycaster();
     this.pointer = new Vector2();
     this.suspended = false;
-    this.activeAnimation = null;
+    this.activeAnimations = new Map();
     this.animationFrameId = null;
     this.animationFrameCount = 0;
     this.activationSequence = 0;
+    this.peakConcurrentAnimationCount = 0;
     this.acceptedClicks = 0;
     this.ignoredClicks = 0;
     this.emptyClicks = 0;
     this.completedAnimationCount = 0;
     this.lastPick = null;
     this.lastTransition = null;
+    this.transitionHistory = [];
 
     try {
       this.scene = new Scene();
@@ -219,18 +223,6 @@ class LobbyHandSurface {
       );
       this.liftShadowGeometry = new PlaneGeometry(132, 164);
       this.liftShadowTexture = this.createAnalyticShadowTexture();
-      this.liftShadowMaterial = new MeshBasicMaterial({
-        map: this.liftShadowTexture,
-        transparent: true,
-        opacity: 0,
-        depthTest: true,
-        depthWrite: false
-      });
-      this.liftShadow = new Mesh(this.liftShadowGeometry, this.liftShadowMaterial);
-      this.liftShadow.position.z = LOBBY_ANALYTIC_SHADOW_Z;
-      this.liftShadow.renderOrder = -100;
-      this.liftShadow.visible = false;
-      this.scene.add(this.liftShadow);
 
       this.hemisphereLight = new HemisphereLight(0xfff4df, 0x251821, 0.72);
       this.keyLight = new DirectionalLight(0xffe8bd, 1.3);
@@ -277,7 +269,7 @@ class LobbyHandSurface {
       };
       this.handleContextLost = (event) => {
         event.preventDefault();
-        this.cancelAnimation('context-lost', false);
+        this.cancelAnimations('context-lost', false);
         this.detachInputHandlers();
         this.contextLost = true;
         this.status = 'context-lost';
@@ -390,7 +382,7 @@ class LobbyHandSurface {
     }
 
     const generation = ++this.generation;
-    this.cancelAnimation('replaced');
+    this.cancelAnimations('replaced');
     this.detachInputHandlers();
     this.cardKey = cardKey;
     this.status = 'loading';
@@ -448,6 +440,7 @@ class LobbyHandSurface {
         this.status = 'ready';
         this.presentReady();
       } catch (error) {
+        this.clearCommittedCards();
         this.status = 'failed';
         this.reportError(error);
       }
@@ -508,11 +501,20 @@ class LobbyHandSurface {
 
       const motionRoot = new Group();
       const tiltRoot = new Group();
+      const projectionRoot = new Group();
       const pickupRoot = new Group();
       const flipRoot = new Group();
       const bodyMesh = new Mesh(this.cardBodyGeometry, bodyMaterials);
       const frontMesh = new Mesh(this.cardGeometry, frontMaterial);
       const backMesh = new Mesh(this.cardGeometry, backMaterial);
+      const liftShadowMaterial = new MeshBasicMaterial({
+        map: this.liftShadowTexture,
+        transparent: true,
+        opacity: 0,
+        depthTest: true,
+        depthWrite: false
+      });
+      const liftShadow = new Mesh(this.liftShadowGeometry, liftShadowMaterial);
       const basePosition = {
         x: card.x + (card.width / 2),
         y: LOBBY_LOGICAL_HEIGHT - card.y - (card.height / 2),
@@ -528,6 +530,10 @@ class LobbyHandSurface {
       frontMesh.position.z = LOBBY_CARD_FACE_OFFSET;
       backMesh.position.z = -LOBBY_CARD_FACE_OFFSET;
       backMesh.rotation.x = Math.PI;
+      liftShadow.position.z = LOBBY_ANALYTIC_SHADOW_Z;
+      liftShadow.renderOrder = -100 + card.index;
+      liftShadow.visible = false;
+      projectionRoot.matrixAutoUpdate = false;
       bodyMesh.renderOrder = card.index;
       frontMesh.renderOrder = card.index;
       backMesh.renderOrder = card.index;
@@ -536,43 +542,55 @@ class LobbyHandSurface {
       flipRoot.add(frontMesh);
       flipRoot.add(backMesh);
       pickupRoot.add(flipRoot);
-      tiltRoot.add(pickupRoot);
+      projectionRoot.add(pickupRoot);
+      tiltRoot.add(projectionRoot);
       motionRoot.add(tiltRoot);
 
       const entry = {
         card,
         motionRoot,
         tiltRoot,
+        projectionRoot,
         pickupRoot,
         flipRoot,
         bodyMesh,
         frontMesh,
         backMesh,
+        liftShadow,
+        liftShadowMaterial,
         basePosition,
         currentMotion: {
           screenLiftY: 0,
           depth: 0,
           pickupTiltX: 0,
           pickupTiltY: 0,
+          projectionShearX: 0,
+          projectionShearY: 0,
           previousFlipRotationX: 0
         },
         phase: 'idle',
         visibleFace: 'front',
-        completedFlips: 0
+        completedFlips: 0,
+        lastTransition: null
       };
       frontMesh.userData.purettCardEntry = entry;
       backMesh.userData.purettCardEntry = entry;
       this.cardGroup.add(motionRoot);
-      this.materials.push(frontMaterial);
+      this.scene.add(liftShadow);
+      this.materials.push(frontMaterial, liftShadowMaterial);
       this.cardEntries.push(entry);
       this.meshes.push(frontMesh);
       this.pickMeshes.push(frontMesh, backMesh);
+      this.applyFlatTableProjection(entry, 0);
     });
   }
 
   clearCommittedCards() {
-    this.cancelAnimation('cleared');
-    this.cardEntries.forEach((entry) => this.cardGroup.remove(entry.motionRoot));
+    this.cancelAnimations('cleared');
+    this.cardEntries.forEach((entry) => {
+      this.cardGroup.remove(entry.motionRoot);
+      this.scene.remove(entry.liftShadow);
+    });
     this.materials.forEach((material) => material.dispose());
     this.textures.forEach((texture) => texture.dispose());
     this.meshes = [];
@@ -607,11 +625,19 @@ class LobbyHandSurface {
       return null;
     }
 
-    const entries = intersections
-      .map((intersection) => intersection.object.userData.purettCardEntry)
-      .filter(Boolean)
-      .sort((left, right) => right.frontMesh.renderOrder - left.frontMesh.renderOrder);
-    return entries[0] || null;
+    const hits = intersections
+      .map((intersection) => ({
+        distance: intersection.distance,
+        entry: intersection.object.userData.purettCardEntry
+      }))
+      .filter((hit) => Boolean(hit.entry))
+      .sort((left, right) => {
+        const distanceDelta = left.distance - right.distance;
+        return Math.abs(distanceDelta) > 0.001
+          ? distanceDelta
+          : right.entry.frontMesh.renderOrder - left.entry.frontMesh.renderOrder;
+      });
+    return hits.length ? hits[0].entry : null;
   }
 
   onCanvasClick(event) {
@@ -632,7 +658,7 @@ class LobbyHandSurface {
 
     event.preventDefault();
     event.stopPropagation();
-    if (this.activeAnimation) {
+    if (this.activeAnimations.has(entry)) {
       this.ignoredClicks += 1;
       return;
     }
@@ -647,11 +673,12 @@ class LobbyHandSurface {
   }
 
   onCanvasPointerMove(event) {
-    if (!this.isInteractive() || this.activeAnimation) {
+    if (!this.isInteractive()) {
       this.restoreInputCursor();
       return;
     }
-    this.inputTarget.style.cursor = this.pickCard(event.clientX, event.clientY)
+    const entry = this.pickCard(event.clientX, event.clientY);
+    this.inputTarget.style.cursor = entry && !this.activeAnimations.has(entry)
       ? 'pointer'
       : this.inputTargetCursor;
   }
@@ -661,54 +688,40 @@ class LobbyHandSurface {
   }
 
   startAnimation(entry) {
+    if (this.activeAnimations.has(entry)) {
+      return false;
+    }
+
     const token = ++this.activationSequence;
+    const transition = this.createTransition(entry, false);
     entry.phase = 'lifting';
     entry.visibleFace = 'front';
     entry.currentMotion.previousFlipRotationX = 0;
     entry.bodyMesh.renderOrder = 100 + token;
     entry.frontMesh.renderOrder = 100 + token;
     entry.backMesh.renderOrder = 100 + token;
-    this.activeAnimation = {
+    const animation = {
       entry,
       startTime: window.performance && typeof window.performance.now === 'function'
         ? window.performance.now()
         : null,
       token,
-      reducedMotion: false
+      reducedMotion: false,
+      transition
     };
-    this.lastTransition = {
-      cardIndex: entry.card.index,
-      userCardId: entry.card.userCardId,
-      cardId: entry.card.cardId,
-      outcome: 'running',
-      phases: ['lift'],
-      flipAxis: 'x',
-      nominalDurationMs: LOBBY_FLIP_DURATION,
-      deadlineMs: LOBBY_FLIP_DEADLINE,
-      evidence: {
-        maxScreenLiftY: 0,
-        maxLiftZ: 0,
-        maxAbsFlipRotationX: 0,
-        minFlipRotationX: 0,
-        maxAbsFlipRotationY: 0,
-        maxPickupTilt: 0,
-        maxTopBottomDepthSpan: 0,
-        maxPerspectiveScale: 1,
-        maxAnalyticShadowOpacity: 0,
-        directionReversals: 0,
-        firstEdgeAngleX: null,
-        backAngleX: null,
-        secondEdgeAngleX: null,
-        frontAngleBeforeSettlement: null,
-        edgePasses: 0
-      }
-    };
+    this.registerAnimation(animation);
     this.restoreInputCursor();
     this.scheduleAnimationFrame();
+    return true;
   }
 
   startReducedMotionAnimation(entry) {
+    if (this.activeAnimations.has(entry)) {
+      return false;
+    }
+
     const token = ++this.activationSequence;
+    const transition = this.createTransition(entry, true);
     entry.phase = 'showing-back';
     entry.visibleFace = 'back';
     entry.bodyMesh.renderOrder = 100 + token;
@@ -717,83 +730,128 @@ class LobbyHandSurface {
     entry.flipRoot.rotation.x = -Math.PI;
     entry.flipRoot.rotation.y = 0;
     entry.currentMotion.previousFlipRotationX = -Math.PI;
-    this.activeAnimation = {
+    const animation = {
       entry,
       startTime: null,
       token,
       reducedMotion: true,
-      reducedStep: 0
+      reducedStep: 0,
+      transition
     };
-    this.lastTransition = {
+    this.registerAnimation(animation);
+    this.restoreInputCursor();
+    this.render();
+    this.scheduleAnimationFrame();
+    return true;
+  }
+
+  createTransition(entry, reducedMotion) {
+    return {
       cardIndex: entry.card.index,
       userCardId: entry.card.userCardId,
       cardId: entry.card.cardId,
-      outcome: 'running-reduced-motion',
-      phases: ['back'],
+      token: this.activationSequence,
+      outcome: reducedMotion ? 'running-reduced-motion' : 'running',
+      phases: [reducedMotion ? 'back' : 'lift'],
       flipAxis: 'x',
-      nominalDurationMs: 0,
+      nominalDurationMs: reducedMotion ? 0 : LOBBY_FLIP_DURATION,
       deadlineMs: LOBBY_FLIP_DEADLINE,
       evidence: {
         maxScreenLiftY: 0,
         maxLiftZ: 0,
-        maxAbsFlipRotationX: Math.PI,
-        minFlipRotationX: -Math.PI,
+        maxAbsFlipRotationX: reducedMotion ? Math.PI : 0,
+        minFlipRotationX: reducedMotion ? -Math.PI : 0,
         maxAbsFlipRotationY: 0,
         maxPickupTilt: 0,
         maxTopBottomDepthSpan: 0,
         maxPerspectiveScale: 1,
         maxAnalyticShadowOpacity: 0,
+        maxAbsProjectedLateralShear: 0,
         directionReversals: 0,
         firstEdgeAngleX: null,
-        backAngleX: -Math.PI,
+        backAngleX: reducedMotion ? -Math.PI : null,
         secondEdgeAngleX: null,
         frontAngleBeforeSettlement: null,
         edgePasses: 0
       }
     };
-    this.restoreInputCursor();
-    this.render();
-    this.scheduleAnimationFrame();
+  }
+
+  registerAnimation(animation) {
+    const entry = animation.entry;
+    entry.lastTransition = animation.transition;
+    this.lastTransition = animation.transition;
+    this.transitionHistory.push(animation.transition);
+    if (this.transitionHistory.length > LOBBY_TRANSITION_HISTORY_LIMIT) {
+      this.transitionHistory.splice(
+        0,
+        this.transitionHistory.length - LOBBY_TRANSITION_HISTORY_LIMIT
+      );
+    }
+    this.activeAnimations.set(entry, animation);
+    this.peakConcurrentAnimationCount = Math.max(
+      this.peakConcurrentAnimationCount,
+      this.activeAnimations.size
+    );
   }
 
   scheduleAnimationFrame() {
-    if (this.animationFrameId !== null || !this.activeAnimation ||
+    if (this.animationFrameId !== null || this.activeAnimations.size === 0 ||
         this.disposed || this.contextLost || this.suspended) {
       return;
     }
 
-    const animation = this.activeAnimation;
     this.animationFrameId = window.requestAnimationFrame((timestamp) => {
       this.animationFrameId = null;
-      this.tickAnimation(timestamp, animation);
+      this.tickAnimations(timestamp);
     });
   }
 
-  tickAnimation(timestamp, animation) {
-    if (!this.activeAnimation || this.activeAnimation !== animation ||
+  tickAnimations(timestamp) {
+    if (this.activeAnimations.size === 0 ||
         this.disposed || this.contextLost || this.suspended) {
       return;
     }
 
     try {
-      if (animation.reducedMotion) {
-        this.tickReducedMotionAnimation(animation);
-        return;
-      }
-      if (animation.startTime === null) {
-        animation.startTime = timestamp;
-      }
-      const elapsed = Math.max(0, timestamp - animation.startTime);
-      const complete = this.updateAnimation(animation.entry, elapsed);
+      const completed = [];
+      Array.from(this.activeAnimations.values()).forEach((animation) => {
+        if (this.activeAnimations.get(animation.entry) !== animation) {
+          return;
+        }
+
+        if (animation.reducedMotion) {
+          if (this.tickReducedMotionAnimation(animation)) {
+            completed.push({
+              animation,
+              outcome: 'completed-reduced-motion'
+            });
+          }
+          return;
+        }
+
+        if (animation.startTime === null) {
+          animation.startTime = timestamp;
+        }
+        const elapsed = Math.max(0, timestamp - animation.startTime);
+        const deadlineElapsed = elapsed >= animation.transition.deadlineMs;
+        const complete = this.updateAnimation(
+          animation,
+          Math.min(elapsed, animation.transition.deadlineMs)
+        );
+        if (complete || deadlineElapsed) {
+          completed.push({animation, outcome: 'completed'});
+        }
+      });
+
+      completed.forEach((entry) => {
+        this.completeAnimation(entry.animation, entry.outcome, false);
+      });
       this.animationFrameCount += 1;
       this.render();
-      if (complete) {
-        this.completeAnimation();
-      } else {
-        this.scheduleAnimationFrame();
-      }
+      this.scheduleAnimationFrame();
     } catch (error) {
-      this.cancelAnimation('failed', false);
+      this.cancelAnimations('failed', false);
       this.status = 'failed';
       this.reportError(error);
     }
@@ -801,36 +859,39 @@ class LobbyHandSurface {
 
   tickReducedMotionAnimation(animation) {
     if (animation.reducedStep === 0) {
-      // Keep the back through one animation-frame boundary so it can be
-      // presented before the next bounded frame restores the front.
+      // Retain the back through a frame boundary before presenting the front.
       animation.reducedStep = 1;
       animation.entry.phase = 'showing-back';
       animation.entry.visibleFace = 'back';
       animation.entry.flipRoot.rotation.x = -Math.PI;
       animation.entry.flipRoot.rotation.y = 0;
-      this.animationFrameCount += 1;
-      this.render();
-      this.scheduleAnimationFrame();
-      return;
+      return false;
     }
 
-    animation.entry.phase = 'showing-front';
-    animation.entry.visibleFace = 'front';
-    animation.entry.flipRoot.rotation.x = -Math.PI * 2;
-    animation.entry.flipRoot.rotation.y = 0;
-    animation.entry.currentMotion.previousFlipRotationX = -Math.PI * 2;
-    if (this.lastTransition && this.lastTransition.evidence) {
-      this.lastTransition.evidence.maxAbsFlipRotationX = Math.PI * 2;
-      this.lastTransition.evidence.minFlipRotationX = -Math.PI * 2;
-      this.lastTransition.evidence.frontAngleBeforeSettlement = -Math.PI * 2;
+    if (animation.reducedStep === 1) {
+      // Retain the restored front through its own frame boundary before the
+      // exact settled transform releases this card's re-entry guard.
+      animation.reducedStep = 2;
+      animation.entry.phase = 'showing-front';
+      animation.entry.visibleFace = 'front';
+      animation.entry.flipRoot.rotation.x = -Math.PI * 2;
+      animation.entry.flipRoot.rotation.y = 0;
+      animation.entry.currentMotion.previousFlipRotationX = -Math.PI * 2;
+      if (animation.transition.evidence) {
+        animation.transition.evidence.maxAbsFlipRotationX = Math.PI * 2;
+        animation.transition.evidence.minFlipRotationX = -Math.PI * 2;
+        animation.transition.evidence.frontAngleBeforeSettlement = -Math.PI * 2;
+      }
+      this.markTransitionPhase(animation.transition, 'front');
+      return false;
     }
-    this.markTransitionPhase('front');
-    this.animationFrameCount += 1;
-    this.render();
-    this.completeAnimation('completed-reduced-motion');
+
+    return true;
   }
 
-  updateAnimation(entry, elapsed) {
+  updateAnimation(animation, elapsed) {
+    const entry = animation.entry;
+    const transition = animation.transition;
     const liftEnd = LOBBY_FLIP_TIMINGS.lift;
     const turnEnd = liftEnd + LOBBY_FLIP_TIMINGS.turn;
     const settleEnd = turnEnd + LOBBY_FLIP_TIMINGS.settle;
@@ -845,7 +906,7 @@ class LobbyHandSurface {
       this.applyLift(entry, progress, 0, progress);
       entry.flipRoot.rotation.x = 0;
       entry.flipRoot.rotation.y = 0;
-      this.recordMotionEvidence(entry);
+      this.recordMotionEvidence(entry, transition);
       return false;
     }
     if (elapsed < turnEnd) {
@@ -858,18 +919,18 @@ class LobbyHandSurface {
       entry.visibleFace = Math.abs(Math.cos(entry.flipRoot.rotation.x)) < 0.12
         ? 'edge'
         : (Math.cos(entry.flipRoot.rotation.x) > 0 ? 'front' : 'back');
-      this.markTurnMilestones(turnProgress);
+      this.markTurnMilestones(transition, turnProgress);
       this.applyLift(
         entry,
         1,
         arcProgress,
         Math.abs((turnProgress * 2) - 1)
       );
-      this.recordMotionEvidence(entry);
+      this.recordMotionEvidence(entry, transition);
       return false;
     }
 
-    this.markTurnMilestones(1);
+    this.markTurnMilestones(transition, 1);
     if (elapsed < settleEnd) {
       progress = this.easeInOutCubic((elapsed - turnEnd) / LOBBY_FLIP_TIMINGS.settle);
       entry.phase = 'settling';
@@ -877,41 +938,41 @@ class LobbyHandSurface {
       this.applyLift(entry, 1 - progress, 0, 1 - progress);
       entry.flipRoot.rotation.x = -Math.PI * 2;
       entry.flipRoot.rotation.y = 0;
-      if (this.lastTransition && this.lastTransition.evidence) {
-        this.lastTransition.evidence.frontAngleBeforeSettlement = -Math.PI * 2;
+      if (transition.evidence) {
+        transition.evidence.frontAngleBeforeSettlement = -Math.PI * 2;
       }
-      this.recordMotionEvidence(entry);
+      this.recordMotionEvidence(entry, transition);
       return false;
     }
 
     return true;
   }
 
-  markTurnMilestones(turnProgress) {
+  markTurnMilestones(transition, turnProgress) {
     const progress = Math.max(0, Math.min(1, turnProgress));
     const thresholdEpsilon = 0.000000001;
-    const evidence = this.lastTransition && this.lastTransition.evidence;
+    const evidence = transition && transition.evidence;
 
     if (progress + thresholdEpsilon >= 0.25) {
-      this.markTransitionPhase('first-edge');
+      this.markTransitionPhase(transition, 'first-edge');
       if (evidence) {
         evidence.firstEdgeAngleX = -Math.PI / 2;
       }
     }
     if (progress + thresholdEpsilon >= 0.5) {
-      this.markTransitionPhase('back');
+      this.markTransitionPhase(transition, 'back');
       if (evidence) {
         evidence.backAngleX = -Math.PI;
       }
     }
     if (progress + thresholdEpsilon >= 0.75) {
-      this.markTransitionPhase('second-edge');
+      this.markTransitionPhase(transition, 'second-edge');
       if (evidence) {
         evidence.secondEdgeAngleX = -Math.PI * 1.5;
       }
     }
     if (progress + thresholdEpsilon >= 1) {
-      this.markTransitionPhase('front');
+      this.markTransitionPhase(transition, 'front');
       if (evidence) {
         evidence.frontAngleBeforeSettlement = -Math.PI * 2;
       }
@@ -942,43 +1003,70 @@ class LobbyHandSurface {
     entry.currentMotion.depth = depth;
     entry.currentMotion.pickupTiltX = entry.pickupRoot.rotation.x;
     entry.currentMotion.pickupTiltY = entry.pickupRoot.rotation.y;
+    this.applyFlatTableProjection(entry, screenLiftY);
     this.updateAnalyticShadow(entry, liftProgress, arcProgress);
   }
 
+  applyFlatTableProjection(entry, screenLiftY) {
+    const horizontalOffset =
+      (entry.basePosition.x - LOBBY_CAMERA_CENTER_X) / LOBBY_CAMERA_DISTANCE;
+    const verticalOffset =
+      (entry.basePosition.y + screenLiftY - LOBBY_CAMERA_CENTER_Y) /
+      LOBBY_CAMERA_DISTANCE;
+    const shearX = -horizontalOffset;
+    const shearY = -verticalOffset;
+
+    // A head-on perspective camera otherwise makes a rotated off-axis plane
+    // lean toward the camera center: each vertex's local Z changes the
+    // projection of the card's slot offset. Apply the inverse projective
+    // shear outside the card rotation and anchor it at the visible face
+    // plane. Every slot then receives the center card's symmetric silhouette
+    // without sacrificing perspective enlargement or depth foreshortening.
+    entry.projectionRoot.matrix.set(
+      1, 0, shearX, -shearX * LOBBY_CARD_FACE_OFFSET,
+      0, 1, shearY, -shearY * LOBBY_CARD_FACE_OFFSET,
+      0, 0, 1, 0,
+      0, 0, 0, 1
+    );
+    entry.projectionRoot.matrixWorldNeedsUpdate = true;
+    entry.currentMotion.projectionShearX = shearX;
+    entry.currentMotion.projectionShearY = shearY;
+  }
+
   updateAnalyticShadow(entry, liftProgress, arcProgress) {
-    if (!this.liftShadow || !this.liftShadowMaterial || liftProgress <= 0.001) {
-      this.hideAnalyticShadow();
+    if (!entry.liftShadow || !entry.liftShadowMaterial || liftProgress <= 0.001) {
+      this.hideAnalyticShadow(entry);
       return;
     }
 
     const spreadX = 0.88 + (0.22 * liftProgress) + (0.06 * arcProgress);
     const spreadY = 0.82 + (0.26 * liftProgress) + (0.08 * arcProgress);
-    this.liftShadow.position.set(
+    entry.liftShadow.position.set(
       entry.basePosition.x + (8 * liftProgress),
       entry.basePosition.y - (10 * liftProgress),
       LOBBY_ANALYTIC_SHADOW_Z
     );
-    this.liftShadow.scale.set(spreadX, spreadY, 1);
-    this.liftShadowMaterial.opacity =
+    entry.liftShadow.scale.set(spreadX, spreadY, 1);
+    entry.liftShadowMaterial.opacity =
       LOBBY_ANALYTIC_SHADOW_OPACITY *
       Math.min(1, liftProgress * 1.4) *
       (1 - (0.15 * arcProgress));
-    this.liftShadow.visible = true;
+    entry.liftShadow.visible = true;
   }
 
-  hideAnalyticShadow() {
-    if (this.liftShadow) {
-      this.liftShadow.visible = false;
-      this.liftShadow.position.set(0, 0, LOBBY_ANALYTIC_SHADOW_Z);
-      this.liftShadow.scale.set(1, 1, 1);
+  hideAnalyticShadow(entry) {
+    if (entry && entry.liftShadow) {
+      entry.liftShadow.visible = false;
+      entry.liftShadow.position.set(0, 0, LOBBY_ANALYTIC_SHADOW_Z);
+      entry.liftShadow.scale.set(1, 1, 1);
     }
-    if (this.liftShadowMaterial) {
-      this.liftShadowMaterial.opacity = 0;
+    if (entry && entry.liftShadowMaterial) {
+      entry.liftShadowMaterial.opacity = 0;
     }
   }
 
-  recordMotionEvidence(entry) {
-    const evidence = this.lastTransition && this.lastTransition.evidence;
+  recordMotionEvidence(entry, transition) {
+    const evidence = transition && transition.evidence;
     if (!evidence) {
       return;
     }
@@ -1014,56 +1102,112 @@ class LobbyHandSurface {
     );
     evidence.maxAnalyticShadowOpacity = Math.max(
       evidence.maxAnalyticShadowOpacity,
-      this.liftShadowMaterial ? this.liftShadowMaterial.opacity : 0
+      entry.liftShadowMaterial ? entry.liftShadowMaterial.opacity : 0
     );
+    const projectedFace = this.getProjectedFaceMetrics(entry);
+    if (projectedFace) {
+      evidence.maxAbsProjectedLateralShear = Math.max(
+        evidence.maxAbsProjectedLateralShear,
+        Math.abs(projectedFace.lateralShear)
+      );
+    }
     if (flipRotationX > entry.currentMotion.previousFlipRotationX + 0.000001) {
       evidence.directionReversals += 1;
     }
     entry.currentMotion.previousFlipRotationX = flipRotationX;
   }
 
-  completeAnimation(outcome) {
-    if (!this.activeAnimation) {
+  getProjectedFaceMetrics(entry) {
+    if (!entry || !entry.frontMesh || !this.camera) {
+      return null;
+    }
+
+    this.scene.updateMatrixWorld(true);
+    this.camera.updateMatrixWorld(true);
+    const halfWidth = entry.card.width / 2;
+    const halfHeight = entry.card.height / 2;
+    const localCorners = [
+      [-halfWidth, halfHeight],
+      [halfWidth, halfHeight],
+      [halfWidth, -halfHeight],
+      [-halfWidth, -halfHeight]
+    ];
+    const corners = localCorners.map((corner) => {
+      const projected = new Vector3(corner[0], corner[1], 0)
+        .applyMatrix4(entry.frontMesh.matrixWorld)
+        .project(this.camera);
+      return {
+        x: (projected.x + 1) * LOBBY_LOGICAL_WIDTH / 2,
+        y: (1 - projected.y) * LOBBY_LOGICAL_HEIGHT / 2
+      };
+    });
+    const topMidpointX = (corners[0].x + corners[1].x) / 2;
+    const bottomMidpointX = (corners[2].x + corners[3].x) / 2;
+    const edgeLength = (left, right) => Math.hypot(
+      right.x - left.x,
+      right.y - left.y
+    );
+
+    return {
+      corners,
+      center: {
+        x: corners.reduce((sum, corner) => sum + corner.x, 0) / corners.length,
+        y: corners.reduce((sum, corner) => sum + corner.y, 0) / corners.length
+      },
+      lateralShear: topMidpointX - bottomMidpointX,
+      topWidth: edgeLength(corners[0], corners[1]),
+      bottomWidth: edgeLength(corners[3], corners[2])
+    };
+  }
+
+  completeAnimation(animation, outcome, shouldRender) {
+    if (!animation ||
+        this.activeAnimations.get(animation.entry) !== animation) {
       return;
     }
 
-    const entry = this.activeAnimation.entry;
-    this.activeAnimation = null;
+    const entry = animation.entry;
+    this.activeAnimations.delete(entry);
+    if (this.activeAnimations.size === 0 && this.animationFrameId !== null) {
+      window.cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
     this.settleEntry(entry);
     entry.completedFlips += 1;
     this.completedAnimationCount += 1;
-    this.markTransitionPhase('settled');
-    if (this.lastTransition) {
-      this.lastTransition.outcome = outcome || 'completed';
+    this.markTransitionPhase(animation.transition, 'settled');
+    animation.transition.outcome = outcome || 'completed';
+    if (shouldRender !== false) {
+      this.render();
     }
-    this.render();
   }
 
-  cancelAnimation(outcome, shouldRender) {
+  cancelAnimations(outcome, shouldRender) {
     if (this.animationFrameId !== null) {
       window.cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = null;
     }
-    if (!this.activeAnimation) {
+    if (this.activeAnimations.size === 0) {
       return;
     }
 
-    const entry = this.activeAnimation.entry;
-    this.activeAnimation = null;
-    this.settleEntry(entry);
-    this.markTransitionPhase('settled');
-    if (this.lastTransition &&
-        (this.lastTransition.outcome === 'running' ||
-         this.lastTransition.outcome === 'running-reduced-motion')) {
-      this.lastTransition.outcome = outcome || 'cancelled';
-    }
+    const animations = Array.from(this.activeAnimations.values());
+    this.activeAnimations.clear();
+    animations.forEach((animation) => {
+      this.settleEntry(animation.entry);
+      this.markTransitionPhase(animation.transition, 'settled');
+      if (animation.transition.outcome === 'running' ||
+          animation.transition.outcome === 'running-reduced-motion') {
+        animation.transition.outcome = outcome || 'cancelled';
+      }
+    });
     if (shouldRender !== false) {
       this.render();
     }
   }
 
   settleEntry(entry) {
-    this.hideAnalyticShadow();
+    this.hideAnalyticShadow(entry);
     entry.motionRoot.position.set(
       entry.basePosition.x,
       entry.basePosition.y,
@@ -1081,19 +1225,20 @@ class LobbyHandSurface {
     entry.currentMotion.depth = 0;
     entry.currentMotion.pickupTiltX = 0;
     entry.currentMotion.pickupTiltY = 0;
+    this.applyFlatTableProjection(entry, 0);
     entry.currentMotion.previousFlipRotationX = 0;
     entry.phase = 'idle';
     entry.visibleFace = 'front';
   }
 
-  markTransitionPhase(phase) {
-    if (!this.lastTransition || this.lastTransition.phases.indexOf(phase) !== -1) {
+  markTransitionPhase(transition, phase) {
+    if (!transition || transition.phases.indexOf(phase) !== -1) {
       return;
     }
-    this.lastTransition.phases.push(phase);
+    transition.phases.push(phase);
     if ((phase === 'first-edge' || phase === 'second-edge') &&
-        this.lastTransition.evidence) {
-      this.lastTransition.evidence.edgePasses += 1;
+        transition.evidence) {
+      transition.evidence.edgePasses += 1;
     }
   }
 
@@ -1116,7 +1261,7 @@ class LobbyHandSurface {
 
   suspend() {
     this.suspended = true;
-    this.cancelAnimation('cancelled');
+    this.cancelAnimations('cancelled');
     this.detachInputHandlers();
     this.restoreInputCursor();
   }
@@ -1201,9 +1346,40 @@ class LobbyHandSurface {
     return error && error.message ? error.message : 'Unknown texture error.';
   }
 
+  cloneTransition(transition) {
+    return transition ? {
+      cardIndex: transition.cardIndex,
+      userCardId: transition.userCardId,
+      cardId: transition.cardId,
+      token: transition.token,
+      outcome: transition.outcome,
+      phases: transition.phases.slice(0),
+      flipAxis: transition.flipAxis,
+      nominalDurationMs: transition.nominalDurationMs,
+      deadlineMs: transition.deadlineMs,
+      evidence: transition.evidence
+        ? Object.assign({}, transition.evidence)
+        : null
+    } : null;
+  }
+
   getDebugState() {
     const context = this.renderer.getContext();
     const isWebGL2 = typeof WebGL2RenderingContext !== 'undefined' && context instanceof WebGL2RenderingContext;
+    const activeAnimations = Array.from(this.activeAnimations.values())
+      .sort((left, right) => left.token - right.token);
+    const activeCardIndices = activeAnimations
+      .map((animation) => animation.entry.card.index)
+      .sort((left, right) => left - right);
+    const visibleShadows = this.cardEntries.filter((entry) => (
+      entry.liftShadow && entry.liftShadow.visible
+    ));
+    const maxShadowOpacity = visibleShadows.reduce((maximum, entry) => (
+      Math.max(
+        maximum,
+        entry.liftShadowMaterial ? entry.liftShadowMaterial.opacity : 0
+      )
+    ), 0);
 
     return {
       packageVersion: __PURETT_THREE_PACKAGE_VERSION__,
@@ -1236,6 +1412,12 @@ class LobbyHandSurface {
       motionProfile: {
         flipAxis: 'x',
         rotationPath: '0-to-negative-two-pi',
+        projectionProfile: 'flat-table-neutralized',
+        pickupTiltPolicy: 'none',
+        animationConcurrency: 'independent-per-card',
+        repeatedActiveCardPolicy: 'ignored-until-settled',
+        scheduler: 'shared-request-animation-frame',
+        maxConcurrentAnimations: this.cards.length,
         nominalDurationMs: LOBBY_FLIP_DURATION,
         deadlineMs: LOBBY_FLIP_DEADLINE,
         continuousTurnMs: LOBBY_FLIP_TIMINGS.turn,
@@ -1253,6 +1435,7 @@ class LobbyHandSurface {
           this.renderer.capabilities.getMaxAnisotropy()
         ),
         shadowStrategy: 'analytic-contact',
+        shadowOwnership: 'per-active-card',
         shadowMapEnabled: this.renderer.shadowMap.enabled
       },
       pixelRatio: this.renderer.getPixelRatio(),
@@ -1268,33 +1451,39 @@ class LobbyHandSurface {
       drawCalls: this.renderer.info.render.calls,
       triangles: this.renderer.info.render.triangles,
       rafActive: this.animationFrameId !== null,
-      activeAnimationCount: this.activeAnimation ? 1 : 0,
-      lockHeld: Boolean(this.activeAnimation),
-      activeCardIndex: this.activeAnimation ? this.activeAnimation.entry.card.index : null,
-      phase: this.activeAnimation ? this.activeAnimation.entry.phase : 'idle',
+      activeAnimationCount: activeAnimations.length,
+      activeCardIndices,
+      lockedCardIndices: activeCardIndices.slice(0),
+      activeAnimations: activeAnimations.map((animation) => ({
+        cardIndex: animation.entry.card.index,
+        token: animation.token,
+        phase: animation.entry.phase,
+        reducedMotion: animation.reducedMotion,
+        transition: this.cloneTransition(animation.transition)
+      })),
+      peakConcurrentAnimationCount: this.peakConcurrentAnimationCount,
+      lockHeld: activeAnimations.length > 0,
+      activeCardIndex: activeAnimations.length === 1
+        ? activeAnimations[0].entry.card.index
+        : null,
+      phase: activeAnimations.length === 0
+        ? 'idle'
+        : (activeAnimations.length === 1
+          ? activeAnimations[0].entry.phase
+          : 'concurrent'),
       animationFrameCount: this.animationFrameCount,
       acceptedClicks: this.acceptedClicks,
       ignoredClicks: this.ignoredClicks,
       emptyClicks: this.emptyClicks,
       completedAnimationCount: this.completedAnimationCount,
-      analyticShadowVisible: Boolean(this.liftShadow && this.liftShadow.visible),
-      analyticShadowOpacity: this.liftShadowMaterial
-        ? this.liftShadowMaterial.opacity
-        : 0,
+      activeAnalyticShadowCount: visibleShadows.length,
+      analyticShadowVisible: visibleShadows.length > 0,
+      analyticShadowOpacity: maxShadowOpacity,
       lastPick: this.lastPick ? Object.assign({}, this.lastPick) : null,
-      lastTransition: this.lastTransition ? {
-        cardIndex: this.lastTransition.cardIndex,
-        userCardId: this.lastTransition.userCardId,
-        cardId: this.lastTransition.cardId,
-        outcome: this.lastTransition.outcome,
-        phases: this.lastTransition.phases.slice(0),
-        flipAxis: this.lastTransition.flipAxis,
-        nominalDurationMs: this.lastTransition.nominalDurationMs,
-        deadlineMs: this.lastTransition.deadlineMs,
-        evidence: this.lastTransition.evidence
-          ? Object.assign({}, this.lastTransition.evidence)
-          : null
-      } : null,
+      lastTransition: this.cloneTransition(this.lastTransition),
+      recentTransitions: this.transitionHistory.map((transition) => (
+        this.cloneTransition(transition)
+      )),
       prefersReducedMotion: this.prefersReducedMotion(),
       cards: this.cards.map((card, index) => {
         const entry = this.cardEntries[index];
@@ -1315,6 +1504,16 @@ class LobbyHandSurface {
           phase: entry ? entry.phase : 'unmounted',
           visibleFace: entry ? entry.visibleFace : 'front',
           completedFlips: entry ? entry.completedFlips : 0,
+          animating: entry ? this.activeAnimations.has(entry) : false,
+          analyticShadowVisible: Boolean(
+            entry && entry.liftShadow && entry.liftShadow.visible
+          ),
+          analyticShadowOpacity: entry && entry.liftShadowMaterial
+            ? entry.liftShadowMaterial.opacity
+            : 0,
+          lastTransition: entry
+            ? this.cloneTransition(entry.lastTransition)
+            : null,
           transform: entry ? {
             liftY: entry.currentMotion.screenLiftY,
             z: entry.currentMotion.depth,
@@ -1323,6 +1522,8 @@ class LobbyHandSurface {
             rotationY: entry.flipRoot.rotation.y,
             pickupTiltX: entry.currentMotion.pickupTiltX,
             pickupTiltY: entry.currentMotion.pickupTiltY,
+            projectionShearX: entry.currentMotion.projectionShearX,
+            projectionShearY: entry.currentMotion.projectionShearY,
             staticRotationZ: entry.tiltRoot.rotation.z,
             perspectiveScale:
               LOBBY_CAMERA_DISTANCE /
@@ -1331,7 +1532,8 @@ class LobbyHandSurface {
               x: entry.motionRoot.position.x,
               y: entry.motionRoot.position.y,
               z: entry.motionRoot.position.z
-            }
+            },
+            projectedFace: this.getProjectedFaceMetrics(entry)
           } : null
         };
       })
@@ -1343,7 +1545,7 @@ class LobbyHandSurface {
       return;
     }
 
-    this.cancelAnimation('disposed');
+    this.cancelAnimations('disposed', false);
     this.disposed = true;
     this.generation += 1;
     this.clearCommittedCards();
@@ -1358,9 +1560,6 @@ class LobbyHandSurface {
     }
     if (this.liftShadowTexture) {
       this.liftShadowTexture.dispose();
-    }
-    if (this.liftShadowMaterial) {
-      this.liftShadowMaterial.dispose();
     }
     if (this.inputTarget && this.handleCanvasClick) {
       this.detachInputHandlers();

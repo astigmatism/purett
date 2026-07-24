@@ -2,13 +2,13 @@
 
 | Field | Value |
 |---|---|
-| Status | Corrected Phase 0.6 perspective lobby-interaction baseline |
-| Version | 0.6 |
+| Status | Corrected Phase 0.6 flat-table concurrent lobby-interaction baseline |
+| Version | 0.8 |
 | Last updated | 2026-07-23 |
-| Scope | Active-match graphics roadmap plus Modern lobby-hand rendering and one bounded decorative flip interaction |
+| Scope | Active-match graphics roadmap plus Modern lobby-hand rendering and bounded decorative per-card flip interactions |
 | Modern renderer | Three.js `0.185.1` (`r185`) with `WebGLRenderer`, selected for Phase 0 and provisional for the playable renderer |
 
-> **Implementation status — 2026-07-23:** Phase 0 established the runtime Graphics switch, the safe Legacy fallback, and an inert active-match Modern surface. Phase 0.5 rendered only the five hand cards shown in the main-menu/lobby viewport beneath the Play, Shop, and Tutorials bar, using an orthographic, unlit approximation of the Legacy layout. Phase 0.6 supersedes that historical rendering baseline only for the Modern lobby hand: all five cards rest canonically flat with unlit, sRGB art-preserving faces; clicking one card lifts its thin side-lit body toward a calibrated perspective camera, introduces one lift-only analytic contact shadow, turns continuously in one direction around local X from zero through the canonical back to `-2π`, and settles at the exact flat transform. Mipmapped, anisotropic face textures and explicit face/body separation prevent motion aliasing and depth artifacts. This is decorative renderer validation, not a game action. The bar, commands, statistics, rules, surrounding menu, and complete Legacy route remain on their existing Raphael/DOM implementation. The playable active-match renderer remains intentionally blank and follows the renderer-neutral roadmap described later in this document.
+> **Implementation status — 2026-07-23:** Phase 0 established the runtime Graphics switch, the safe Legacy fallback, and an inert active-match Modern surface. Phase 0.5 rendered only the five hand cards shown in the main-menu/lobby viewport beneath the Play, Shop, and Tutorials bar, using an orthographic, unlit approximation of the Legacy layout. Phase 0.6 supersedes that historical rendering baseline only for the Modern lobby hand: all five cards rest canonically flat with unlit, sRGB art-preserving faces; clicking any settled card lifts its thin side-lit body toward a calibrated perspective camera without auxiliary pitch, yaw, or roll, introduces that card's lift-only analytic contact shadow, turns continuously in one direction around local X from zero through the canonical back to `-2π`, and settles at the exact flat transform. Different cards may perform that bounded sequence concurrently, while a second click on an already-active card is ignored without queuing until that card settles. One demand-driven `requestAnimationFrame` scheduler batches all active cards, and each card has independently controllable shadow state while shadow geometry and texture remain shared. A flat-table projection neutralizer removes the perspective camera's position-dependent lateral shear, so the outer-left, center, and outer-right cards share one centered perspective silhouette translated to their respective slots rather than appearing to fan across a curved support. Mipmapped, anisotropic face textures and explicit face/body separation prevent motion aliasing and depth artifacts. This is decorative renderer validation, not a game action. The bar, commands, statistics, rules, surrounding menu, and complete Legacy route remain on their existing Raphael/DOM implementation. The playable active-match renderer remains intentionally blank and follows the renderer-neutral roadmap described later in this document.
 
 ## Contents
 
@@ -93,7 +93,7 @@ Phase 0 uses a presentation/input gate rather than a renderer reconstruction bou
 
 Phase 0.5 is the first real-card rendering slice. When the main menu is visible and Modern is effective, a dedicated transparent Three.js surface renders up to five current `gh.data.hand` card faces at the established 755 by 562 lobby coordinates. The corresponding Raphael card images remain alive until the Modern texture set has rendered successfully, then only those five card elements are visually and accessibly gated. Switching to Legacy immediately reveals the original Raphael card images. The main-menu bar and commands are never hidden, replaced, or made pointer-inert by this hand-only gate.
 
-Phase 0.6 is a renderer-only interaction spike on that same Modern lobby surface. A primary click on one settled Modern card may start one bounded animation: lift, one smooth same-direction local-X turn from zero to `-2π` that presents the canonical back at its midpoint and the original front at its endpoint, and exact flat settlement. The spike does not select a card, mutate the hand, start or resume a game, submit a request, or establish the interaction architecture for the active match. Legacy remains unchanged and may be selected immediately even while the decorative animation is running.
+Phase 0.6 is a renderer-only interaction spike on that same Modern lobby surface. A primary click on any settled Modern card may start one bounded animation for that card: lift, one smooth same-direction local-X turn from zero to `-2π` that presents the canonical back at its midpoint and the original front at its endpoint, and exact flat settlement. Different cards may animate concurrently; only re-entry on a card whose own animation is active is ignored until that card settles. The spike does not select a card, mutate the hand, start or resume a game, submit a request, or establish the interaction architecture for the active match. Legacy remains unchanged and may be selected immediately even while one or more decorative animations are running.
 
 Legacy remains the default until the Modern renderer reaches the documented playability, parity, reliability, and fallback gates.
 
@@ -195,7 +195,7 @@ The following existing contracts remain authoritative unless a later requirement
 - The active-match logical region is 693 by 500.
 - The containing board and frame are 755 by 562.
 - The main-menu/lobby Raphael paper and the dedicated Modern lobby-hand host use a 755 by 562 logical region.
-- The main-menu/lobby hand preview contains at most five cards at the existing x positions 72, 197, 322, 447, and 572 and y position 203; it remains decorative even when Phase 0.6 accepts the one approved card-bounded click effect.
+- The main-menu/lobby hand preview contains at most five cards at the existing x positions 72, 197, 322, 447, and 572 and y position 203; it remains decorative even when Phase 0.6 accepts the approved card-bounded click effect independently on each settled card.
 - Card art uses the current same-origin image paths and opaque image keys.
 - The application-level scale choices are 1, 1.5, 2, and 3.
 - Match creation, move submission, replay, claim, and game-completion protocols remain unchanged.
@@ -216,7 +216,7 @@ The following existing contracts remain authoritative unless a later requirement
 | **Lobby/main-menu viewport** | The first application screen containing the Play, Shop, and Tutorials command bar, statistics/rules content, and the five-card hand preview. It is not an active match or game state. |
 | **Lobby-hand preview** | The five current-hand card faces displayed below the main command bar. Phase 0.5 renders them as a non-interactive Three.js preview; Phase 0.6 adds only a decorative click-to-double-flip spike while all surrounding menu UI remains unchanged. |
 | **Lobby-hand host** | The dedicated, transparent 755 by 562 DOM mount used only for the Modern lobby-hand preview. It is pointer-inert in Phase 0.5; Phase 0.6 may accept pointer activation only over a settled Modern card without blocking the surrounding menu. |
-| **Lobby animation lock** | The single surface-scoped Phase 0.6 lock that permits at most one lobby-card animation at a time and is released exactly once on completion or cancellation. It is not a game, turn, card-selection, or server-request lock. |
+| **Lobby card re-entry lock** | The Phase 0.6 lock owned independently by each lobby card while that card animates. It rejects and does not queue a repeated activation of the same active card until exact settlement, but it does not block another settled card from starting its own concurrent animation. It is not a game, turn, card-selection, or server-request lock. |
 | **Requested mode** | The value selected and persisted by the user. |
 | **Effective mode** | The mode currently presented to the user and permitted to own active-match pointer input. During the temporary Phase 0 bridge, the hidden Legacy implementation may remain mounted and synchronized even while Modern is effective. |
 | **Renderer host** | The positioned 693 by 500 DOM mount occupied by the effective renderer. |
@@ -258,10 +258,11 @@ These decisions are part of the baseline requirements.
 | DEC-021 | The Phase 0.5 Modern lobby-hand baseline used a dedicated 755 by 562 orthographic surface, existing same-origin card-face assets, the established five card positions, and no picking or interaction handlers. This remains the historical Phase 0.5 record rather than the Phase 0.6 camera or material decision. |
 | DEC-022 | Each Legacy lobby card receives a hand-specific presentation class. The Modern-ready gate may hide only those card elements; it must never hide the shared `gh.menu` Raphael paper, its bar, or the DOM command controls. |
 | DEC-023 | The lobby hand remains Legacy-visible until all required Modern card textures have loaded and the first complete frame is ready. Any initialization, texture, or context failure restores effective Legacy without altering game or account data. |
-| DEC-024 | Phase 0.6 supersedes DEC-021 only for the ready Modern lobby-hand surface. It uses five canonically flat settled cards, a constrained perspective camera calibrated to preserve the established pixel-space layout with 450/900 clip planes, unlit sRGB face art with mipmapped anisotropic filtering, a side-only lit slab separated from each face by 0.2 logical units, one lift-only analytic contact shadow with hardware shadow mapping disabled, and one decorative same-direction local-X turn from zero to `-2π` after a primary card click. It does not authorize drag, selection, keyboard gameplay, match input, or interaction elsewhere in the application. |
+| DEC-024 | Phase 0.6 supersedes DEC-021 only for the ready Modern lobby-hand surface. It uses five canonically flat settled cards, a constrained perspective camera calibrated to preserve the established pixel-space layout with 450/900 clip planes, a flat-table position-neutral projection, unlit sRGB face art with mipmapped anisotropic filtering, a side-only lit slab separated from each face by 0.2 logical units, independently controllable lift-only analytic contact shadows with shared geometry and texture and hardware shadow mapping disabled, and one decorative same-direction local-X turn from zero to `-2π` after each accepted primary card click. It does not authorize drag, selection, keyboard gameplay, match input, or interaction elsewhere in the application. |
 | DEC-025 | The Phase 0.6 back is the existing canonical same-origin asset `/images/cards/cardBack.png`, shared by every lobby card. It has no user-color, opponent-color, ownership, or purchased-card variant. |
-| DEC-026 | The Modern lobby surface owns one animation lock. At most one card may animate; additional card activations while locked are ignored and cannot queue another animation. |
-| DEC-027 | The lobby renderer requests frames only for an accepted bounded animation or an explicit render. Legacy selection, lobby hide, surface disposal, and WebGL context loss cancel the animation, release the lock, stop its frame request, and restore a deterministic settled state without waiting for motion to finish. |
+| DEC-026 | Each Modern lobby card owns an independent re-entry lock while its bounded animation is active. A repeated activation of that same card is ignored and cannot queue work until its exact settlement; any other settled card remains eligible, so up to five cards may animate concurrently. |
+| DEC-027 | The lobby renderer uses one demand-driven scheduler with at most one pending `requestAnimationFrame` callback to advance every active card animation. Legacy selection, lobby hide, hand or surface replacement, disposal, and WebGL context loss atomically invalidate all active animations, release every per-card lock, stop the shared frame request, hide every analytic shadow, and restore deterministic settled state without waiting for motion to finish. |
+| DEC-028 | The Phase 0.6 lobby is a flat table viewed head-on. Lift and settlement introduce exactly zero auxiliary pitch, yaw, and roll; only the approved continuous local-X turn changes card orientation. Because a single perspective camera otherwise gives rotated off-axis planes an opposite lateral lean at the left and right slots, each card uses a face-anchored projection neutralizer outside its rotation hierarchy. The neutralizer preserves perspective enlargement and centered foreshortening while translating the same normalized silhouette to every slot, and it resets to its canonical zero-lift state on settlement and every reusable cancellation path. |
 
 ## 7. Goals
 
@@ -285,7 +286,7 @@ These decisions are part of the baseline requirements.
 - Ensure only one renderer and one set of input handlers is active.
 - Provide renderer-neutral diagnostics and test snapshots.
 - Add Modern code without requiring a broad rewrite of the legacy application.
-- Validate same-origin card-texture loading, the historical Phase 0.5 orthographic layout, the Phase 0.6 calibrated perspective replacement, color and orientation handling, disposal, and runtime fallback through the isolated lobby-hand slice.
+- Validate same-origin card-texture loading, the historical Phase 0.5 orthographic layout, the Phase 0.6 calibrated flat-table perspective replacement, position-invariant projected silhouettes, color and orientation handling, disposal, and runtime fallback through the isolated lobby-hand slice.
 - Preserve the existing same-origin security and self-contained deployment model.
 
 ### 7.3 Quality goals
@@ -337,7 +338,7 @@ The player reaches the main menu and sees Play, Shop, and Tutorials exactly as b
 
 ### 9.2.2 Player trying the Phase 0.6 lobby flip
 
-With Modern effective and the lobby hand fully ready, the player clicks one card. That card rises above its settled plane, turns to show the canonical card back, turns again to show its original front, and settles at its original transform. Other card clicks are ignored until the sequence settles or is cancelled. The hand, account, game, and server state are identical before and after the effect. Selecting Legacy or leaving the lobby interrupts the effect immediately and exposes the unchanged Legacy presentation.
+With Modern effective and the lobby hand fully ready, the player clicks one card. That card rises above its settled plane, turns to show the canonical card back, turns again to show its original front, and settles at its original transform. While it moves, the player may click any other settled card and its independent sequence starts immediately; clicking the already-active card again is ignored and not queued until that card has settled. The hand, account, game, and server state are identical before and after every effect. Selecting Legacy or leaving the lobby interrupts all active effects immediately and exposes the unchanged Legacy presentation.
 
 The five cards are flat and unshadowed before activation. The clicked card uses one smooth same-direction end-over-end turn rather than reversing after the back: it advances from local X zero through the upright back at `-π` to the upright original front at `-2π`, then returns to the same normalized flat resting transform.
 
@@ -383,7 +384,7 @@ The following invariants apply across every phase after the relevant seam exists
 20. The lobby-hand preview is a projection of the current menu hand data and never becomes authoritative state.
 21. The Legacy lobby-hand preview owns no pointer or keyboard input. Beginning in Phase 0.6, the Modern lobby-hand preview may own only card-bounded pointer activation for the decorative double flip; it may not emit a semantic game action or own keyboard gameplay input.
 22. The hand-only lobby gate cannot hide, disable, or replace the shared Raphael menu bar or DOM commands.
-23. The Modern lobby-hand surface may have at most one active animation and one corresponding animation lock; completion and every cancellation path release both exactly once.
+23. The Modern lobby-hand surface may have at most one active animation and one corresponding re-entry lock per card, for no more than five concurrent animations. Each normal completion releases only that card's lock exactly once; every surface-wide cancellation path atomically invalidates all active animations, releases every held lock exactly once, and leaves no pending shared frame.
 
 ### 10.1 Phased applicability
 
@@ -724,33 +725,35 @@ Before beta, this flow requires automated accessible-tree and keyboard assertion
 
 **FR-LOBBY-FLIP-001** — The Phase 0.6 interaction is available only while Modern is effective, the main-menu/lobby viewport is visible, and the complete Modern lobby hand is ready. It applies only to the rendered card rectangles beneath the command bar.
 
-**FR-LOBBY-FLIP-002** — A primary click on a settled card must animate this ordered presentation: lift the card away from its resting plane; turn it end over end in one uninterrupted direction around its local X axis from normalized zero through `-π`, where its true back is upright and visible, to `-2π`, where its original front is upright and visible again; then return it to its exact settled position and depth, restore unit scale, remove temporary pickup tilt, and normalize temporary rotation to zero. The normal-motion turn must not reverse direction, split into two counter-rotating turns, or pause at the back. The card must not be left edge-on, reversed, lifted, tilted, scaled, or numerically offset after settlement.
+**FR-LOBBY-FLIP-002** — A primary click on a settled card must animate this ordered presentation: lift the card away from its resting plane without changing its orientation; turn it end over end in one uninterrupted direction around its local X axis from normalized zero through `-π`, where its true back is upright and visible, to `-2π`, where its original front is upright and visible again; then return it to its exact settled position and depth, restore unit scale, and normalize temporary local-X rotation to zero. The normal-motion turn must not reverse direction, split into two counter-rotating turns, or pause at the back. Auxiliary pickup pitch, yaw, and roll must remain exactly zero throughout the normal sequence; only the continuous local-X turn may change orientation. The card must not be left edge-on, reversed, lifted, tilted, scaled, or numerically offset after settlement.
 
 **FR-LOBBY-FLIP-003** — The back must use `/images/cards/cardBack.png`, the existing 117 by 146 same-origin canonical back. The renderer must not derive a back URL from `gh.data.color`, owner, capture state, or `purchased`, and must not add a `p` prefix. The front must remain the original current lobby face texture. The shared back must be loaded and decoded before Phase 0.6 card input becomes eligible; failure follows the existing pre-input Legacy fallback.
 
 **FR-LOBBY-FLIP-004** — The effect is presentation-only. Accepting, advancing, completing, or cancelling it must not mutate `gh.data.hand`, a card description, a user-card identifier, deck composition, account state, match state, menu navigation, requested/effective graphics preference, or any server-authoritative value. It must issue no game, deck, account, shop, analytics, or other network request.
 
-**FR-LOBBY-FLIP-005** — The lobby surface must use one surface-scoped animation lock. An accepted click acquires it before motion begins. While it is held, all further card activations must be ignored rather than queued, coalesced, or allowed to start a concurrent animation. Normal completion and every cancellation path must release it exactly once.
+**FR-LOBBY-FLIP-005** — The lobby surface must use an independent re-entry lock for each card. An accepted click acquires only the hit card's lock before motion begins. A further activation of that same active card must be ignored rather than queued or coalesced until its exact settlement releases the lock once. Locks on other cards remain independent: any other settled card may start immediately, and up to all five cards may animate concurrently. Surface-wide cancellation must release every held card lock exactly once.
 
 **FR-LOBBY-FLIP-006** — Pointer handling must not make the full 755 by 562 lobby host an opaque input shield. Hit testing may accept only a visually eligible settled card, using scale-aware canvas coordinates and deterministic nearest/topmost ordering. Empty space and the Play, Shop, Tutorials, Replay, Deck, statistics, rules, title, and context-menu controls must retain their established behavior.
 
-**FR-LOBBY-FLIP-007** — Animation rendering must be demand-driven. The renderer may start a `requestAnimationFrame` chain only after accepting a card click, must keep at most one animation-frame request outstanding, and must stop requesting frames immediately after completion or cancellation. Normal motion must use the 2,450-millisecond nominal timeline in Section 12.9.3 and have a hard completion deadline no greater than 3,000 milliseconds from accepted click to settled state; it must not become an idle render loop.
+**FR-LOBBY-FLIP-007** — Animation rendering must be demand-driven. The renderer may start its shared `requestAnimationFrame` scheduler only after accepting a card click, must keep at most one animation-frame request outstanding for the entire lobby surface, and must advance every currently active card from that one callback. Each normal-motion card must use the 2,450-millisecond nominal timeline in Section 12.9.3 and have its own hard completion deadline no greater than 3,000 milliseconds from its accepted click to its settled state. Completing one card must not stop the scheduler while another remains active; completing or cancelling the final active card must leave no frame pending and must not become an idle render loop.
 
-**FR-LOBBY-FLIP-008** — Selecting Legacy, hiding the lobby, replacing or disposing the lobby surface, and receiving WebGL context loss must synchronously invalidate the current animation generation, cancel its pending frame request, release its lock, and prevent any late callback from rendering or re-gating the Modern hand. Legacy selection and lobby hide must not wait for the animation to finish. A context loss must continue through the established classified Legacy fallback.
+**FR-LOBBY-FLIP-008** — Selecting Legacy, hiding the lobby, replacing the hand or lobby surface, disposing the lobby surface, and receiving WebGL context loss must synchronously invalidate every current animation token, cancel the shared pending frame request, release every held per-card lock, hide every analytic shadow, and prevent any late callback from rendering or re-gating the Modern hand. This surface-wide cancellation must settle all active cards atomically from the lifecycle caller's perspective. Legacy selection and lobby hide must not wait for any animation to finish. A context loss must continue through the established classified Legacy fallback.
 
-**FR-LOBBY-FLIP-009** — Cancellation must settle exactly once. If the Modern surface remains reusable, the animated card must be reset to its original front-facing settled transform before it can accept another activation. If the surface is being disposed or its context is lost, cleanup may discard the card objects, but no animation callback, listener, material, texture reference, or scheduler ownership may survive disposal.
+**FR-LOBBY-FLIP-009** — Each animation must settle exactly once under normal completion or cancellation. If the Modern surface remains reusable, every active card must be reset to its own original front-facing settled transform before that card can accept another activation. If the surface is being disposed or its context is lost, cleanup may discard the card objects, but no animation callback, held card lock, visible shadow, listener, material, texture reference, or scheduler ownership may survive disposal.
 
-**FR-LOBBY-FLIP-010** — With `prefers-reduced-motion: reduce`, the accepted interaction must omit lift and continuous 3D rotation. It must use a bounded two-step face proof—back presented for at least one rendered frame, then front restored—or settle immediately when rendering is being cancelled. The same lock, authority isolation, cancellation, and exact-settlement rules apply, and no persistent frame loop is permitted.
+**FR-LOBBY-FLIP-010** — With `prefers-reduced-motion: reduce`, each accepted interaction must omit lift and continuous 3D rotation. It must use a bounded two-step face proof—back presented for at least one rendered frame, then front restored—or settle immediately when rendering is being cancelled. The same per-card re-entry lock, independent-card concurrency, shared-scheduler, authority-isolation, cancellation, and exact-settlement rules apply, and no persistent frame loop is permitted.
 
 **FR-LOBBY-FLIP-011** — The decorative canvas remains `aria-hidden` and the spike must not create a keyboard-focus stop, selected state, game-action announcement, or claim of keyboard gameplay support. The card faces remain represented by the existing non-authoritative lobby/menu semantics.
 
-**FR-LOBBY-FLIP-012** — In addition to the established surface diagnostics, test diagnostics must expose renderer-neutral spike state: whether the lock is held, the active card index or `null`, the active phase (`idle`, `lifting`, `showing-back`, `showing-front`, or `settling`), the local flip axis and angle, the zero-to-negative-two-pi rotation path, direction-reversal count, current lift depth, analytic-shadow state, whether reduced motion is active, whether an animation frame is pending, and the last transition outcome. Cancellation may return the reusable card immediately to active phase `idle` while the last outcome remains `cancelled`. Diagnostics must not expose Three.js object references or become the source of production behavior.
+**FR-LOBBY-FLIP-012** — In addition to the established surface diagnostics, test diagnostics must expose renderer-neutral spike state: the active-animation count; sorted active and locked card indexes; per-card active/idle state and, for every active card, its phase (`lifting`, `showing-back`, `showing-front`, or `settling`), local flip axis and angle, zero-to-negative-two-pi rotation path, direction-reversal count, current lift depth, reduced-motion state, independently visible analytic-shadow state, and latest transition outcome; the `none` pickup-tilt policy; the flat-table-neutralized projection profile; projected face corners and lateral-shear evidence; whether the one shared animation frame is pending; and the most recently started or settled transition for compatibility. A single-card compatibility field may identify the active card only when exactly one animation is active; with several active cards it must not imply surface-wide ownership. Cancellation may return every reusable card immediately to phase `idle` while each last outcome remains `cancelled`. Diagnostics must not expose Three.js object references or become the source of production behavior.
 
-**FR-LOBBY-FLIP-013** — Phase 0.6 must replace the historical Phase 0.5 orthographic lobby projection with a constrained, head-on perspective camera calibrated so the settled z=0 card-face plane preserves the established 755 by 562 logical layout and one logical unit maps to one settled screen pixel. The lobby camera must use 40-degree vertical field of view and 450/900 near/far clipping planes. Perspective compensation may move a lifted card along its camera ray to keep its presented center in its established lobby slot; manual group scaling must not substitute for depth. All five cards must remain canonically flat and front-facing at rest.
+**FR-LOBBY-FLIP-013** — Phase 0.6 must replace the historical Phase 0.5 orthographic lobby projection with a constrained, head-on perspective camera calibrated so the settled z=0 card-face plane preserves the established 755 by 562 logical layout and one logical unit maps to one settled screen pixel. The lobby camera must use 40-degree vertical field of view and 450/900 near/far clipping planes. Perspective compensation may move a lifted card along its camera ray to keep its presented center in its established lobby slot; manual group scaling must not substitute for depth. A single perspective camera ordinarily projects the changing local depth of an off-axis rotating card against its slot offset, producing opposite lateral shear at the outer-left and outer-right positions and the false appearance of a curved or spherical support. The renderer must cancel that position-dependent term with a face-anchored flat-table projection neutralizer outside the card's rotation hierarchy. The correction must make every slot use the centered card's perspective silhouette translated to that slot while preserving common perspective enlargement, symmetric depth foreshortening, and the physical edge. All five cards must remain canonically flat and front-facing at rest.
 
 **FR-LOBBY-FLIP-014** — Each Phase 0.6 card must use a nominally three-logical-unit-thick slab whose lit side groups remain visible while its front and back cap groups do not compete with the distinct face planes. Each face plane must have 0.2 logical units of clearance beyond the corresponding body surface, use an unlit material, preserve the sRGB source art without light or tone-map darkening, and participate in deterministic depth testing. Required face and back textures must use mipmaps with trilinear minification and anisotropy capped at the lesser of four and the renderer capability.
 
-**FR-LOBBY-FLIP-015** — Hardware shadow mapping must remain disabled for the Phase 0.6 lobby surface. The only Phase 0.6 shadow cue is one shared analytic contact-shadow plane with no application-state meaning. It must be invisible while all cards are settled, become visible only while the clicked card has nonzero lift, track that card's original lobby slot with bounded offset, spread, and opacity, and be hidden and reset on completion, cancellation, suspension, disposal, or context loss. It must not create a persistent render loop or affect card hit testing.
+**FR-LOBBY-FLIP-015** — Hardware shadow mapping must remain disabled for the Phase 0.6 lobby surface. The only Phase 0.6 shadow cues are analytic contact-shadow planes with no application-state meaning. Shadow geometry and generated gradient texture must be shared, but every lobby card must have its own mesh and independently controllable material so simultaneous lifts can render independent position, spread, and opacity without overwriting another card's shadow. Each shadow must be invisible while its card is settled, become visible only while that card has nonzero lift, track that card's original lobby slot with bounded offset, spread, and opacity, and be hidden and reset on that card's completion or on surface cancellation, suspension, disposal, or context loss. These shadows must not create a persistent render loop or affect card hit testing.
+
+**FR-LOBBY-FLIP-016** — The flat-table projection neutralizer must be recomputed from the card's established slot, current screen lift, calibrated camera distance, and visible-face plane; it must not be approximated by per-position card rotation. It must be applied after the card's local turn in transform order so it cancels post-rotation depth shear, and it must be anchored so a flat front at local X zero or `-2π` does not jump. Normal completion, cancellation, suspension, reusable context recovery, and exact settlement must restore that card's canonical zero-lift neutralizer state and exact zero auxiliary pickup rotation before that card's next activation can be accepted.
 
 ## 12. Phase 0: graphics preference and inert Modern preview
 
@@ -1262,7 +1265,7 @@ Phase 0.5 is complete only when:
 
 #### 12.9.1 Objective and scope boundary
 
-Phase 0.6 validates the smallest useful Three.js motion experiment against a real Pure Triple Triad card: local three-dimensional lift, correct front/back texture orientation, scale-aware card hit testing, bounded frame scheduling, animation exclusion, and deterministic cancellation. It builds only on the ready Phase 0.5 Modern lobby hand.
+Phase 0.6 validates the smallest useful Three.js motion experiment against real Pure Triple Triad cards: local three-dimensional lift, correct front/back texture orientation, scale-aware card hit testing, bounded shared frame scheduling, per-card re-entry exclusion, independent-card concurrency, and deterministic lifecycle cancellation. It builds only on the ready Phase 0.5 Modern lobby hand.
 
 The target remains the five-card decorative hand beneath the Play, Shop, and Tutorials command bar. Phase 0.6 does not make that hand part of a match, make the Modern active-match surface playable, or establish a reusable game-action protocol.
 
@@ -1292,25 +1295,27 @@ The card-back texture is a required Phase 0.6 lobby asset. It must be loaded and
 
 The Phase 0.6 implementation must use a nominally three-logical-unit-thick card slab and two distinct textured face planes. Only the slab's four side groups are lit and visible; its front and back caps are suppressed so they cannot flicker through or darken the face art. Each textured face sits 0.2 logical units beyond its corresponding body surface, uses an unlit, non-tone-mapped material in the sRGB renderer pipeline, and retains deterministic depth testing. Card textures use generated mipmaps, trilinear minification, linear magnification, and anisotropy capped at the lesser of four and the renderer capability so the full turn does not produce minification shimmer. Geometry, the side material, the canonical back material, and other safely reusable resources should be shared; every shared and per-card resource must have one explicit disposable owner.
 
-Hardware shadow mapping is disabled. One shared analytic contact-shadow plane provides the only shadow cue and has no semantic meaning. It is invisible for the canonically flat settled hand, appears only while the clicked card has nonzero lift, uses a bounded generated gradient rather than a depth map, and is hidden and reset by exact settlement and every cancellation or disposal path.
+Hardware shadow mapping is disabled. Analytic contact-shadow planes provide the only shadow cue and have no semantic meaning. Their geometry and bounded generated-gradient texture are shared, while each card owns an independently controllable shadow mesh and material so several lifted cards can cast distinct contact cues concurrently. Every shadow is invisible for its canonically flat settled card, appears only while that card has nonzero lift, and is hidden and reset by that card's exact settlement and by every surface-wide cancellation or disposal path.
 
 #### 12.9.3 Choreography and settlement
 
 The Phase 0.6 perspective camera is head-on and centered on the 755 by 562 lobby region. Its nominal vertical field of view is 40 degrees and its distance from the settled z=0 face plane is calibrated as `(562 / 2) / tan(40° / 2)`, approximately 772.04 logical units. Its near and far planes are 450 and 900 so the complete bounded motion remains visible while depth precision keeps the separated face and slab surfaces stable. This calibration preserves one logical unit per settled screen pixel in both axes. A lifted card travels along its camera ray so perspective enlargement does not pull the outer lobby cards laterally away from their established presented centers.
 
+Camera-ray center compensation alone is insufficient during a turn. Once local-X rotation gives the top and bottom vertices different depth, their perspective denominators also multiply the card's horizontal slot offset. The result is a position-dependent lateral lean: left and right cards fan in opposite directions even though they share one physical plane, while the centered card is least affected. Phase 0.6 therefore applies a face-anchored flat-table projection neutralizer outside the local turn. It removes only this off-axis slot/depth cross-term. It does not flatten the centered perspective result: every slot retains the same perspective enlargement, front/back depth, symmetric foreshortening, and visible edge that the centered card would have, translated to the slot's established presented center.
+
 An accepted click starts this ordered sequence on the hit card:
 
-1. **Lift — 350 milliseconds:** move the card 105 logical depth units toward the constrained perspective camera and 18 logical screen pixels upward, adding only a restrained pickup tilt of approximately -8 degrees around X and 4 degrees around Y. The camera-ray compensation must keep the card visually anchored to its established lobby slot while true perspective and the thin lit edge communicate depth. The shared analytic contact shadow appears only as lift becomes nonzero.
+1. **Lift — 350 milliseconds:** move the card 105 logical depth units toward the constrained perspective camera and 18 logical screen pixels upward without adding pitch, yaw, roll, or another orientation change. Pickup tilt is exactly zero around X, Y, and Z. Camera-ray compensation and the flat-table projection neutralizer must keep the card visually anchored to its established lobby slot while true perspective enlargement, the thin lit edge, and that card's analytic contact shadow communicate depth. Its shadow appears only as lift becomes nonzero.
 2. **Continuous full turn — 1,650 milliseconds:** use one smooth ease-in/ease-out progression to rotate end over end in the same negative local-X direction from zero to `-2π`. The card passes its first thin edge at `-π/2`, presents the upright canonical back at `-π`, passes its second thin edge at `-3π/2`, and presents the original upright front at `-2π`. The turn has no reversal, separate second easing segment, or back hold. A bounded arc of up to approximately 12 additional depth units and 5 screen-up units may reinforce both edge passages.
-3. **Settle — 450 milliseconds:** keep the completed `-2π` front orientation while lowering the card to its exact original position and depth, restore unit scale, remove pickup tilt, then normalize temporary X/Y rotation to zero. The analytic shadow must disappear as lift reaches zero. Every card begins and ends with zero static Z rotation and no residual X/Y tilt.
+3. **Settle — 450 milliseconds:** keep the completed `-2π` front orientation while lowering the card to its exact original position and depth, restore unit scale, then normalize temporary local-X rotation to zero. Auxiliary pickup X/Y/Z rotation remains exactly zero. The analytic shadow must disappear as lift reaches zero, and the projection neutralizer must return to its deterministic zero-lift coefficients. Every card begins and ends with zero static Z rotation and no residual X/Y tilt.
 
 The nominal normal-motion timeline is therefore 2,450 milliseconds: 350 milliseconds of lift, 1,650 milliseconds of one-direction continuous turn, and 450 milliseconds of settlement. It must remain visually inspectable, finite, and complete no later than the 3,000-millisecond hard deadline. The implementation may tune only bounded arc magnitude and easing without changing those named phase durations, the monotonic local-X zero-to-`-2π` path, calibrated perspective mapping, analytic-shadow lifecycle, or deterministic flat final transform.
 
-Only the clicked card moves. The other four Modern cards, the hidden Raphael hand cards, the command bar, DOM commands, statistics, and rules remain at their existing transforms and states.
+Each accepted clicked card moves independently on its own timeline. A Modern card that has not itself received an accepted activation remains at its established transform even while one or more other cards animate. The hidden Raphael hand cards, command bar, DOM commands, statistics, and rules remain at their existing transforms and states.
 
-The settled transform captured when the click is accepted is the restoration source for that animation. Animation code must not accumulate incremental floating-point transforms across clicks. Repeating the effect on a card must begin and end at the same transform as the first run within the renderer's declared test tolerance.
+The settled transform captured when the click is accepted is the restoration source for that animation. Animation code must not accumulate incremental floating-point transforms or projection-neutralizer coefficients across clicks. Repeating the effect on a card must begin and end at the same transform and zero-lift projection state as the first run within the renderer's declared test tolerance.
 
-#### 12.9.4 Input ownership and the single animation lock
+#### 12.9.4 Input ownership and per-card re-entry locks
 
 The Modern lobby surface may listen for the primary click needed by this spike only while it is visible, ready, and effective. Client coordinates must be converted through the actual canvas bounds and application scale before raycasting or equivalent card-rectangle testing.
 
@@ -1320,39 +1325,40 @@ An eligible hit must satisfy all of the following:
 - the lobby is still visible;
 - the current surface and hand generation match the ready generation;
 - the hit resolves to one of the current five settled lobby cards;
-- the single lobby animation lock is free;
+- that card's own re-entry lock is free;
 - no cancellation or context-loss path has begun.
 
-The surface acquires one lock before scheduling the first animation frame. While locked:
+The surface acquires only the hit card's lock before registering that animation with the shared scheduler. While that card's lock is held:
 
-- another click on the active card is ignored;
-- a click on any other card is ignored;
-- clicks are not queued for later playback;
-- no second animation-frame chain is started;
+- another click on that same active card is ignored;
+- the rejected repeat is not queued for later playback;
+- a click on any other settled, unlocked card starts its own animation immediately;
+- accepting another card adds work to the same surface scheduler rather than starting a second animation-frame chain;
 - no card selection, game intent, audio request, or server action is emitted.
 
-Normal settlement releases the lock exactly once. Cancellation also releases it exactly once. Lock release must be idempotent so a context-loss callback followed by disposal, or a Legacy selection followed by lobby hide, cannot underflow state or complete the same transition twice.
+Normal settlement releases that card's lock exactly once without disturbing another active card. Surface-wide cancellation releases every held lock exactly once and settles all active cards as one lifecycle operation. Lock release must be idempotent so a context-loss callback followed by disposal, or a Legacy selection followed by lobby hide, cannot underflow state or complete the same transition twice.
 
 The input strategy must preserve the lobby around the cards. If the WebGL canvas occupies the full logical region, its event handling and stacking must allow commands and other controls above or outside the five eligible rectangles to receive their established events. Phase 0.6 does not authorize a full-region click-capturing overlay.
 
 #### 12.9.5 Bounded render scheduling
 
-The settled lobby continues to render on demand. An accepted animation may temporarily schedule frames, subject to all of these constraints:
+The settled lobby continues to render on demand. One or more accepted animations may temporarily use one shared scheduler, subject to all of these constraints:
 
 - at most one `requestAnimationFrame` callback is pending for this surface;
-- each callback confirms the current surface generation, effective mode, visibility, context status, and active animation token before applying a transform;
-- the next frame is requested only while the finite animation remains active;
-- normal settlement renders the exact final state and leaves no animation frame pending;
-- the hard completion deadline settles the card and releases the lock even if a timestamp or easing defect would otherwise leave the animation unfinished;
-- cancellation removes a pending request immediately and invalidates the token before any reusable state is reset;
-- no timer or frame callback from an earlier animation may affect a later animation;
+- each callback confirms the current surface generation, effective mode, visibility, and context status, then validates each active card's independent animation token before applying that card's transform;
+- one callback advances every active card and the scene is rendered once for that callback;
+- the next frame is requested only while at least one finite animation remains active;
+- normal settlement renders each card's exact final state and releases its lock independently; it leaves no animation frame pending only after the final active card settles;
+- each animation's hard completion deadline settles that card and releases only its lock even if a timestamp or easing defect would otherwise leave it unfinished;
+- surface-wide cancellation removes the one pending request immediately and invalidates every active token before any reusable state is reset;
+- no timer or frame callback from an earlier animation may affect a later animation on the same card or any independently active card;
 - texture loading, idle hover, cursor position, and an already-settled hand do not sustain frame requests.
 
 The spike may use `performance.now()` or the `requestAnimationFrame` timestamp as its monotonic animation clock. It must derive transforms from bounded normalized progress rather than integrating unbounded per-frame deltas.
 
 #### 12.9.6 Cancellation and fallback
 
-The active animation must be cancelled when any of these events occurs:
+All active animations must be cancelled when any of these events occurs:
 
 - the user selects Legacy;
 - the lobby begins to hide or navigation leaves the lobby;
@@ -1362,13 +1368,13 @@ The active animation must be cancelled when any of these events occurs:
 - WebGL context loss is reported;
 - a required renderer resource becomes invalid.
 
-Cancellation order is:
+Surface-wide cancellation order is:
 
-1. invalidate the animation token so no late callback may commit;
+1. invalidate every active animation token so no late callback may commit;
 2. detach or disable the Phase 0.6 card input path;
-3. cancel the pending animation-frame request, if any;
-4. release the single animation lock exactly once;
-5. if the Modern surface will remain reusable, restore the active card to its captured front-facing settled transform, rendering that deterministic state only if the surface remains visible and current;
+3. cancel the shared pending animation-frame request, if any;
+4. release every held per-card re-entry lock exactly once;
+5. if the Modern surface will remain reusable, restore every active card to its own captured front-facing settled transform and hide every card shadow, rendering that deterministic state once only if the surface remains visible and current;
 6. if the surface is leaving service, dispose its owned listeners and graphics resources under the existing lifecycle;
 7. reveal or retain the intact Legacy hand whenever the effective mode or fallback policy requires it.
 
@@ -1379,13 +1385,13 @@ Selecting Legacy and hiding the lobby are synchronous presentation decisions; ne
 When `prefers-reduced-motion: reduce` matches at click time:
 
 - omit lift, perspective travel, and continuous three-dimensional rotation;
-- acquire the same single animation lock;
+- acquire that card's same per-card re-entry lock;
 - render the canonical back for at least one presented frame;
 - restore and render the original front on the next bounded step;
-- release the lock and leave no frame pending;
+- release that card's lock; leave no frame pending only when no other normal or reduced-motion animation remains active;
 - honor all normal cancellation, authority-isolation, and exact-settlement requirements.
 
-If cancellation occurs before the back proof can be presented, immediate front settlement or disposal is correct. Reduced motion is not permission to leave the card on its back, skip cleanup, run an idle loop, or route the click through Legacy.
+Different cards may perform their bounded reduced-motion proofs concurrently through the same scheduler, while a repeat on an already-active card remains ignored. If cancellation occurs before a back proof can be presented, immediate front settlement or disposal is correct. Reduced motion is not permission to leave a card on its back, skip cleanup, run an idle loop, or route the click through Legacy.
 
 The media-query result may be evaluated for each accepted activation so a user who changes the operating-system setting receives the current preference on the next animation. A preference change need not rewrite an animation already in flight, but cancelling that animation must remain safe.
 
@@ -1396,6 +1402,7 @@ The media-query result may be evaluated for each accepted activation so a user w
 Given the ready five-card lobby hand with Modern effective:
 
 - a primary click inside each card's current visual bounds can start the effect for that card;
+- while one card is active, a primary click inside any other settled card's bounds can start that card's effect immediately;
 - a click in empty lobby space starts no effect;
 - a click on Play, Shop, Tutorials, or another menu control preserves that control's established behavior;
 - Legacy cards receive no new listener, class behavior, transform, or animation;
@@ -1405,13 +1412,13 @@ Given the ready five-card lobby hand with Modern effective:
 
 Given an accepted normal-motion click:
 
-- the clicked card begins canonically flat, visibly leaves its resting plane with perspective size/shape change, introduces the lift-only analytic contact shadow, and exposes a visible thin side edge rather than a flat scale-only effect;
+- the clicked card begins canonically flat, visibly leaves its resting plane with perspective size/shape change, introduces its lift-only analytic contact shadow, and exposes a visible thin side edge rather than a flat scale-only effect;
 - its original front turns edge-on and the canonical back becomes upright and visible;
 - its local-X rotation advances monotonically through `-π`, continues in the same direction through the second edge, and reaches `-2π` with the same original front visible;
 - it has exactly one smooth 1,650-millisecond turn segment and records no direction reversal;
-- it does not use local-Y flip rotation, counter-rotation, a back hold, or manual scale as a substitute for perspective depth;
+- it does not use auxiliary pickup X/Y/Z rotation, local-Y flip rotation, counter-rotation, a back hold, or manual scale as a substitute for perspective depth;
 - it returns to its exact captured settled transform with all temporary rotations normalized to zero and its analytic shadow hidden;
-- the other four cards do not move.
+- any other card that has not received its own accepted activation does not move.
 
 **AC-P06-003 — Canonical back variants**
 
@@ -1422,24 +1429,25 @@ Across an ordinary face, a purchased face, and every supported player color:
 - no request is made for `p<color>/cardBack.png`, `<color>/cardBack.png`, `red/cardBack.png`, or another synthesized variant;
 - a forced card-back load failure leaves or restores the complete Legacy hand before any animation input is accepted.
 
-**AC-P06-004 — Single animation lock**
+**AC-P06-004 — Per-card re-entry locks and concurrent cards**
 
 Given one card is animating:
 
-- debug state reports the lock held and identifies exactly that card;
-- repeated clicks on that card and every other card start no additional animation;
-- no click is queued;
-- at most one animation-frame request is pending;
-- normal settlement releases the lock once and a later click may start a new sequence.
+- debug state reports one active animation and identifies that card as locked;
+- repeated clicks on that same card start no additional animation and are not queued;
+- clicking a different settled card starts its animation immediately, increases the active count, and reports both card indexes as independently locked;
+- up to all five distinct cards can be active concurrently while at most one surface animation-frame request is pending;
+- normal settlement releases only that card's lock once; it may be clicked again after settlement even if another card is still active.
 
 **AC-P06-005 — Bounded scheduler and repeatability**
 
-Given repeated animations on every card:
+Given repeated and deliberately overlapping animations on every card:
 
 - each normal sequence follows the 2,450-millisecond nominal timeline and settles within the documented 3,000-millisecond hard limit;
-- no frame request remains after each settlement;
+- each card's start timestamp and deadline are independent, and one card's settlement does not reset, accelerate, or cancel another;
+- the one shared frame request remains only while at least one card is active and is absent after the last settlement;
 - each card ends front-facing at the same screen rectangle, depth, and unit scale it had before its click, with zero static Z rotation, zero temporary X/Y rotation, and no analytic shadow;
-- animation count does not change texture, material, geometry, listener, or canvas ownership;
+- concurrent animation count does not change texture, shadow-mesh/material, shared shadow geometry/texture, card material, geometry, listener, or canvas ownership;
 - an idle observation window records no continuous rendering caused by the spike.
 
 **AC-P06-006 — Legacy and lifecycle cancellation**
@@ -1447,21 +1455,21 @@ Given repeated animations on every card:
 For each interruption point during lift, the first edge, back display, the second edge, and settlement:
 
 - selecting Legacy immediately reveals the unchanged Raphael cards and leaves no Phase 0.6 frame pending;
-- hiding the lobby clears the ready gate, lock, listener ownership, and pending frame before another surface becomes current;
-- replacing hand data prevents the old animation token from mutating the new hand;
-- disposing the surface releases the lock, listener, frame, card-side materials, geometry ownership, and texture references under the established ownership policy;
-- returning to Modern or to the lobby starts from the current front-facing hand with no continuation of the cancelled animation.
+- hiding the lobby clears the ready gate, every held card lock, listener ownership, and the shared pending frame before another surface becomes current;
+- replacing hand data prevents every old animation token from mutating the new hand;
+- disposing the surface releases all locks, listeners, the shared frame, per-card shadow meshes/materials, card-side materials, shared shadow geometry/texture, other geometry ownership, and texture references under the established ownership policy;
+- returning to Modern or to the lobby starts from the current front-facing hand with no continuation of any cancelled animation.
 
 **AC-P06-007 — Context-loss cancellation**
 
-Given forced WebGL context loss during every animation phase:
+Given forced WebGL context loss during every animation phase, including two or more cards in different phases:
 
-- the current animation is invalidated and its lock is released exactly once;
+- every current animation is invalidated and every held card lock is released exactly once;
 - the renderer does not attempt to continue requesting or rendering frames on the lost context;
 - effective Legacy and all five Raphael cards are restored under the existing fallback path;
 - requested Modern remains persisted;
 - no game, deck, account, or match request is issued;
-- a late animation callback cannot hide Legacy again.
+- a late animation callback for any cancelled card cannot hide Legacy again.
 
 **AC-P06-008 — Reduced motion**
 
@@ -1469,9 +1477,9 @@ Given `prefers-reduced-motion: reduce`:
 
 - the card does not lift or perform continuous 3D rotation;
 - the canonical back is presented for at least one frame and the original front is restored on a bounded next step;
-- the same one-animation lock prevents overlap;
+- each active card's re-entry lock blocks only another activation of that card, while different cards may perform concurrent bounded back/front proofs through the shared scheduler;
 - cancellation is immediate and deterministic;
-- no frame remains pending after settlement or cancellation.
+- no frame remains pending after the final active card settles or after surface-wide cancellation.
 
 **AC-P06-009 — Authority and navigation isolation**
 
@@ -1494,26 +1502,37 @@ Given a fresh page with Legacy requested or forced:
 
 **AC-P06-011 — Canonical resting row and artifact-free presentation**
 
-Given the ready Modern lobby hand before activation and after every normal or cancelled sequence:
+Given the ready Modern lobby hand before activation and after every active sequence in a normal or cancelled run has settled:
 
 - all five cards are front-facing at their established rectangles with zero static Z rotation, zero temporary X/Y rotation, unit scale, and no visible analytic shadow;
 - the face art retains the source sRGB appearance and is not darkened or tinted by the slab lights;
-- diagnostics report 40-degree perspective with 450/900 clipping, a three-unit slab with hidden face caps and 0.2 face/body clearance, unlit faces, generated mipmaps, anisotropy no greater than four, analytic-contact shadow strategy, and hardware shadow mapping disabled;
+- diagnostics report 40-degree perspective with 450/900 clipping, a three-unit slab with hidden face caps and 0.2 face/body clearance, unlit faces, generated mipmaps, anisotropy no greater than four, per-card analytic-contact shadow meshes/materials with shared geometry/texture, and hardware shadow mapping disabled;
 - during the complete same-direction turn, the face art remains stable through oblique minification and the slab does not flash through either face;
 - browser evidence shows no grid, moiré, depth-fighting, hardware-shadow sampling, or persistent-shadow artifact attributable to this Phase 0.6 surface.
+
+**AC-P06-012 — Flat-table, position-invariant perspective**
+
+Given deterministic normal-motion runs for the outer-left card at x 72, center card at x 322, and outer-right card at x 572, sampled at the same lift and turn progress:
+
+- lift and settlement report pickup pitch, yaw, and roll exactly zero; during the turn, local Y rotation and static Z rotation remain exactly zero so local X is the only orientation change;
+- for each projected face, define normalized lateral shear as the absolute horizontal distance between the top-edge midpoint and bottom-edge midpoint divided by the greater projected face width, with a one-pixel denominator floor; this value must not exceed `0.005` for the outer-left, center, or outer-right card at any non-reduced-motion sample;
+- for each four-corner projected silhouette, subtract its centroid and divide both axes by its greater bounding-box dimension, with a one-pixel denominator floor; the maximum corresponding-corner distance from outer-left to center and from outer-right to center must not exceed `0.005`;
+- common perspective enlargement, changing projected height, and a common top-to-bottom width ratio caused by the centered local-X foreshortening are allowed; they must be equivalent across the three positions after the translation and normalization above;
+- no sampled outer card may lean inward or outward, fan around the center card, or imply a curved, spherical, or hand-held support;
+- normal completion and every reusable cancellation path restore the exact zero-lift neutralizer state, zero pickup X/Y/Z rotation, zero temporary local-X/Y rotation, zero static Z rotation, and the established settled rectangle.
 
 #### 12.9.9 Definition of done
 
 Phase 0.6 is complete only when:
 
 - the production Three.js bundle uses the existing front assets and canonical card back without creating color or purchased back variants;
-- browser evidence verifies five canonically flat settled cards, unlit sRGB art fidelity, stable mipmapped/anisotropic face textures, 0.2 face/body clearance, calibrated perspective lift, side-only lit card depth, lift-only analytic shadow, two same-direction local-X edge passages, true back at `-π`, original front at `-2π`, no direction reversal, and exact flat settlement for all five lobby positions;
-- deterministic or clock-controlled coverage verifies the one-animation lock, 2,450-millisecond nominal timeline, 3,000-millisecond deadline, and zero idle frame ownership;
-- browser evidence interrupts every animation phase with Legacy selection, lobby hide, surface disposal or replacement, and forced context loss;
-- reduced-motion evidence verifies the bounded back/front proof without lift or continuous rotation;
+- browser evidence verifies five canonically flat settled cards, unlit sRGB art fidelity, stable mipmapped/anisotropic face textures, 0.2 face/body clearance, calibrated perspective lift, exact zero auxiliary pickup tilt, position-invariant flat-table silhouettes at the outer-left, center, and outer-right slots, side-only lit card depth, independently controlled lift-only analytic shadows, two same-direction local-X edge passages, true back at `-π`, original front at `-2π`, no direction reversal, and exact flat settlement for all five lobby positions;
+- deterministic or clock-controlled coverage verifies per-card re-entry locks, same-card repeat rejection without queuing, concurrent different-card motion, independent 2,450-millisecond nominal timelines and 3,000-millisecond deadlines, one shared pending frame at most, and zero idle frame ownership after the last active card settles;
+- browser evidence interrupts every animation phase, including overlapping different-card phases, with Legacy selection, lobby hide, hand or surface replacement/disposal, and forced context loss and verifies atomic settlement of all active cards;
+- reduced-motion evidence verifies concurrent bounded back/front proofs without lift or continuous rotation and the same per-card re-entry rule;
 - request interception or an equivalent test proves the animation issues no state-changing or analytics request;
 - Legacy startup and lobby regression evidence remain unchanged;
-- all newly owned listeners, frames, materials, geometry, texture references, and card objects are accounted for on disposal;
+- all newly owned listeners, shared frames, per-card shadow meshes/materials, card materials, shared geometry/texture references, and card objects are accounted for on disposal;
 - the served bundle cache identity advances from the Phase 0.5 artifact and is recorded with the implementation;
 - no server, database, rule, AI, account, economy, deck, or protocol change is introduced;
 - the active-match Modern renderer remains blank, non-playable, and outside this spike.
@@ -1704,7 +1723,7 @@ This is illustrative rather than a mandated field-for-field schema. The implemen
 - Modern code must be lazy-loaded or otherwise excluded from the forced-Legacy startup path.
 - A fresh page load with Legacy forced must issue no Modern resource request, import, or preload and must evaluate zero Modern bytes. Switching back to Legacy after Modern was explicitly loaded on that page may retain the idle cached surface.
 - Phase 0 must render one blank transparent frame with the pinned Three.js `WebGLRenderer`; it must not create card geometry, texture assets, picking targets, or a continuous animation loop.
-- Phase 0.5 adds the first pre-Phase-2 exception to that blank-frame rule: the dedicated lobby-hand factory may create shared 117 by 146 card geometry, up to five card objects, and only the current lobby hand's same-origin face textures. Phase 0.6 additionally permits the shared canonical card-back texture, a side-only lit shared card slab, unlit mipmapped/anisotropic face materials, a calibrated perspective lobby camera, one shared analytic lift-shadow resource with hardware shadow mapping disabled, card-bounded hit testing, one surface-scoped animation lock, and a bounded animation-frame chain only while the approved double flip is active. The active-match factory remains blank. No surface may create an unconditional animation loop.
+- Phase 0.5 adds the first pre-Phase-2 exception to that blank-frame rule: the dedicated lobby-hand factory may create shared 117 by 146 card geometry, up to five card objects, and only the current lobby hand's same-origin face textures. Phase 0.6 additionally permits the shared canonical card-back texture, a side-only lit shared card slab, unlit mipmapped/anisotropic face materials, a calibrated perspective lobby camera, shared analytic-shadow geometry/texture with one independently controlled mesh/material per lobby card, hardware shadow mapping disabled, card-bounded hit testing, one re-entry lock per active card, and one bounded shared animation-frame scheduler only while at least one approved double flip is active. The active-match factory remains blank. No surface may create an unconditional animation loop.
 - Lazy-load failure before input ownership must follow the initialization-fallback policy.
 - Source-map publication, generated-file review, and third-party license-notice policy must be explicit.
 - A lockfile, upgrade procedure, and license record must accompany the dependency.
@@ -1745,7 +1764,7 @@ The Phase 2 spike must record decisions and visual fixtures for:
 
 Instancing, atlases, complex post-processing, particles, physics, and advanced shadows should be added only after profiling demonstrates a need or a product requirement justifies them.
 
-The Phase 0.5 lobby-hand scene intentionally used an orthographic camera and unlit planes so its screen-space result approximated the established two-dimensional menu layout. Phase 0.6 supersedes that historical lobby baseline with five canonically flat cards; a head-on constrained perspective camera calibrated to preserve the settled layout with 450/900 clip planes; unlit sRGB face materials; mipmapped, anisotropic card textures; side-only lit slabs with 0.2 logical units of face clearance; and one lift-only analytic contact shadow while hardware shadow mapping remains disabled. This Phase 0.6 lobby decision remains a bounded visual experiment and does not select the later active-match camera, card geometry, lighting, texture-filtering, or shadow treatment.
+The Phase 0.5 lobby-hand scene intentionally used an orthographic camera and unlit planes so its screen-space result approximated the established two-dimensional menu layout. Phase 0.6 supersedes that historical lobby baseline with five canonically flat cards; a head-on constrained perspective camera calibrated to preserve the settled layout with 450/900 clip planes; a face-anchored flat-table projection neutralizer that gives every slot the centered perspective silhouette without auxiliary pickup tilt or position-dependent fan; unlit sRGB face materials; mipmapped, anisotropic card textures; side-only lit slabs with 0.2 logical units of face clearance; and independently controllable lift-only analytic contact shadows whose geometry and texture are shared while hardware shadow mapping remains disabled. This Phase 0.6 lobby decision remains a bounded visual experiment and does not select the later active-match camera, card geometry, lighting, texture-filtering, or shadow treatment.
 
 ### 15.4 Texture policy
 
@@ -1826,7 +1845,7 @@ Performance evidence must use two named deterministic fixtures:
 
 **NFR-PERF-012** — GM-P200 must preserve correct picking and input at a presented-frame 95th percentile of at most 33.3 ms on the reference profile.
 
-**NFR-PERF-013** — During the Phase 0.6 lobby spike, an accepted normal-motion click has a 2,450-millisecond nominal timeline, may own no more than one pending animation-frame request, and must return to zero pending requests within the 3,000-millisecond hard deadline. The lobby renderer must perform no hardware shadow-map pass and may render at most the one shared analytic contact-shadow mesh while lift is nonzero. Idle lobby observation before and after the effect must show no scheduler or shadow activity attributable to the flip.
+**NFR-PERF-013** — During the Phase 0.6 lobby spike, each accepted normal-motion click has its own 2,450-millisecond nominal timeline and must settle within its 3,000-millisecond hard deadline. Up to five cards may animate concurrently, but the lobby surface may own no more than one pending animation-frame request; that shared callback must batch all active cards and the renderer must return to zero pending requests after the final active card settles. The lobby renderer must perform no hardware shadow-map pass and may render at most one analytic contact-shadow mesh per lifted card, sharing their geometry and texture. Idle lobby observation before and after all effects must show no scheduler or shadow activity attributable to the flip.
 
 ### 16.2 Reliability and cleanup
 
@@ -1846,7 +1865,7 @@ Performance evidence must use two named deterministic fixtures:
 
 **NFR-REL-008** — GM-P100, GM-P200, teardown, and fallback tests must declare their timeout and settle conditions rather than rely on arbitrary sleeps.
 
-**NFR-REL-009** — Fifty Phase 0.6 lobby animations, including cancellation at every named phase, must leave the lobby at its baseline listener, frame-request, lock, card-object, material, geometry, texture-reference, canvas, and WebGL-context ownership counts.
+**NFR-REL-009** — Fifty Phase 0.6 lobby animations, including overlapping animations on different cards, rejected repeat activations on the same active card, and surface-wide cancellation while cards occupy different named phases, must leave the lobby at its baseline listener, frame-request, per-card-lock, card-object, per-card-shadow-mesh/material, shared-shadow-geometry/texture-reference, other material/geometry, canvas, and WebGL-context ownership counts.
 
 ### 16.3 Security and privacy
 
@@ -1896,7 +1915,7 @@ In the Phase 0/0.5/0.6 column, “not rendered” or “disabled” means not re
 
 | Capability | Legacy requirement | Phase 0/0.5/0.6 Modern preview | Playable Modern requirement |
 |---|---|---|---|
-| Lobby/main-menu hand | Five non-interactive Raphael card faces beneath the command bar | Phase 0.5 renders up to five Three.js card faces; Phase 0.6 permits only a clicked lift/back/front/settle effect with one animation lock | Remains a separate decorative menu projection |
+| Lobby/main-menu hand | Five non-interactive Raphael card faces beneath the command bar | Phase 0.5 renders up to five Three.js card faces; Phase 0.6 permits only per-card lift/back/front/settle effects, allowing different cards concurrently while each active card rejects its own re-entry | Remains a separate decorative menu projection |
 | Board frame | Unchanged | Visible | Preserved or deliberately redesigned later |
 | Player hand | Fully functional | Not rendered | Rendered and interactive |
 | Opponent hand | Fully functional | Not rendered | Correct open/closed state |
@@ -1957,11 +1976,12 @@ Deliver the exact scope and acceptance criteria in Section 12.9.
 Exit gate:
 
 - Clicking one ready Modern lobby card produces the ordered lift, canonical back, original front, and exact settlement sequence.
+- Clicking another settled card while one or more cards are active starts that card immediately, while clicking an already-active card is ignored without queuing until its own settlement.
 - The canonical `/images/cards/cardBack.png` texture is ready before interaction and is shared without color or purchased variants.
-- A calibrated perspective projection preserves five canonically flat settled cards while unlit sRGB faces, stable mipmapped/anisotropic texture filtering, a side-only lit slab, and a lift-only analytic contact shadow make the same-direction local-X full turn visibly three-dimensional without darkening or motion artifacts.
-- One surface-scoped animation lock prevents overlap or queuing.
-- The animation follows its 2,450-millisecond nominal timeline, owns a bounded frame chain for no more than the 3,000-millisecond hard deadline, and leaves no idle frame pending.
-- Legacy selection, lobby hide, hand replacement, surface replacement/disposal, and context loss cancel deterministically and cannot be reversed by a late callback.
+- A calibrated flat-table perspective projection preserves five canonically flat settled cards and gives the outer-left, center, and outer-right slots the same centered normalized silhouette without pickup tilt or position-dependent fan, while unlit sRGB faces, stable mipmapped/anisotropic texture filtering, a side-only lit slab, and independent per-card analytic contact shadows make each same-direction local-X full turn visibly three-dimensional without darkening or motion artifacts.
+- Per-card re-entry locks prevent only same-card overlap or queuing; independent cards may animate concurrently.
+- Every animation follows its own 2,450-millisecond nominal timeline and 3,000-millisecond hard deadline through one shared bounded frame scheduler, which leaves no idle frame pending after the final active card settles.
+- Legacy selection, lobby hide, hand replacement, surface replacement/disposal, and context loss atomically cancel and settle every active animation and cannot be reversed by a late callback.
 - Reduced motion presents a bounded back/front proof without lift or continuous rotation.
 - The effect changes no authoritative or menu state, emits no game intent, and issues no network request.
 - The complete Legacy lobby route remains untouched, and the active-match Modern surface remains blank and non-playable.
@@ -2207,7 +2227,7 @@ Phase 0, Phase 0.5, and Phase 0.6 requirements and acceptance criteria are the a
 | `FR-A11Y-*` | Phase 0/2/3/5 | DOM semantic layer and intent dispatcher | Name/role/state, redaction, focus, keyboard, and announcement checklist | Yes |
 | `FR-TEST-*` | Phase 0/1 | Browser and renderer test harness | Semantic snapshots, deterministic visual fixtures, cross-renderer suite | Evidence enabler |
 | `FR-LOBBY-*` | Phase 0.5 | Menu and graphics coordinator | Five-card visual fixture, hand-only gate, async readiness, lifecycle, and fallback tests | Yes |
-| `FR-LOBBY-FLIP-*` | Phase 0.6 | Modern lobby surface and graphics coordinator | Choreography, canonical-back, lock, bounded-frame, cancellation, reduced-motion, request-isolation, and Legacy-regression tests | Yes |
+| `FR-LOBBY-FLIP-*` | Phase 0.6 | Modern lobby surface and graphics coordinator | Choreography, canonical-back, per-card re-entry locks, independent-card concurrency, one bounded shared frame scheduler, per-card shadows, atomic lifecycle cancellation, reduced-motion, request-isolation, and Legacy-regression tests | Yes |
 | `NFR-PERF-*` | Phase 2 | Modern build and renderer | GM-P100/GM-P200 performance and bundle report | Yes |
 | `NFR-REL-*` | Phase 1/5 | Both renderers and controller | Repeated lifecycle, heap/resource, stale-revision, and severity report | Yes |
 | `NFR-SEC-*` | Phase 2 | Build/deployment boundary | CSP, same-origin, dependency, and network audit | Yes |
@@ -2312,10 +2332,11 @@ The preference should survive browser restarts. It is intentionally browser/orig
 | Lobby gate hides the shared Raphael menu paper | Play, Shop, Tutorials, or the command bar disappears with the cards | Mark and gate only individual Legacy lobby-hand card elements; reject broad SVG or paper selectors |
 | A stale lobby texture load completes after navigation or Legacy selection | Old cards reappear, Legacy cards remain hidden, or an extra context survives | Generation-guard texture work, confirm current surface/mode/readiness before gating, and dispose on surface-kind transitions |
 | Phase 0.6 click handling shields the lobby | Play, Shop, Tutorials, or other established controls stop receiving input | Accept hits only on eligible Modern card bounds and verify command behavior with the full-size canvas present |
-| Repeated card clicks create overlapping motion or queued work | Cards collide, locks stick, callbacks race, or frames run indefinitely | One surface-scoped animation lock, ignored clicks while held, one bounded frame chain, and exact-once settlement/cancellation tests |
+| Concurrent lobby-card clicks race or same-card re-entry queues duplicate work | A card receives overlapping transforms, independent shadows overwrite each other, locks stick, callbacks race, or frames run indefinitely | One re-entry lock and transition record per card; ignore and never queue only repeats on that active card; allow other settled cards through one shared bounded scheduler; give each card an independent shadow mesh/material over shared geometry/texture; and test exact-once individual settlement plus atomic surface-wide cancellation |
 | Flip uses a synthesized or mirrored back, reverses direction, or leaves a residual transform | Purchased/color variants 404 or the physical turn looks incorrect | Load only `/images/cards/cardBack.png` before enabling input; test monotonic local-X milestones at `-π/2`, `-π`, `-3π/2`, and `-2π`; then require exact flat zero-normalized settlement |
-| Hardware or persistent shadows reintroduce grid artifacts or distort the resting row | Flashing motion, darkened art, or a hand that appears curved before interaction | Keep hardware shadow mapping disabled; use one generated analytic contact shadow only while lift is nonzero; hide and reset it on every settlement and cancellation path |
-| Lobby animation survives mode or lifecycle changes | A late frame re-hides Legacy, mutates a new hand, or leaks GPU activity | Generation-token cancellation on Legacy, hide, hand replacement, surface replacement/disposal, and context loss; assert zero pending frames afterward |
+| Off-axis perspective makes the rotating outer lobby cards lean in opposite directions | The row appears fanned across a curved or spherical surface even though every resting card is flat | Keep pickup X/Y/Z tilt exactly zero; apply the face-anchored flat-table projection neutralizer outside local rotation; compare projected lateral shear and normalized four-corner silhouettes for the outer-left, center, and outer-right cards at deterministic animation samples; reset zero-lift coefficients on every settlement and reusable cancellation |
+| Hardware or persistent shadows reintroduce grid artifacts, cross-card state leakage, or distort the resting row | Flashing motion, darkened art, a hand that appears curved before interaction, or one animation moves/fades another card's shadow | Keep hardware shadow mapping disabled; share only analytic-shadow geometry/texture; give every card its own mesh/material; show each shadow only while its card has nonzero lift; and hide/reset all affected shadows on individual settlement and every surface cancellation path |
+| Lobby animations survive mode or lifecycle changes | A late frame re-hides Legacy, mutates a new hand, leaves one card locked, or leaks GPU activity | Atomically generation-token-cancel every active card on Legacy, hide, hand replacement, surface replacement/disposal, and context loss; release all per-card locks and assert zero pending frames and visible shadows afterward |
 | Remote dependency delivery violates self-contained design | Startup, CSP, and archival failure | Pin, bundle, and serve all Modern code locally |
 
 ## 22. Open design questions
@@ -2330,7 +2351,7 @@ These questions do not block Phase 0 unless noted, but each must be resolved in 
 | OQ-004 | Perspective or orthographic primary active-match camera | Phase 0.5 remains recorded as the historical orthographic lobby baseline, while Phase 0.6 uses a calibrated constrained perspective camera for the lobby experiment. Use that evidence, without treating it as an automatic active-match decision, when Phase 2 selects the primary match camera. | Phase 2 |
 | OQ-005 | Thin box or paired planes for an active-match card | Phase 0.6 resolves only the lobby experiment as a three-unit side-only lit slab, hidden slab caps, distinct unlit face planes, and 0.2 units of clearance. Decide the active-match representation through edge, orientation, depth-stability, and draw-cost measurements. | Phase 2 |
 | OQ-006 | Per-card textures or atlas | Phase 0.5 uses per-card current-lobby-hand textures; begin the active match with cached current-match textures and add an atlas only if profiling justifies it | Phase 2 |
-| OQ-007 | Exact active-match shadows and lighting | Phase 0.6 lights only the lobby slab sides, keeps face art unlit, disables hardware shadow maps, and uses one lift-only analytic contact shadow. Treat that artifact-free result as evidence; select the active-match treatment in Phase 2. | Phase 2 |
+| OQ-007 | Exact active-match shadows and lighting | Phase 0.6 lights only the lobby slab sides, keeps face art unlit, disables hardware shadow maps, and uses one independently controlled lift-only analytic contact shadow per card over shared geometry/texture. Treat that artifact-free concurrent result as evidence; select the active-match treatment in Phase 2. | Phase 2 |
 | OQ-008 | Score/rule/turn UI in WebGL or DOM | Prefer DOM where it improves accessibility and reduces texture/glyph work | Phase 3 |
 | OQ-009 | Playable-renderer switching after full decoupling | Phase 0's non-playable presentation gate does not decide this; keep later renderer reconstruction at safe boundaries unless a clear user need justifies playable hot swap | Phase 6 or later |
 | OQ-010 | Touch and pen support window | Design with Pointer Events, schedule after desktop parity | Phase 5+ |

@@ -88,6 +88,27 @@ gh.load(['util', ['game'], 'cover', 'menu', ['dialog'], ['jquerytools'], 'audio'
                             }
                         }
                     });
+                    me.motionstudio = new gh.motionstudio({
+                        graphics: me.graphics,
+                        getCard: function() {
+                            var currentCards = me.menu.currentHandCards || [];
+                            if (currentCards.length > 0) {
+                                return $.extend({}, currentCards[0]);
+                            }
+                            if (gh.data.hand && gh.data.hand.length > 0) {
+                                return me.menu.describeHandCard(
+                                    gh.data.hand[0],
+                                    0
+                                );
+                            }
+                            return null;
+                        },
+                        closeContextMenu: function() {
+                            if (me.contextmenu) {
+                                $(me.contextmenu).overlay().close();
+                            }
+                        }
+                    });
                     
                 } else {
                     $('#browsers-wrapper').show();

@@ -55,9 +55,202 @@
             </div>
             <div class="graphics-mode-status" aria-live="polite"></div>
         </li>
+        <li class="motion-studio enabled">
+            <button type="button">Motion Studio&hellip;</button>
+        </li>
         <li class="enabled feedback" rel="#feedback">Feedback</li>
         <li class="enabled reportbug" rel="#reportbug">Report a Bug</li>
         <li class="enabled account"><a href="/account">Account Settings</a></li>
         <li class="enabled logout">Log Out</li>
     </ul>
 </div>
+
+<section
+    id="motionstudio"
+    class="motion-studio"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="motionstudio-title"
+    aria-hidden="true"
+>
+    <header class="motion-studio-header">
+        <button type="button" class="motion-studio-back">&larr; Back to Lobby</button>
+        <div class="motion-studio-heading">
+            <strong id="motionstudio-title">Motion Studio</strong>
+            <span>Single-card Three.js motion study</span>
+        </div>
+        <label class="motion-studio-preset-label" for="motionstudio-preset">
+            Preset
+            <select id="motionstudio-preset">
+                <option value="gentle-drop">Gentle Drop</option>
+                <option value="casual-toss" selected>Casual Toss</option>
+                <option value="energetic-scatter">Energetic Scatter</option>
+                <option value="custom">Custom</option>
+            </select>
+        </label>
+        <button type="button" class="motion-studio-reset">Reset</button>
+    </header>
+
+    <div class="motion-studio-workspace">
+        <section class="motion-studio-preview-panel" aria-label="Motion preview">
+            <div id="motionstudio-preview" class="motion-studio-preview">
+                <div id="motionstudio-canvas-host" aria-hidden="true"></div>
+                <svg
+                    class="motion-studio-helpers"
+                    viewBox="0 0 755 562"
+                    preserveAspectRatio="none"
+                    aria-hidden="true"
+                >
+                    <g class="motion-studio-destination motion-studio-marker-destination">
+                        <rect
+                            x="-58.5"
+                            y="-73"
+                            width="117"
+                            height="146"
+                            rx="4"
+                            ry="4"
+                        ></rect>
+                    </g>
+                    <path class="motion-studio-path" d=""></path>
+                    <line class="motion-studio-skid-path"></line>
+                    <g class="motion-studio-marker motion-studio-marker-start">
+                        <circle r="8"></circle>
+                        <text x="12" y="4">START</text>
+                    </g>
+                    <g class="motion-studio-marker motion-studio-marker-apex">
+                        <circle r="6"></circle>
+                        <text x="10" y="4">APEX</text>
+                    </g>
+                    <g class="motion-studio-marker motion-studio-marker-contact">
+                        <circle r="7"></circle>
+                        <text x="11" y="-10">CONTACT</text>
+                    </g>
+                    <g class="motion-studio-marker motion-studio-marker-land">
+                        <rect x="-7" y="-7" width="14" height="14"></rect>
+                        <text x="11" y="20">LAND</text>
+                    </g>
+                </svg>
+                <div class="motion-studio-preview-hint">
+                    Drag <strong>START</strong> or <strong>LAND</strong>
+                </div>
+                <div class="motion-studio-loading" role="status">Preparing Three.js preview&hellip;</div>
+            </div>
+
+            <div class="motion-studio-readout">
+                <span><strong>Phase</strong> <output data-motion-readout="phase" aria-live="polite">Ready</output></span>
+                <span><strong>Height</strong> <span data-motion-readout="height">0</span></span>
+                <span><strong>Perspective</strong> <span data-motion-readout="perspectiveScale">1.00&times;</span></span>
+                <span><strong>Art scale</strong> <span data-motion-readout="authoredScale">1.00&times;</span></span>
+                <span><strong>Rendered</strong> <span data-motion-readout="renderedScale">1.00&times;</span></span>
+                <span><strong>Face</strong> <span data-motion-readout="face">Front</span></span>
+            </div>
+        </section>
+
+        <aside class="motion-studio-inspector" aria-label="Motion parameters">
+            <div class="motion-studio-inspector-tools">
+                <label>
+                    <input type="checkbox" id="motionstudio-auto-replay" checked>
+                    Auto replay
+                </label>
+                <label>
+                    <input type="checkbox" id="motionstudio-show-helpers" checked>
+                    Helpers
+                </label>
+                <label>
+                    <input type="checkbox" id="motionstudio-actual-size">
+                    1:1 card
+                </label>
+            </div>
+            <div
+                class="motion-studio-control-status"
+                role="status"
+                aria-live="polite"
+            ></div>
+
+            <form id="motionstudio-controls">
+                <fieldset>
+                    <legend>Travel</legend>
+                    <div data-motion-control-group="path"></div>
+                </fieldset>
+                <fieldset>
+                    <legend>Height &amp; scale</legend>
+                    <label class="motion-studio-select-row" for="motionstudio-scale-mode">
+                        <span>Scale mode</span>
+                        <select id="motionstudio-scale-mode" data-motion-field="scale.mode">
+                            <option value="perspective">Perspective</option>
+                            <option value="keyframed">Keyframed</option>
+                        </select>
+                    </label>
+                    <div data-motion-control-group="height"></div>
+                    <div data-motion-keyframed-scale>
+                        <div data-motion-control-group="keyframed-scale"></div>
+                    </div>
+                </fieldset>
+                <fieldset>
+                    <legend>Rotation</legend>
+                    <div data-motion-control-group="rotation"></div>
+                </fieldset>
+                <fieldset>
+                    <legend>Contact &amp; depth cues</legend>
+                    <div data-motion-control-group="landing"></div>
+                </fieldset>
+            </form>
+
+            <details class="motion-studio-json">
+                <summary>Recipe JSON</summary>
+                <textarea
+                    id="motionstudio-json"
+                    rows="10"
+                    spellcheck="false"
+                    aria-label="Motion recipe JSON"
+                ></textarea>
+                <div class="motion-studio-json-actions">
+                    <button type="button" class="motion-studio-copy">Copy JSON</button>
+                    <button type="button" class="motion-studio-apply-json">Apply JSON</button>
+                </div>
+                <div class="motion-studio-json-status" role="status"></div>
+            </details>
+        </aside>
+    </div>
+
+    <footer class="motion-studio-transport">
+        <div class="motion-studio-transport-buttons">
+            <button type="button" class="motion-studio-replay" title="Replay (R)">Replay</button>
+            <button type="button" class="motion-studio-play" title="Play or pause (Space)">Pause</button>
+            <button type="button" class="motion-studio-step-back" title="Previous frame">&larr; Frame</button>
+            <button type="button" class="motion-studio-step-forward" title="Next frame">Frame &rarr;</button>
+        </div>
+        <div class="motion-studio-timeline-wrap">
+            <input
+                id="motionstudio-timeline"
+                type="range"
+                min="0"
+                max="1000"
+                step="1"
+                value="0"
+                aria-label="Motion timeline"
+            >
+            <div class="motion-studio-timeline-markers" aria-hidden="true">
+                <span data-motion-marker="release">Release</span>
+                <span data-motion-marker="apex">Apex</span>
+                <span data-motion-marker="contact">Contact</span>
+                <span data-motion-marker="flat">Flat</span>
+                <span data-motion-marker="settled">Settled</span>
+            </div>
+        </div>
+        <output id="motionstudio-time">0 / 0 ms</output>
+        <label for="motionstudio-speed">
+            Speed
+            <select id="motionstudio-speed">
+                <option value="0.25">0.25&times;</option>
+                <option value="0.5">0.5&times;</option>
+                <option value="1" selected>1&times;</option>
+                <option value="2">2&times;</option>
+            </select>
+        </label>
+        <label>
+            <input type="checkbox" id="motionstudio-loop" checked>
+            Loop
+        </label>
+    </footer>
+</section>

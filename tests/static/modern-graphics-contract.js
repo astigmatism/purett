@@ -19,10 +19,17 @@ try {
   const packageJson = JSON.parse(read('frontend/package.json'));
   const packageLock = JSON.parse(read('frontend/package-lock.json'));
   const coordinator = read('public/js/plugins/gh.graphics.js');
+  const motionStudioController = read(
+    'public/js/plugins/gh.motionstudio.js'
+  );
   const application = read('public/js/default/index.js');
   const lobbyMenu = read('public/js/plugins/gh.menu.js');
   const modernSource = read('frontend/src/modern-graphics.js');
   const arrivalSource = read('frontend/src/card-arrival-animations.js');
+  const cardMotionSource = read('frontend/src/card-motion.js');
+  const motionStudioSurfaceSource = read(
+    'frontend/src/motion-studio-surface.js'
+  );
   const modernBundle = read('public/js/modern/purett-modern-graphics.min.js');
   const layout = read('application/views/layouts/standalone.phtml');
   const game = read('public/js/plugins/gh.game.js');
@@ -38,10 +45,15 @@ try {
   assert(modernBundle.length > 100000, 'generated modern graphics bundle is missing or implausibly small');
   assert(modernBundle.startsWith('/*! Purett modern graphics | Three.js 0.185.1 | MIT License */'), 'bundle license/version banner is missing');
   assert(modernBundle.includes('modernGraphics'), 'bundle does not register the modern graphics facade');
+  assert(
+    modernBundle.includes('createMotionStudioSurface') &&
+      modernBundle.includes('purett-card-motion-plan'),
+    'generated modern graphics bundle omits the Motion Studio surface or card-motion recipe API'
+  );
   assert(!/window\.THREE\s*=/.test(modernSource + modernBundle), 'modern bundle overwrites the legacy snow THREE global');
   assert(fs.existsSync(path.join(root, 'public/js/modern/THREE-LICENSE.txt')), 'distributed Three.js license is missing');
 
-  assert(coordinator.includes('/js/modern/purett-modern-graphics.min.js?v=0.185.1-lobby-card-arrival.3'), 'coordinator does not use the human-scatter card-arrival bundle cache revision');
+  assert(coordinator.includes('/js/modern/purett-modern-graphics.min.js?v=0.185.1-motion-studio.1'), 'coordinator does not use the Motion Studio bundle cache revision');
   assert(!/https?:\/\//.test(coordinator), 'coordinator references a third-party graphics URL');
   assert(coordinator.includes("this.storageKey = 'purett.graphicsMode.v1'"), 'graphics preference does not have a stable storage key');
   assert(coordinator.includes("this.requestedMode = 'legacy'"), 'Legacy is not the safe default');
@@ -57,6 +69,82 @@ try {
   assert(boardCss.includes('#board.graphics-modern #svgBoard *'), 'Modern mode does not block descendant Raphael hit targets');
   assert(boardCss.includes('pointer-events: none !important'), 'Raphael pointer blocking is not authoritative');
   assert(contextMenu.includes('data-graphics-mode="legacy"') && contextMenu.includes('data-graphics-mode="modern"'), 'graphics menu choices are incomplete');
+  assert(
+    contextMenu.includes('class="motion-studio enabled"') &&
+      contextMenu.includes('Motion Studio&hellip;'),
+    'the main menu does not expose the Motion Studio'
+  );
+  assert(
+    contextMenu.includes('id="motionstudio"') &&
+      contextMenu.includes('role="dialog"') &&
+      contextMenu.includes('aria-labelledby="motionstudio-title"') &&
+      contextMenu.includes('id="motionstudio-canvas-host"') &&
+      contextMenu.includes('id="motionstudio-controls"') &&
+      contextMenu.includes('id="motionstudio-timeline"') &&
+      contextMenu.includes('id="motionstudio-json"'),
+    'the Motion Studio overlay is missing its dialog, preview, controls, timeline, or recipe editor'
+  );
+  assert(
+    layout.includes('/js/plugins/gh.motionstudio.js') &&
+      layout.indexOf('/js/plugins/gh.graphics.js') <
+        layout.indexOf('/js/plugins/gh.motionstudio.js'),
+    'the standalone layout does not load the Motion Studio controller after the graphics coordinator'
+  );
+  assert(
+    application.includes('me.motionstudio = new gh.motionstudio({') &&
+      application.includes('graphics: me.graphics'),
+    'the application does not initialize the Motion Studio controller with the graphics coordinator'
+  );
+  assert(
+    motionStudioController.includes('gh.motionstudio = function(options)') &&
+      motionStudioController.includes("this.storageKey = 'purett.motionStudio.v1'") &&
+      motionStudioController.includes('this.graphics.openMotionStudio(') &&
+      motionStudioController.includes('this.graphics.closeMotionStudio()') &&
+      motionStudioController.includes('this.api.serializePreset(') &&
+      motionStudioController.includes('this.api.parsePreset('),
+    'the Motion Studio controller does not cover open, close, and versioned recipe exchange'
+  );
+  assert(
+    coordinator.includes('openMotionStudio: function(host, options, callback)') &&
+      coordinator.includes('closeMotionStudio: function()') &&
+      coordinator.includes('disposeMotionStudioSurface: function()') &&
+      coordinator.includes('this.studioGeneration += 1') &&
+      coordinator.includes('motionStudioOpen: this.studioOpen') &&
+      coordinator.includes('motionStudio: this.studioSurface'),
+    'the graphics coordinator does not own the Motion Studio surface lifecycle'
+  );
+  assert(
+    cardMotionSource.includes('export const CARD_MOTION_SCHEMA_VERSION = 1') &&
+      cardMotionSource.includes('export const CARD_MOTION_PRESETS') &&
+      cardMotionSource.includes('export function createCardMotionPlan') &&
+      cardMotionSource.includes('export function sampleCardMotion') &&
+      cardMotionSource.includes('export function serializeCardMotionPreset') &&
+      cardMotionSource.includes('export function parseCardMotionPreset') &&
+      !/\b(?:window|document|HTMLElement|WebGLRenderer|from ['"]three['"])\b/.test(
+        cardMotionSource
+      ),
+    'the reusable card-motion facade is not a DOM-free, versioned recipe API'
+  );
+  assert(
+    motionStudioSurfaceSource.includes('export class MotionStudioSurface') &&
+      motionStudioSurfaceSource.includes("surface: 'motion-studio'") &&
+      motionStudioSurfaceSource.includes('getDebugState()') &&
+      motionStudioSurfaceSource.includes('rafActive:') &&
+      motionStudioSurfaceSource.includes('renderedScale:') &&
+      motionStudioSurfaceSource.includes('dispose()'),
+    'the Three.js Motion Studio surface lacks inspectable playback and disposal state'
+  );
+  assert(
+    modernSource.includes('createMotionStudioSurface(host, options)') &&
+      modernSource.includes('new MotionStudioSurface(host, options)') &&
+      modernSource.includes('motionStudio: Object.freeze({') &&
+      modernSource.includes('normalizePreset(') &&
+      modernSource.includes('createPlan(') &&
+      modernSource.includes('samplePlan(') &&
+      modernSource.includes('serializePreset(') &&
+      modernSource.includes('parsePreset('),
+    'the Modern graphics facade does not expose the Motion Studio factory and reusable recipe API'
+  );
 
   assert(application.includes('menu: me.menu'), 'application does not pass the lobby menu to the graphics coordinator');
   assert(coordinator.includes('this.menu = options.menu'), 'graphics coordinator does not retain the lobby menu bridge');

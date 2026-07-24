@@ -2,13 +2,13 @@
 
 | Field | Value |
 |---|---|
-| Status | Phase 0.7 human-scatter lobby-card arrival baseline |
-| Version | 1.1 |
+| Status | Phase 0.8 Motion Studio authoring requirements; Phase 0.7 visual baseline rejected |
+| Version | 1.2 |
 | Last updated | 2026-07-24 |
-| Scope | Active-match graphics roadmap plus Modern lobby-hand rendering, reusable entrance choreography, and bounded decorative per-card flip interactions |
+| Scope | Active-match graphics roadmap plus Modern lobby-hand rendering, one-card Motion Studio authoring, renderer-neutral motion recipes, and bounded decorative card experiments |
 | Modern renderer | Three.js `0.185.1` (`r185`) with `WebGLRenderer`, selected for Phase 0 and provisional for the playable renderer |
 
-> **Implementation status — 2026-07-24:** Phase 0 established the runtime Graphics switch, the safe Legacy fallback, and an inert active-match Modern surface. Phase 0.5 rendered only the five hand cards shown in the main-menu/lobby viewport beneath the Play, Shop, and Tutorials bar. Phase 0.6 added the calibrated, flat-table Three.js card model and independent decorative double flips. Phase 0.7 now gives each lobby appearance one seeded `casual-drop-left` presentation: the same menu-show event that begins the black command-bar reveal releases the cards from one compact off-screen-left hand region as an irregular two-burst human scatter. The five correlated gestures—long skim, lofted toss, quick slip, loose follower, and soft drop—use different release impulses, ballistic height, path curvature, angular drift, contact attitude, and skid energy. Each front-up card rises and falls under analytic gravity, makes one edge/corner contact, and dissipates its remaining translation and roll through one continuous friction movement. Projected overlap is allowed when it clearly reads as one airborne card passing above another; depth separation is a guardrail, not the visible organizing principle. There is no manual scale animation, table penetration, stop-and-relaunch seam, rebound, oscillation, or end jiggle. Every batch is generated once from plain destinations, shares the existing demand-driven frame scheduler, finishes within 1,500 milliseconds, limits rendered perspective enlargement to 1.09, and restores the exact unrotated lobby slots. The recipe is renderer-side and destination-driven so a later Three.js shop surface can invoke it without copying lobby coordinates or motion math; any new layout still requires its own motion and clearance review. Reduced motion skips travel, and Legacy selection or any lobby lifecycle cancellation immediately restores the intact settled hand. This remains decorative renderer validation, not a game action. The playable active-match renderer remains intentionally blank and follows the renderer-neutral roadmap described later in this document.
+> **Implementation status — 2026-07-24:** Phase 0 established the runtime Graphics switch, safe Legacy fallback, and inert active-match Modern surface. Phase 0.5 rendered only the five lobby-hand cards beneath the Play, Shop, and Tutorials bar. Phase 0.6 added the calibrated flat-table Three.js card model and independent decorative double flips. Phase 0.7 deployed a deterministic `casual-drop-left` implementation with a pure planner, bounded lifecycle, table-clearance safeguards, and exact settlement. Its current visible motion does **not** convincingly resemble cards being dropped or scattered by a player: it reads primarily as flat cards sliding in from the left. It therefore failed the human visual acceptance requirement in `AC-P07-003` and is **not an approved visual baseline**. Its parameter values, named gestures, cadence, scale policy, and apparent motion must not be copied into the lobby, shop, active match, or another surface as an accepted design. Phase 0.8 introduces an isolated one-card Motion Studio so the desired motion can be authored and reviewed directly before any replacement five-card choreography is promoted. The Studio preserves the user's stored Graphics preference, emits deterministic renderer-neutral recipes, changes no game or account state, and is an authoring instrument rather than a playable renderer. The active-match Modern renderer remains intentionally blank and follows the renderer-neutral roadmap later in this document.
 
 ## Contents
 
@@ -27,6 +27,7 @@
   - [12.8 Phase 0.5: non-interactive Modern lobby hand](#128-phase-05-non-interactive-modern-lobby-hand)
   - [12.9 Phase 0.6: Modern lobby-card double-flip spike](#129-phase-06-modern-lobby-card-double-flip-spike)
   - [12.10 Phase 0.7: seeded lobby-card arrival choreography](#1210-phase-07-seeded-lobby-card-arrival-choreography)
+  - [12.11 Phase 0.8: one-card Motion Studio authoring workbench](#1211-phase-08-one-card-motion-studio-authoring-workbench)
 - [13. Target renderer contract](#13-target-renderer-contract)
 - [14. Renderer-neutral view state](#14-renderer-neutral-view-state)
 - [15. Three.js implementation constraints](#15-threejs-implementation-constraints)
@@ -44,7 +45,7 @@
 
 ## 1. Purpose of this document
 
-This document defines the intended outcome, constraints, phased delivery plan, and acceptance criteria for modernizing the active-match graphics in Pure Triple Triad. It also defines the deliberately narrow Phase 0.5 lobby-hand preview, Phase 0.6 lobby-card double-flip spike, and Phase 0.7 reusable entrance choreography used to validate real Three.js card rendering and bounded 3D motion before any playable match surface is converted.
+This document defines the intended outcome, constraints, phased delivery plan, and acceptance criteria for modernizing the active-match graphics in Pure Triple Triad. It also defines the deliberately narrow Phase 0.5 lobby-hand preview, Phase 0.6 lobby-card double-flip spike, Phase 0.7 entrance experiment, and Phase 0.8 one-card Motion Studio used to author and approve reusable 3D motion before any playable match surface is converted.
 
 It is deliberately more detailed than an implementation ticket. The modernization will cross a legacy rendering implementation, animation-driven control flow, input handling, tests, build and dependency delivery, accessibility, and failure recovery. Once reviewed and accepted, this document is intended to be the stable product and engineering reference for that work.
 
@@ -97,6 +98,10 @@ Phase 0.5 is the first real-card rendering slice. When the main menu is visible 
 Phase 0.6 is a renderer-only interaction spike on that same Modern lobby surface. A primary click on any settled Modern card may start one bounded animation for that card: lift, one smooth same-direction local-X turn from zero to `-2π` that presents the canonical back at its midpoint and the original front at its endpoint, and exact flat settlement. Different cards may animate concurrently; only re-entry on a card whose own animation is active is ignored until that card settles. The spike does not select a card, mutate the hand, start or resume a game, submit a request, or establish the interaction architecture for the active match. Legacy remains unchanged and may be selected immediately even while one or more decorative animations are running.
 
 Phase 0.7 adds one destination-driven arrival batch to each main-menu presentation while Modern is effective. It deliberately recalls the Legacy lobby's randomized off-screen-left entrance while changing the visible story from a mechanical deal to cards casually released by a player seated beyond the left side of the table. A seeded planner chooses one art-directed two-burst phrase and correlated card gestures, the existing shared scheduler advances analytic flight and contact motion, and exact settlement restores the Phase 0.6 flat-card contract before click interactions become eligible.
+
+Phase 0.7's engineering safeguards remain useful evidence, but the deployed choreography failed its required real-time human-motion review. Passing deterministic, clearance, timing, and settlement checks does not establish that motion looks physically or emotionally correct. The current five-card scatter is therefore an implementation under evaluation, not a source of approved artistic constants.
+
+Phase 0.8 pauses further guess-and-deploy tuning of the five-card entrance and provides a dedicated one-card authoring workbench inside the application. It exposes travel, height, perspective or authored scale, rotation, flip count, contact, skid, shadow, timing, and playback controls against the actual card model and lobby camera. The Studio exports versioned plain-data recipes whose sampling is deterministic by seed and normalized progress. It neither rewrites the user's stored Legacy/Modern choice nor promotes a draft into production choreography automatically. A later explicit visual approval and integration change is required before a Studio recipe becomes the lobby baseline or is generalized across five cards.
 
 Legacy remains the default until the Modern renderer reaches the documented playability, parity, reliability, and fallback gates.
 
@@ -187,7 +192,7 @@ Raphael is also used by:
 
 Phase 0.5 brings one bounded part of `gh.menu` into scope: the five initially non-interactive card images displayed beneath the Play, Shop, and Tutorials command bar when the application first reaches the main-menu/lobby viewport. Phase 0.6 adds only the documented decorative click-to-double-flip behavior to their Modern projection, and Phase 0.7 adds only the seeded entrance tied to that menu presentation. The existing implementation uses one 755 by 562 Raphael paper for both the black command bar and those card images. It positions the card images at x coordinates 72, 197, 322, 447, and 572, with y 203 and a logical card size of 117 by 146.
 
-The Modern implementation must therefore gate individual hand-card elements rather than the `gh.menu` Raphael paper. The bar, commands, statistics, next-rules content, and all menu navigation remain present and usable. `gh.cover`, `gh.deck`, `gh.shop`, `gh.endgame`, and every other part of `gh.menu` remain outside the Phase 0.5 through Phase 0.7 lobby slice.
+The Modern implementation must therefore gate individual hand-card elements rather than the `gh.menu` Raphael paper. The bar, commands, statistics, next-rules content, and all menu navigation remain present and usable. `gh.cover`, `gh.deck`, `gh.shop`, `gh.endgame`, and every other part of `gh.menu` remain outside the Phase 0.5 through Phase 0.7 lobby-rendering slice. Phase 0.8 adds a separate authoring layer above that intact menu; it does not convert or take ownership of those Raphael surfaces.
 
 Modern graphics mode must not unload, replace, delete, or globally disable `window.Raphael`.
 
@@ -222,6 +227,10 @@ The following existing contracts remain authoritative unless a later requirement
 | **Lobby card re-entry lock** | The Phase 0.6 lock owned independently by each lobby card while that card animates. It rejects and does not queue a repeated activation of the same active card until exact settlement, but it does not block another settled card from starting its own concurrent animation. It is not a game, turn, card-selection, or server-request lock. |
 | **Lobby presentation token** | The one-use identifier and reveal timestamp created by each `gh.menu.show()` call and carried to the Modern surface so async readiness can present at most one caught-up matching arrival batch. |
 | **Card arrival profile** | A reusable seeded planner and sampler that accepts plain card dimensions and destinations. Phase 0.7 defines `casual-drop-left`; the profile contains no lobby slot coordinates or game authority. |
+| **Motion Studio** | The Phase 0.8 application-local authoring workbench that previews one Three.js card, exposes motion controls and transport, and imports or exports renderer-neutral recipes without changing game state or the stored Graphics preference. |
+| **Motion recipe** | A versioned plain-data description of a card transition. It contains validated values and stable semantic names, but no DOM node, Raphael element, Three.js object, callback, wall-clock timestamp, or application state reference. |
+| **Motion draft** | The mutable recipe currently being edited in the Motion Studio. A draft may be session-persisted or exported, but it is not a production lobby profile until separately reviewed, approved, and promoted through source control. |
+| **Approved visual baseline** | A named recipe and reference capture that passed real-time review at the actual application size in addition to deterministic, lifecycle, and geometry checks. Structural test success alone does not confer this status. |
 | **Requested mode** | The value selected and persisted by the user. |
 | **Effective mode** | The mode currently presented to the user and permitted to own active-match pointer input. During the temporary Phase 0 bridge, the hidden Legacy implementation may remain mounted and synchronized even while Modern is effective. |
 | **Renderer host** | The positioned 693 by 500 DOM mount occupied by the effective renderer. |
@@ -271,6 +280,13 @@ These decisions are part of the baseline requirements.
 | DEC-029 | Phase 0.7 owns one seeded `casual-drop-left` batch per menu presentation. The pure planner derives an art-directed human release phrase and samples a correlated motion variant, launch impulse, ballistic height, tilt, path, timing, contact, and skid once for each caller-supplied destination and stable seed; the sampler never owns lobby coordinates, Raphael nodes, or game state. |
 | DEC-030 | Arrival and click effects share the lobby surface's sole demand-driven frame scheduler and per-card animation map, but keep separate diagnostics and completion counts. A presentation token is consumed once, reduced motion skips travel, and every lifecycle cancellation restores exact settled state. |
 | DEC-031 | `casual-drop-left` uses one compact left-hand packet and an intentionally irregular two-burst cadence rather than a spatial sweep or equal release gaps. Cards may cross in screen projection when their 3D height produces an unambiguous over/under relationship; motion planning must not serialize them merely to keep every polygon disjoint. Every pose retains physical local-card perspective but applies the established flat-table off-axis neutralizer so camera-center lean cannot recreate the rejected radial/curved-surface appearance. Flight uses analytic gravity, and contact is a monotonic `flight` → `slap` → `slide` sequence whose translation follows one continuous constant-deceleration curve with no second kick, bounce, end oscillation, or overshoot. |
+| DEC-032 | The currently deployed Phase 0.7 lobby scatter failed `AC-P07-003` because it reads as flat left-to-right sliding rather than cards dropped by a player. It is not an approved visual baseline, and none of its artistic constants may be treated as approved defaults for another surface. |
+| DEC-033 | Phase 0.8 introduces a one-card Motion Studio before another five-card choreography iteration. The immediate goal is authoring and approval of one reusable motion function, not automatic multi-card randomization or production promotion. |
+| DEC-034 | The Motion Studio owns an isolated Three.js study surface. Opening or closing it must not call the Graphics-mode setter, rewrite the stored requested mode, replace the effective renderer, or alter the current lobby hand. |
+| DEC-035 | Studio recipes are deterministic, renderer-neutral, versioned plain data. Given the same recipe, seed, destination, and normalized time, the sampled pose must be identical regardless of frame cadence or authoring UI state. |
+| DEC-036 | Studio draft persistence is browser-session-local and non-authoritative. Import and export are explicit user actions; no draft is sent to a server, attached to an account, or silently promoted into application defaults. |
+| DEC-037 | The Studio uses the actual lobby card dimensions, face/back assets, thickness model, perspective camera, and flat-table coordinate convention by default so a promising study is not an artifact of an unrelated camera or mock card. |
+| DEC-038 | A motion recipe becomes a production baseline only after a normal-speed, actual-size reference review explicitly approves it. Numeric safety, deterministic sampling, and automated tests are necessary but cannot substitute for that review. |
 
 ## 7. Goals
 
@@ -280,6 +296,8 @@ These decisions are part of the baseline requirements.
 - Preserve the present game as a reliable escape hatch and historical experience.
 - Provide an early, low-risk visual proof by rendering the familiar five-card lobby hand and exercising one bounded decorative 3D turn without treating it as match state.
 - Make the Modern experience materially more expressive through controlled 3D card motion.
+- Give the user direct, repeatable control over one-card motion authoring before another five-card lobby entrance is promoted.
+- Make visual approval an explicit gate rather than inferring it from deterministic or collision-safety tests.
 - Allow the renderer to evolve without rewriting the server-side game.
 - Keep a match resumable when the selected renderer is unavailable or fails.
 - Avoid trapping the player on a blank, broken, or non-interactive surface.
@@ -290,6 +308,7 @@ These decisions are part of the baseline requirements.
 - Define one semantic contract implemented by both renderers.
 - Make renderer lifecycle explicit: mount, synchronize, activate, suspend, resize, and dispose.
 - Make all animation/transition completion deterministic and testable.
+- Represent authored card motion as versioned renderer-neutral data that can be sampled independently of Three.js and the authoring UI.
 - Centralize coordinate conversion and hit testing.
 - Ensure only one renderer and one set of input handlers is active.
 - Provide renderer-neutral diagnostics and test snapshots.
@@ -305,6 +324,7 @@ These decisions are part of the baseline requirements.
 - Recover from Modern initialization and WebGL-context failures.
 - Prevent event-listener, animation-frame, texture, material, geometry, and WebGL-context leaks.
 - Maintain clear focus and keyboard semantics before Modern becomes the default.
+- Permit precise normal-speed, slowed, frame-stepped, and scrubbed review of an authored motion without leaving an idle animation loop.
 
 ## 8. Non-goals
 
@@ -320,6 +340,10 @@ The following are outside this initiative unless separately approved:
 - redrawing the card catalog;
 - redesigning the board frame in the initial parity work;
 - adding physics simulation;
+- treating the current Phase 0.7 lobby scatter, its five gesture constants, or its 1.09 perspective limit as an approved visual baseline;
+- automatically applying a Motion Studio draft to all five lobby cards, the shop, or the active match without a separate approval and integration phase;
+- storing Studio drafts in account, server, database, game, deck, shop, replay, analytics, or economy state;
+- allowing the Studio to rewrite the user's persisted Legacy/Modern Graphics preference;
 - building a freely navigable 3D room;
 - adding WebXR or virtual-reality support;
 - making WebGPU mandatory;
@@ -349,6 +373,10 @@ The player reaches the main menu and sees Play, Shop, and Tutorials exactly as b
 With Modern effective and the lobby hand fully ready, the player clicks one card. That card rises above its settled plane, turns to show the canonical card back, turns again to show its original front, and settles at its original transform. While it moves, the player may click any other settled card and its independent sequence starts immediately; clicking the already-active card again is ignored and not queued until that card has settled. The hand, account, game, and server state are identical before and after every effect. Selecting Legacy or leaving the lobby interrupts all active effects immediately and exposes the unchanged Legacy presentation.
 
 The five cards are flat and unshadowed before activation. The clicked card uses one smooth same-direction end-over-end turn rather than reversing after the back: it advances from local X zero through the upright back at `-π` to the upright original front at `-2π`, then returns to the same normalized flat resting transform.
+
+### 9.2.3 User authoring one-card motion
+
+From the existing application menu, the user opens Motion Studio without changing the current Legacy or Modern selection. The lobby remains intact behind an isolated workbench. The user chooses a starting preset, drags start and landing anchors, adjusts direction, distance, height, perspective or authored scale, flip count, rotation, contact, skid, shadow, and duration, then replays or scrubs the same deterministic one-card motion at several speeds. The draft survives closing and reopening during the browser session. The user can export a versioned recipe and import it again with no semantic drift. Closing the Studio restores the exact prior application view and mode. Nothing is promoted into the five-card lobby entrance merely because it was previewed or exported.
 
 ### 9.3 Player returning from the Phase 0 preview
 
@@ -393,6 +421,10 @@ The following invariants apply across every phase after the relevant seam exists
 21. The Legacy lobby-hand preview owns no pointer or keyboard input. Beginning in Phase 0.6, the Modern lobby-hand preview may own only card-bounded pointer activation for the decorative double flip; it may not emit a semantic game action or own keyboard gameplay input.
 22. The hand-only lobby gate cannot hide, disable, or replace the shared Raphael menu bar or DOM commands.
 23. The Modern lobby-hand surface may have at most one active animation and one corresponding re-entry lock per card, for no more than five concurrent animations. Each normal completion releases only that card's lock exactly once; every surface-wide cancellation path atomically invalidates all active animations, releases every held lock exactly once, and leaves no pending shared frame.
+24. The Motion Studio cannot mutate game, account, hand, deck, shop, replay, economy, server, or protocol state and cannot emit a semantic game action.
+25. Opening, editing, importing into, exporting from, or closing the Motion Studio cannot rewrite the stored Graphics preference or make a different requested or effective graphics mode authoritative.
+26. Studio pose sampling is a pure function of a validated recipe, seed, destination, and time; the rendered frame cannot become the source of recipe or application state.
+27. A deployed or test-passing motion is not an approved visual baseline until the required actual-size, normal-speed review records explicit approval.
 
 ### 10.1 Phased applicability
 
@@ -407,7 +439,7 @@ In particular, Phase 0 does **not** require:
 - renderer-neutral replay or Sudden Death reconstruction;
 - replacement of existing renderer-specific tests.
 
-Phase 0 may use a shallow runtime presentation/input gate around the unchanged Legacy path and the inert Modern preview. Phase 0.5 may add a dedicated lobby-hand projection and a hand-element-only presentation gate without expanding the playable renderer boundary. Phase 0.6 may add only the documented decorative lobby-card click and bounded animation. Phase 0.7 may add only the documented seeded menu-presentation arrival. Neither motion slice expands the playable renderer boundary. Each phase must meet every requirement and acceptance criterion explicitly assigned to it.
+Phase 0 may use a shallow runtime presentation/input gate around the unchanged Legacy path and the inert Modern preview. Phase 0.5 may add a dedicated lobby-hand projection and a hand-element-only presentation gate without expanding the playable renderer boundary. Phase 0.6 may add only the documented decorative lobby-card click and bounded animation. Phase 0.7 may add only the documented seeded menu-presentation arrival. Phase 0.8 may add only the isolated one-card authoring workbench and renderer-neutral recipe facility. None of these decorative or authoring slices expands the playable renderer boundary. Each phase must meet every requirement and acceptance criterion explicitly assigned to it.
 
 Requirements become mandatory according to this table:
 
@@ -432,6 +464,7 @@ Requirements become mandatory according to this table:
 | `FR-LOBBY-*` | Phase 0.5 |
 | `FR-LOBBY-FLIP-*` | Phase 0.6 |
 | `FR-LOBBY-ARRIVAL-*` | Phase 0.7 |
+| `FR-MOTION-STUDIO-*` | Phase 0.8 |
 
 ## 11. Functional requirements
 
@@ -789,6 +822,48 @@ Before beta, this flow requires automated accessible-tree and keyboard assertion
 **FR-LOBBY-ARRIVAL-011** — Projected overlap is permitted when it visually reads as one airborne card passing above or below another; collision avoidance must remain an unobtrusive safety guardrail and must not impose release order, equal timing, or segregated screen lanes. Meaningful close overflight must retain unambiguous depth ordering, card geometry must not visibly interpenetrate, and no tilted face corner may pass below the table plane. The planner and sampler must account for card dimensions, perspective distance, tilt clearance, and depth at every sample. Dense deterministic sampling across the supported seed space and a real-time reference capture at the actual lobby size are both required; numerical clearance evidence cannot substitute for judging whether the motion looks human.
 
 **FR-LOBBY-ARRIVAL-012** — Airborne cards must retain the perspective camera's physical local-card foreshortening so pitch and yaw read as motion in space, while the existing position-neutral flat-table projection must remain anchored at each moving screen position to remove only the camera-center-dependent lateral lean previously perceived as a curved support. It must not remove the card's own X/Y tilt, Z roll, edge foreshortening, or depth. No rendered front-face vertex perspective factor and no intrinsic projected face edge may exceed 1.09 times its settled baseline.
+
+### 11.14 Phase 0.8 one-card Motion Studio
+
+**FR-MOTION-STUDIO-001** — The existing application context menu must expose a clearly labeled `Motion Studio…` action. The action must open an authoring workbench within the application rather than navigating to a different product or requiring source-code editing. If Three.js or WebGL cannot initialize, the application must report that failure and leave the existing screen and Graphics selection usable.
+
+**FR-MOTION-STUDIO-002** — The Studio must occupy the existing 755 by 562 logical `#content` region as a dedicated workbench while preserving the title, coin display, footer, and application scaling. It must provide an explicit `Back to Lobby` control and support Escape when focus is not inside a control that consumes Escape. It must not use the existing speech-bubble dialog layout, whose decorative button pane leaves insufficient space for a preview, inspector, and timeline.
+
+**FR-MOTION-STUDIO-003** — Opening, operating, and closing the Studio must be isolated from Graphics preference. The Studio may lazy-load the pinned Modern bundle for its own study surface even when Legacy is selected, but it must not call the normal mode-selection path, write the Graphics local-storage key, alter requested or effective mode, gate the Legacy lobby hand, or claim that Modern is effective. Closing must restore the exact requested/effective mode and prior application view.
+
+**FR-MOTION-STUDIO-004** — The Studio must own a separate Three.js scene, camera, renderer, canvas, scheduler, listeners, and disposable resource boundary. It must not borrow the live lobby surface's card objects or animation map. Opening must suspend or visually cover the underlying lobby without invoking lobby navigation or hand-hide choreography. Closing, replacement, failure, and context loss must cancel the study, remove its frame request and listeners, and dispose every Studio-owned GPU and DOM resource without disposing the live lobby or active-match surface.
+
+**FR-MOTION-STUDIO-005** — The initial Studio scope is exactly one card. The preview must use the production lobby's 117 by 146 logical card dimensions, canonical front and back assets, nominal thickness, face clearances, sRGB face treatment, flat-table coordinate convention, and calibrated 40-degree lobby perspective camera by default. A user may choose which available lobby face to study, but the card is a non-authoritative visual fixture.
+
+**FR-MOTION-STUDIO-006** — A motion recipe must be a versioned, renderer-neutral plain-data value. It must include a schema version, stable semantic property names, finite numeric values, explicit units, and enough information to sample travel, elevation, scale, orientation, contact, and settlement. It must not include a DOM node, Raphael element, Three.js object, callback, function, wall-clock timestamp, user identity, or game-state reference.
+
+**FR-MOTION-STUDIO-007** — Recipe planning and sampling must be deterministic. Given the same validated recipe, seed, start and destination, and elapsed or normalized time, repeated calls must produce identical poses independent of frame rate, display scale, UI control order, wall clock, and previous playback. Any variation must derive from an explicit seed and be sampled when constructing the plan, never through nondeterministic per-frame randomness.
+
+**FR-MOTION-STUDIO-008** — The inspector must expose, at minimum: start and landing position; travel direction and distance; flight duration; signed path curvature; release height; apex height and timing; end-over-end X flips; side-over-side Y flips; table-plane Z spin; release and contact pitch, yaw, and roll; perspective-derived versus authored scale; card-size multiplier; slap duration; skid distance, direction, and duration; final rotation; shadow strength and spread; and visible card thickness. Every continuous control must provide both a slider and an editable numeric value with its unit.
+
+**FR-MOTION-STUDIO-009** — Editing one representation of the path must keep its equivalents synchronized. Dragging start or landing anchors must update numeric coordinates, direction, and distance; changing direction or distance must update the start anchor relative to the landing anchor. Invalid, non-finite, camera-crossing, below-table, or out-of-schema values must be rejected or clamped visibly without corrupting the last valid draft.
+
+**FR-MOTION-STUDIO-010** — The preview must provide optional authoring helpers: draggable start and landing anchors, a faint destination-card outline, trajectory curve, apex marker, contact marker, and analytic-shadow visualization. Helpers must be removable with one toggle so the card can be judged against a clean, flat tabletop. The preview must not use a persistent grid.
+
+**FR-MOTION-STUDIO-011** — Playback must provide Replay, Play/Pause, frame-step backward and forward, Loop, and selectable 0.25×, 0.5×, 1×, and 2× rates. A scrub-able timeline must identify Release, Apex, Contact, Flat, and Settled milestones. Scrubbing pauses playback and renders the exact deterministic pose at the selected time; resuming continues from that playhead.
+
+**FR-MOTION-STUDIO-012** — Edits must update the current sampled pose immediately. While a slider is actively dragged, the Studio must not continuously queue full restarts. When editing ends, an `Auto Replay` option may debounce and replay the draft once; Auto Replay must be independently switchable and on by default. No edit may create overlapping playback schedulers.
+
+**FR-MOTION-STUDIO-013** — The Studio must include clearly distinct starting presets for at least `Gentle Drop`, `Casual Toss`, and `Energetic Scatter`, plus a representation of the current lobby implementation for comparison that is explicitly labeled `Unapproved current lobby`. Selecting a preset copies it into an editable draft; editing cannot mutate the built-in preset. Reset must restore the selected preset rather than an undocumented mixture of prior values.
+
+**FR-MOTION-STUDIO-014** — The current draft, selected preset, seed, helper visibility, playback speed, loop choice, Auto Replay choice, and inspector expansion state must persist in guarded `window.sessionStorage` and restore when the Studio is reopened in the same tab. Missing, malformed, unsupported-version, or unavailable session storage must fall back to a documented default without affecting application startup or Graphics mode.
+
+**FR-MOTION-STUDIO-015** — The Studio must export the current recipe as canonical JSON and import compatible JSON through explicit user actions. Export followed by import must preserve every semantic recipe value and reproduce the same sampled poses. Import must validate schema version, required fields, finite ranges, and prohibited values atomically; a failed import must explain the problem and retain the last valid draft. Import/export must issue no network request.
+
+**FR-MOTION-STUDIO-016** — Previewing, session-saving, naming, importing, or exporting a draft must not make it the production lobby animation. Promotion requires a separately recorded normal-speed visual approval, a named reference recipe and capture, source-controlled integration, and the applicable five-card choreography, lifecycle, reduced-motion, and Legacy regression review.
+
+**FR-MOTION-STUDIO-017** — The workbench must be keyboard-operable with visible focus, programmatically associated labels, current numeric values, pressed/selected state, and a logical focus order. Space may control playback only when it will not type into or activate the focused form control. When `prefers-reduced-motion: reduce` is active, the Studio must begin without automatic spatial playback; the user may explicitly run the authoring preview after a concise disclosure, without changing the system preference or production reduced-motion policy.
+
+**FR-MOTION-STUDIO-018** — Rendering must remain demand-driven. The Studio may request frames only while playback is active or while committing a discrete edited/scrubbed frame. Paused and settled observation must have no frame pending. At most one Studio animation-frame request may exist, and it must not share ownership with or keep alive the hidden lobby scheduler.
+
+**FR-MOTION-STUDIO-019** — The Studio must not mutate `gh.data`, current hand order, card ownership, deck composition, account data, coins, game state, menu navigation, requested/effective Graphics state, server-authoritative values, or stored production animation defaults. It must issue no game, deck, account, shop, feedback, analytics, or other application request.
+
+**FR-MOTION-STUDIO-020** — Test diagnostics may expose the recipe schema version, validated draft, deterministic seed, duration, current playhead and rate, named phase, current renderer-neutral pose, milestone times, scheduler state, persistence outcome, and resource counts. Diagnostics must not expose Three.js objects, become application state, or include account/game information not already necessary for the non-authoritative card fixture.
 
 ## 12. Phase 0: graphics preference and inert Modern preview
 
@@ -1671,6 +1746,254 @@ Across at least 256 deterministic seeds sampled at no more than four-millisecond
 
 Phase 0.7 is complete only when the menu/coordinator/surface presentation token is covered; pure deterministic planner evidence covers the compact packet, art-directed phrase, cadence and gesture diversity, ballistic rise/fall, perspective bounds, table clearance, depth-readable overflight, contact continuity, frictional dissipation, and exact destinations across the required seed sample; controlled browser or harness evidence covers the human first impression at normal speed plus initial, flight, contact, slap, slide, settlement, reduced motion, and cancellation; the generated bundle is served under cache identity `/js/modern/purett-modern-graphics.min.js?v=0.185.1-lobby-card-arrival.3`; all Phase 0.6 flip and Legacy tests remain green; and no server, database, game-rule, shop, economy, or protocol behavior changes.
 
+The engineering portions of this gate were implemented, but the required human first-impression review did not pass. The current Phase 0.7 implementation remains useful negative and lifecycle evidence, but it is not an approved visual baseline and does not authorize reuse of its motion values.
+
+### 12.11 Phase 0.8: one-card Motion Studio authoring workbench
+
+#### 12.11.1 Objective and approval boundary
+
+Phase 0.8 replaces repeated five-card guess-and-deploy iteration with a direct one-card authoring loop. The user must be able to construct, replay, slow, scrub, inspect, save for the current browser session, import, and export a card transition while looking at the real Three.js card model in the actual lobby camera.
+
+The immediate deliverable is a reusable one-card motion recipe and an application-local workbench for authoring it. Phase 0.8 does not:
+
+- declare any built-in preset visually approved;
+- rewrite the production `casual-drop-left` entrance;
+- automatically distribute one recipe across five cards;
+- define multi-card release cadence, overlap, or variation;
+- convert the shop or active match;
+- add a gameplay action;
+- rewrite the saved Legacy/Modern preference;
+- save a draft to the server or an account.
+
+The currently deployed Phase 0.7 lobby entrance must appear in the Studio, if offered for comparison, under the explicit label `Unapproved current lobby`. It must never be labeled `Default`, `Approved`, `Human Scatter`, or another term that implies its visible behavior met the product goal.
+
+#### 12.11.2 Application composition and isolation
+
+The Studio uses the existing application frame:
+
+```text
+#content-scale-stage
+└── #content-wrapper                         existing scale owner
+    ├── title and status                     remain visible
+    ├── #content                             755 × 562 logical region
+    │   ├── existing lobby/menu              remains intact underneath
+    │   └── Motion Studio                    isolated authoring layer
+    │       ├── workbench header
+    │       ├── isolated Three.js preview
+    │       ├── scrolling inspector
+    │       └── transport and timeline
+    └── footer                               remains visible
+```
+
+The existing moogle context menu adds `Motion Studio…` immediately beneath the Graphics section. Activating it closes that menu, records the current application view and focus target, and mounts the workbench above the lobby. It must not call `gh.menu.hide()`, run the Legacy hand-hide animation, navigate, start or resume a game, or use `gh.graphics.setMode()`.
+
+The authoring renderer has its own scene and lifecycle. It may reuse pure geometry/material construction helpers and the already loaded Three.js module, but it must not reuse the live lobby scene, renderer, card entries, animation map, scheduler, or presentation token. The Studio may open while Legacy is requested and effective; loading Three.js for the Studio does not make Modern requested or effective and does not apply the Modern lobby gate.
+
+`Back to Lobby` and eligible Escape activation must:
+
+1. stop and invalidate Studio playback;
+2. cancel the Studio frame request;
+3. detach workbench listeners;
+4. dispose Studio-owned canvas, renderer, textures, materials, and geometry under their declared ownership policy;
+5. remove the authoring layer;
+6. reveal the unchanged underlying screen;
+7. restore the same requested/effective Graphics state;
+8. return focus to the menu action or another stable originating control.
+
+#### 12.11.3 Workbench layout and visual treatment
+
+At logical scale 1 the 755 by 562 region should be divided approximately as follows:
+
+- a 44-logical-pixel black workbench header containing `Back`, `Motion Studio`, preset selection, and Reset;
+- a 432-logical-pixel body containing an approximately 495-pixel preview and a 260-pixel scrolling inspector;
+- an 86-logical-pixel dark transport/timeline strip.
+
+Exact pixel allocation may move slightly for legibility, but the card preview must remain materially larger than the inspector and no horizontal application scroll may be required at supported content scales.
+
+The Studio should reuse the established visual language: Spinnaker typography, black command-bar treatment, parchment inspector groups, dark-brown text, dark-brown selected controls, muted-gold focus accents, and compact rounded buttons comparable to the existing Graphics and Game Size controls. It should not use the speech-bubble dialog's moogle/tail button pane and should not introduce an unrelated generic developer-console theme.
+
+The stage represents one flat tabletop. It must not add a perspective grid, radial stage, curved horizon, or decorative surface distortion. Authoring helpers may show a path, destination outline, apex, contact point, start and landing handles, and shadow, but one `Helpers` control must remove them all for clean visual judgment.
+
+#### 12.11.4 Control contract
+
+Each continuous setting has a slider, numeric value, and visible unit. The ranges below define the initial safe authoring envelope. They are not approved production motion values.
+
+| Group | Control | Initial range | `Casual Toss` starting value |
+|---|---|---:|---:|
+| Travel | Direction | −180° to 180° | −8° |
+| Travel | Distance | 0–1,000 px | 500 px |
+| Travel | Landing center X | 0–755 px | 378 px |
+| Travel | Landing center Y | 0–562 px | 276 px |
+| Travel | Flight time | 200–2,500 ms | 900 ms |
+| Travel | Signed path curve | −300–300 px | 45 px |
+| Elevation | Release height | 0–300 logical units | 150 |
+| Elevation | Apex height | 0–350 logical units | 220 |
+| Elevation | Apex position | 10–90% of flight | 45% |
+| Rotation | End-over-end flips, local X | −3 to 3 turns, 0.25 step | 1 turn |
+| Rotation | Side-over-side flips, local Y | −3 to 3 turns, 0.25 step | 0 turns |
+| Rotation | Table-plane spin, local Z | −2 to 2 turns, 0.05 step | 0.18 turn |
+| Rotation | Release pitch and yaw | −75° to 75° each | 25° / −8° |
+| Rotation | Release roll | −180° to 180° | −12° |
+| Rotation | Contact pitch and yaw | −30° to 30° each | 10° / 4° |
+| Scale | Card-size multiplier | 0.75× to 1.5× | 1× |
+| Authored scale | Start, apex, and landing | 0.5× to 2× each | derived by perspective |
+| Contact | Slap duration | 0–400 ms | 110 ms |
+| Contact | Skid distance | 0–200 px | 38 px |
+| Contact | Skid direction offset | −180° to 180° | 4° |
+| Contact | Skid duration | 0–1,000 ms | 260 ms |
+| Contact | Final table rotation | −30° to 30° | 0° |
+| Appearance | Analytic-shadow strength | 0–1 | 0.32 |
+| Appearance | Analytic-shadow spread | 0.5× to 2× | 1× |
+| Appearance | Visible card thickness | 0–8 logical units | 3 |
+
+`Perspective` is the default scale mode. In this mode apparent size is derived from the production lobby camera and recipe height rather than a manual two-dimensional tween. The inspector should display the derived release, apex, and landing factors read-only. With the nominal approximately 772-logical-unit camera distance, the table landing remains 1× while the suggested release and apex heights visibly enlarge the card; this is intentional evidence of movement toward the camera.
+
+`Authored` scale mode unlocks explicit start, apex, and landing factors for artistic studies. These factors must remain recipe data rather than CSS scale applied outside the renderer. The UI must clearly identify this as an authored override so it is not confused with physical perspective.
+
+Changing direction or distance recomputes the start relative to the landing point. Dragging either stage handle recomputes start, landing, direction, and distance in one atomic draft update. Controls must not form competing independent sources of truth.
+
+The first implementation may omit bounce. If bounce is later added, it must be an explicit advanced control that defaults to off; it must not be hidden randomness in a built-in preset.
+
+#### 12.11.5 Preview, transport, and editing behavior
+
+The preview renders one selected real card face, its canonical back, visible edge, and analytic shadow. It offers:
+
+- draggable `Start` and `Land` handles;
+- a faint landing outline;
+- optional trajectory, apex, and contact markers;
+- front/back inspection without modifying the recipe;
+- clean-view helper suppression;
+- actual-size and fit-stage view choices that do not modify recipe scale.
+
+The transport contains Replay, Play/Pause, one-frame backward and forward steps, Loop, and 0.25×, 0.5×, 1×, and 2× playback. The scrubber spans the complete recipe duration and marks Release, Apex, Contact, Flat, and Settled. Named milestones come from the sampled recipe plan, not hard-coded percentages in the UI.
+
+Scrubbing pauses playback and renders the exact selected pose. Frame-step uses the Studio's declared review-frame interval and must not depend on the monitor refresh rate. Replay begins from the deterministic initial pose. Changing playback speed affects only wall-clock review, not the recipe, milestones, or sampled path.
+
+During a pointer drag on a slider or stage handle, the renderer updates the current playhead pose without scheduling a growing queue of restarts. On edit completion, `Auto Replay` may begin one replay after a short debounce of approximately 120 milliseconds. Auto Replay defaults on under ordinary motion preferences and can be turned off independently from Loop. With reduced motion requested, Auto Replay defaults off; a user may explicitly start full authoring playback after the Studio explains that this preview-only action does not change the application's reduced-motion behavior.
+
+Paused, settled, or merely open Studio state must have no animation frame pending. A discrete control edit or scrub may render once without becoming an idle loop.
+
+#### 12.11.6 Recipe, preset, persistence, and interchange contract
+
+The recipe is plain JSON-compatible data. A representative shape is:
+
+```json
+{
+  "schemaVersion": 1,
+  "name": "Casual Toss",
+  "seed": "motion-study-1",
+  "path": {
+    "landingX": 378,
+    "landingY": 276,
+    "angleDeg": -8,
+    "distancePx": 500,
+    "flightMs": 900,
+    "releaseHeight": 150,
+    "apexHeight": 220,
+    "apexAt": 0.45,
+    "curvePx": 45
+  },
+  "rotation": {
+    "pitchTurns": 1,
+    "yawTurns": 0,
+    "rollTurns": 0.18,
+    "releasePitchDeg": 25,
+    "releaseYawDeg": -8,
+    "releaseRollDeg": -12,
+    "contactPitchDeg": 10,
+    "contactYawDeg": 4,
+    "finalRotationDeg": 0
+  },
+  "scale": {
+    "mode": "perspective",
+    "cardScale": 1
+  },
+  "contact": {
+    "slapMs": 110,
+    "skidPx": 38,
+    "skidAngleDeg": 4,
+    "skidMs": 260
+  },
+  "appearance": {
+    "shadowStrength": 0.32,
+    "shadowSpread": 1,
+    "thickness": 3
+  }
+}
+```
+
+The exact nesting may change before implementation, but schema version, semantic units, deterministic sampling, canonical serialization, and atomic validation are required. The recipe must not contain five-card release order, lobby presentation tokens, current card ownership, or the Studio's playback state.
+
+Built-in presets initially include:
+
+1. `Gentle Drop` — longer flight, modest lateral energy, limited rotation, short skid.
+2. `Casual Toss` — elevated, clearly perspective-scaled flight with one visible turn and a moderate contact/skid.
+3. `Energetic Scatter` — faster travel, greater height, rotation, and residual skid while remaining inside the safe envelope.
+4. `Unapproved current lobby` — a faithful comparison path for the deployed Phase 0.7 implementation, visually marked as rejected and never selected as the new default merely because it exists.
+
+These presets are starting points, not approvals. Selecting one deep-copies it into the current draft. Reset restores that source preset. A user-named copy may be retained in session state; naming does not promote it.
+
+Guarded `sessionStorage` retains the current draft and Studio UI state for the lifetime of the tab. The Graphics preference continues to use its independent existing storage and is never included in Studio state. If session storage is unavailable or invalid, the Studio opens with a documented preset and the application remains functional.
+
+`Copy JSON` or equivalent export must produce canonical, human-readable recipe data. Import must parse into a temporary value, validate the entire value, and replace the draft only after success. An unsupported version, missing field, unknown enum, non-finite number, unsafe camera crossing, table penetration, or value outside the authoring envelope must leave the previous draft unchanged and produce a concise field-specific message. Import and export remain entirely local.
+
+#### 12.11.7 Acceptance criteria
+
+**AC-P08-001 — Entry, exit, and Graphics-mode isolation**
+
+Given either Legacy or Modern is requested and effective in the lobby, opening the Studio mounts one workbench and one isolated study surface without writing the Graphics key, calling the Graphics setter, changing requested/effective mode, hiding the underlying Legacy hand through the Modern gate, navigating, or issuing a request. Closing through Back and Escape restores the exact prior view and Graphics states, returns stable focus, and leaves no Studio canvas, context, listener, or frame request.
+
+**AC-P08-002 — Production-faithful one-card study**
+
+The Studio renders exactly one non-authoritative card using the actual face/back assets, 117 by 146 dimensions, visible thickness, sRGB face treatment, analytic shadow, flat-table convention, and calibrated lobby perspective camera. At the `Casual Toss` starting values, normal-speed and slowed evidence visibly show height-derived perspective enlargement, a three-axis card attitude, front/back orientation, edge thickness, accelerating descent, contact, flattening, and skid rather than a flat CSS translation.
+
+**AC-P08-003 — Complete synchronized controls**
+
+Every control required by `FR-MOTION-STUDIO-008` is keyboard and pointer operable, exposes its value and unit, remains inside its documented range, and updates the renderer-neutral draft. Directly dragging start or landing updates coordinates, direction, and distance consistently. Invalid input never introduces a non-finite pose or replaces the last valid draft.
+
+**AC-P08-004 — Deterministic renderer-neutral recipe**
+
+Given one recipe, seed, start/destination, and at least the initial, quarter, apex, pre-contact, contact, flat, pre-settlement, and settlement times, two independent samplers produce equal renderer-neutral poses within declared numerical tolerance. Repeating under 0.25×, 1×, 2×, irregular frame cadence, scrub order, page scale, and reopen-from-session yields the same recipe and poses. The recipe and diagnostics contain no Raphael or Three.js object.
+
+**AC-P08-005 — Transport, timeline, and idle scheduling**
+
+Replay, Play/Pause, frame-step, Loop, all four rates, and scrubbing operate from one playhead and one scheduler. Milestone markers correspond to plan times. Scrubbing pauses at the exact pose; speed changes do not alter recipe time; editing with Auto Replay schedules at most one debounced replay; and paused or settled observation leaves no frame pending.
+
+**AC-P08-006 — Presets, reset, and session restoration**
+
+The three creative presets are visibly distinct, `Unapproved current lobby` is visibly identified as rejected, selecting a preset creates an independent draft, Reset restores it, and modifying one draft cannot mutate a built-in. Closing and reopening in the same tab restores the guarded draft and Studio UI state without changing Graphics mode. Missing or corrupt session state falls back safely.
+
+**AC-P08-007 — Import/export round trip and failure atomicity**
+
+Exporting a valid recipe, resetting the Studio, and importing that export restores a semantically equal canonical recipe and identical sampled poses. Unknown schema versions, malformed JSON, prohibited fields, non-finite numbers, invalid enums, and unsafe values are rejected with a useful message; every failure retains the previous valid draft and sends no request.
+
+**AC-P08-008 — Authority, lifecycle, and resource isolation**
+
+Opening, editing, replaying, importing, exporting, and closing the Studio leaves `gh.data`, hand order, card IDs, account, coins, deck, shop, match, replay, navigation, requested/effective mode, and server-request counts unchanged. Fifty open/edit/play/close cycles return Studio DOM, listener, animation-frame, renderer, context, texture, material, and geometry ownership to baseline without changing the live lobby surface.
+
+**AC-P08-009 — Accessibility and reduced motion**
+
+Every workbench control has an accessible name, value/state, visible focus, and logical keyboard order; no canvas-only action is required to set a recipe. With reduced motion requested, the Studio opens paused with Auto Replay off, explains explicit preview playback, and permits scrubbed inspection. Explicit authoring playback does not rewrite the system preference or production reduced-motion setting.
+
+**AC-P08-010 — Visual approval gate**
+
+At least one candidate recipe must be reviewed at actual lobby size and 1× speed, with 0.25× evidence available for diagnosis. Approval records the exact exported recipe, seed, front/back asset, reference capture, reviewer decision, and intended future consumer. Until that record exists, every Studio preset and the deployed Phase 0.7 lobby scatter remain unapproved experiments and must not be described as the target player-drop/scatter motion.
+
+#### 12.11.8 Definition of done
+
+Phase 0.8 is complete only when:
+
+- the Studio opens and closes inside the application with exact Graphics-mode and lobby-state isolation;
+- one production-faithful card can be authored through every required control and direct-manipulation path;
+- the deterministic renderer-neutral planner and sampler pass canonical-time and irregular-cadence evidence;
+- the complete transport, timeline, scrub, Auto Replay, and idle-scheduler contract passes;
+- presets, Reset, guarded session persistence, canonical export, atomic import, and invalid-data fallback pass;
+- accessibility, explicit reduced-motion preview, context-loss, and repeated lifecycle/resource evidence pass;
+- all Legacy, Graphics mode, Phase 0.5, Phase 0.6, and applicable lobby lifecycle regressions remain green;
+- the document and UI identify the deployed Phase 0.7 scatter as unapproved;
+- no game, account, server, protocol, production preference, or production recipe state changes;
+- a candidate may be exported for review, but production promotion remains a separately approved integration step.
+
 ## 13. Target renderer contract
 
 This is a target-state contract beginning in Phase 1. It is not a Phase 0 deliverable; the first increment may use the documented shallow runtime presentation/input gate and inert Modern host.
@@ -1857,7 +2180,7 @@ This is illustrative rather than a mandated field-for-field schema. The implemen
 - Modern code must be lazy-loaded or otherwise excluded from the forced-Legacy startup path.
 - A fresh page load with Legacy forced must issue no Modern resource request, import, or preload and must evaluate zero Modern bytes. Switching back to Legacy after Modern was explicitly loaded on that page may retain the idle cached surface.
 - Phase 0 must render one blank transparent frame with the pinned Three.js `WebGLRenderer`; it must not create card geometry, texture assets, picking targets, or a continuous animation loop.
-- Phase 0.5 adds the first pre-Phase-2 exception to that blank-frame rule: the dedicated lobby-hand factory may create shared 117 by 146 card geometry, up to five card objects, and only the current lobby hand's same-origin face textures. Phase 0.6 additionally permits the shared canonical card-back texture, a side-only lit shared card slab, unlit mipmapped/anisotropic face materials, a calibrated perspective lobby camera, shared analytic-shadow geometry/texture with one independently controlled mesh/material per lobby card, hardware shadow mapping disabled, card-bounded hit testing, and one re-entry lock per active card. Phase 0.7 permits the same bounded shared animation-frame scheduler while at least one approved entrance or double flip is active, plus the pure seeded destination-driven arrival planner and sampler. The active-match factory remains blank. No surface may create an unconditional animation loop.
+- Phase 0.5 adds the first pre-Phase-2 exception to that blank-frame rule: the dedicated lobby-hand factory may create shared 117 by 146 card geometry, up to five card objects, and only the current lobby hand's same-origin face textures. Phase 0.6 additionally permits the shared canonical card-back texture, a side-only lit shared card slab, unlit mipmapped/anisotropic face materials, a calibrated perspective lobby camera, shared analytic-shadow geometry/texture with one independently controlled mesh/material per lobby card, hardware shadow mapping disabled, card-bounded hit testing, and one re-entry lock per active card. Phase 0.7 permits the same bounded shared animation-frame scheduler while at least one entrance or double flip is active, plus the pure seeded destination-driven arrival planner and sampler; its current entrance is implemented but not visually approved. Phase 0.8 permits a separate one-card study factory, deterministic renderer-neutral recipe planner/sampler, and one isolated demand-driven Studio scheduler. The active-match factory remains blank. No surface may create an unconditional animation loop.
 - Lazy-load failure before input ownership must follow the initialization-fallback policy.
 - Source-map publication, generated-file review, and third-party license-notice policy must be explicit.
 - A lockfile, upgrade procedure, and license record must accompany the dependency.
@@ -1898,7 +2221,7 @@ The Phase 2 spike must record decisions and visual fixtures for:
 
 Instancing, atlases, complex post-processing, particles, physics, and advanced shadows should be added only after profiling demonstrates a need or a product requirement justifies them.
 
-The Phase 0.5 lobby-hand scene intentionally used an orthographic camera and unlit planes so its screen-space result approximated the established two-dimensional menu layout. Phase 0.6 supersedes that historical lobby baseline with five canonically flat cards; a head-on constrained perspective camera calibrated to preserve the settled layout with 450/900 clip planes; a face-anchored flat-table projection neutralizer that gives every slot the centered perspective silhouette without auxiliary pickup tilt or position-dependent fan; unlit sRGB face materials; mipmapped, anisotropic card textures; side-only lit slabs with 0.2 logical units of face clearance; and independently controllable lift-only analytic contact shadows whose geometry and texture are shared while hardware shadow mapping remains disabled. Phase 0.7 temporarily uses the same transform hierarchy for bounded seeded arrival pitch, yaw, and roll, then restores the exact Phase 0.6 canonical transform before input. These lobby decisions remain bounded visual experiments and do not select the later active-match camera, card geometry, lighting, texture-filtering, shadow, or choreography treatment.
+The Phase 0.5 lobby-hand scene intentionally used an orthographic camera and unlit planes so its screen-space result approximated the established two-dimensional menu layout. Phase 0.6 supersedes that historical lobby baseline with five canonically flat cards; a head-on constrained perspective camera calibrated to preserve the settled layout with 450/900 clip planes; a face-anchored flat-table projection neutralizer that gives every slot the centered perspective silhouette without auxiliary pickup tilt or position-dependent fan; unlit sRGB face materials; mipmapped, anisotropic card textures; side-only lit slabs with 0.2 logical units of face clearance; and independently controllable lift-only analytic contact shadows whose geometry and texture are shared while hardware shadow mapping remains disabled. Phase 0.7 temporarily uses the same transform hierarchy for bounded seeded arrival pitch, yaw, and roll, then restores the exact Phase 0.6 canonical transform before input. Phase 0.8 reproduces that card/camera convention on an isolated one-card study surface so authored motion is evaluated against the production projection rather than an unrelated mock camera. These lobby decisions remain bounded visual experiments and do not select the later active-match camera, card geometry, lighting, texture-filtering, shadow, or choreography treatment.
 
 ### 15.4 Texture policy
 
@@ -1983,6 +2306,8 @@ Performance evidence must use two named deterministic fixtures:
 
 **NFR-PERF-014** — A Phase 0.7 entrance batch must settle all five cards within 2,000 milliseconds of its command-bar reveal timestamp, catch up across renderer/texture readiness rather than restarting, share the existing sole pending animation-frame request, perform no hardware shadow-map pass, and return to zero frame and shadow activity after settlement. Seed generation and plan creation occur once per presentation rather than during frame sampling.
 
+**NFR-PERF-015** — The Phase 0.8 Studio may own at most one pending animation-frame request. Playback, scrubbing, and editing may render on demand; paused, settled, covered, and closed states must own no pending frame. Playback-rate selection changes review timing only and must not resample recipe randomness or alter the recipe duration.
+
 ### 16.2 Reliability and cleanup
 
 **NFR-REL-001** — No renderer exception may terminate the match controller without a controlled error or fallback path.
@@ -2004,6 +2329,8 @@ Performance evidence must use two named deterministic fixtures:
 **NFR-REL-009** — Fifty Phase 0.6 lobby animations, including overlapping animations on different cards, rejected repeat activations on the same active card, and surface-wide cancellation while cards occupy different named phases, must leave the lobby at its baseline listener, frame-request, per-card-lock, card-object, per-card-shadow-mesh/material, shared-shadow-geometry/texture-reference, other material/geometry, canvas, and WebGL-context ownership counts.
 
 **NFR-REL-010** — Fifty Phase 0.7 lobby presentations spanning normal completion, reduced motion, cancellation, repeated same-token delivery, and new-token replay must leave no stale pending presentation, animation, frame request, card lock, visible shadow, late readiness gate, listener, canvas, texture, material, geometry, or WebGL-context owner.
+
+**NFR-REL-011** — Fifty Phase 0.8 Studio cycles spanning open, parameter editing, drag, scrub, play, loop, reset, valid import, invalid import, session restore, context loss, and close must return Studio DOM, listeners, animation frames, playback tokens, renderer references, WebGL contexts, textures, materials, and geometry to their baseline counts. The same evidence must show unchanged Graphics local storage, requested/effective mode, live lobby resource identity, application request count, and authoritative state.
 
 ### 16.3 Security and privacy
 
@@ -2049,11 +2376,12 @@ Performance evidence must use two named deterministic fixtures:
 
 ## 17. Behavior and parity matrix
 
-In the Phase 0/0.5/0.6/0.7 column, “not rendered” or “disabled” means not rendered or operable by Three.js on the active-match surface. The corresponding Legacy match objects remain live and synchronized behind the opacity and pointer gate so they can be revealed immediately. The lobby-hand row is the sole pre-Phase-1 card-rendering exception; its Phase 0.6 double flip and Phase 0.7 entrance are decorative rather than playable input.
+In the Phase 0/0.5/0.6/0.7/0.8 column, “not rendered” or “disabled” means not rendered or operable by Three.js on the active-match surface. The corresponding Legacy match objects remain live and synchronized behind the opacity and pointer gate so they can be revealed immediately. The lobby-hand row is the sole pre-Phase-1 card-rendering exception; its Phase 0.6 double flip and Phase 0.7 entrance are decorative rather than playable input. Phase 0.8 adds an isolated authoring tool and does not expand playable input or approve the Phase 0.7 entrance.
 
-| Capability | Legacy requirement | Phase 0/0.5/0.6/0.7 Modern preview | Playable Modern requirement |
+| Capability | Legacy requirement | Phase 0/0.5/0.6/0.7/0.8 Modern preview | Playable Modern requirement |
 |---|---|---|---|
-| Lobby/main-menu hand | Five non-interactive Raphael card faces beneath the command bar | Phase 0.5 renders up to five Three.js card faces; Phase 0.6 permits only per-card lift/back/front/settle effects; Phase 0.7 adds one seeded off-screen-left entrance per menu presentation | Remains a separate decorative menu projection |
+| Lobby/main-menu hand | Five non-interactive Raphael card faces beneath the command bar | Phase 0.5 renders up to five Three.js card faces; Phase 0.6 permits only per-card lift/back/front/settle effects; Phase 0.7 adds one seeded off-screen-left entrance whose current visual treatment is unapproved | Remains a separate decorative menu projection |
+| Motion Studio | Not present; Legacy state remains unchanged beneath it | Phase 0.8 provides one isolated, non-authoritative card authoring surface whose draft does not change Graphics mode or production choreography | May remain an internal authoring tool; it is not match input |
 | Board frame | Unchanged | Visible | Preserved or deliberately redesigned later |
 | Player hand | Fully functional | Not rendered | Rendered and interactive |
 | Opponent hand | Fully functional | Not rendered | Correct open/closed state |
@@ -2077,7 +2405,7 @@ In the Phase 0/0.5/0.6/0.7 column, “not rendered” or “disabled” means no
 | Tutorials | Fully functional | Modern is non-playable; hidden Legacy state may continue synchronizing | Same selection and parity contract |
 | Dialog dimming | Fully functional | Remains DOM-owned | Remains DOM-owned |
 | Application scaling | Fully functional | Host remains aligned | Full interaction and visual parity |
-| Reduced motion | No new regression | Phase 0.6 uses a bounded back/front proof with no lift or continuous rotation; Phase 0.7 commits arrivals directly at their destinations | Required before default |
+| Reduced motion | No new regression | Phase 0.6 uses a bounded back/front proof with no lift or continuous rotation; Phase 0.7 commits arrivals directly at their destinations; Phase 0.8 opens paused and requires explicit full-motion preview | Required before default |
 | Context loss | Not applicable | Restore effective Legacy and explain the reason | Recover or fall back |
 | Main-menu escape | Fully functional | Must remain available | Must remain available |
 
@@ -2128,6 +2456,8 @@ Exit gate:
 
 Deliver the exact scope and acceptance criteria in Section 12.10.
 
+Current status: the deterministic planner, lifecycle, and safety work was deployed, but the actual-size normal-speed review rejected the result as predominantly flat sliding from the left. The visual exit gate below is unmet. Phase 0.7 must not be reported as an approved human-scatter baseline.
+
 Exit gate:
 
 - The menu-show event that begins the black bar reveal creates one presentation token and supplies it with the plain lobby destinations.
@@ -2140,6 +2470,25 @@ Exit gate:
 - Reduced motion skips entrance travel and returns an immediately settled, clickable hand.
 - Repeated same-token delivery cannot replay the entrance, while a later menu presentation can.
 - The Legacy lobby and blank active-match Modern surface remain unchanged.
+
+### Phase 0.8 — One-card Motion Studio authoring workbench
+
+Deliver the exact scope and acceptance criteria in Section 12.11.
+
+Exit gate:
+
+- `Motion Studio…` opens inside the existing application frame and returns to the exact prior lobby view.
+- Opening and closing from both Legacy and Modern leaves the stored Graphics preference and requested/effective modes unchanged.
+- One isolated Three.js surface renders the production-faithful lobby card model and owns no lobby or match objects.
+- The complete travel, elevation, perspective/authored scale, flip, three-axis rotation, contact, skid, shadow, thickness, and timing control set edits one renderer-neutral draft.
+- Start and landing direct manipulation remains synchronized with numeric coordinates, direction, and distance.
+- Replay, pause, frame steps, four playback speeds, looping, milestone timeline, exact scrubbing, and debounced Auto Replay use one bounded scheduler and leave no idle frame.
+- Gentle Drop, Casual Toss, and Energetic Scatter provide distinct editable starting points; the deployed comparison is labeled `Unapproved current lobby`.
+- Guarded same-tab session persistence restores the draft and workbench state without touching Graphics storage.
+- Canonical JSON export/import round-trips without semantic or sampled-pose drift; invalid import is atomic and local.
+- Reduced-motion entry, keyboard operation, focus restoration, initialization/context-loss failure, and 50-cycle resource cleanup pass.
+- The Studio changes no game, account, server, protocol, hand, navigation, production preference, or production animation state.
+- A candidate recipe can leave the phase as an explicitly reviewable artifact, but five-card application and production promotion require a later recorded approval.
 
 ### Phase 1 — Characterization and Legacy renderer boundary
 
@@ -2324,6 +2673,8 @@ Ongoing gate:
 | Surface | lobby-hand preview, active-match preview, transition between those surface kinds |
 | Preference | unset, Legacy, Modern, invalid value, unavailable storage, kill switch, active/expired failure backoff, explicit retry |
 | Lobby hand | zero through five cards, purchased and standard image paths, delayed texture, failed texture, hand replacement while loading, repeated show/hide |
+| Motion Studio | open from Legacy and Modern, every built-in preset, control endpoints, synchronized drag/numeric edits, play/pause/rate/loop/frame-step/scrub, Auto Replay, valid/invalid import, export round trip, session restore, reduced-motion entry, close and context loss |
+| Motion recipe | fixed seed and canonical times, irregular frame cadence, every supported schema version, prohibited renderer objects, invalid/non-finite values, deterministic export/import equality |
 | Match state | initial hand, resumed match, occupied board, Open, Closed, Elemental, final turn |
 | Capture | Basic, Same, Same Wall, Plus, Combo, multiple simultaneous captures |
 | Flow | normal play, invalid drop, request pending, dialog, endgame, Sudden Death, review, replay, tutorial |
@@ -2362,12 +2713,13 @@ SVG node order and Three.js mesh identity may be inspected in renderer-specific 
 - lifecycle/resource report;
 - fallback and context-loss report;
 - reduced-motion and keyboard checklist;
+- exported candidate motion recipe, seed, actual-size 1× capture, slowed diagnostic capture, and explicit visual approval or rejection record;
 - tested Modern-default environment matrix;
 - current known limitations.
 
 ### 19.4 Requirements-to-phase traceability
 
-Phase 0, Phase 0.5, Phase 0.6, and Phase 0.7 requirements and acceptance criteria are the authorized implementation baseline as of 2026-07-24. Later requirements describe the intended target and gates; each later phase must begin with a short entry review that resolves its open questions, confirms its fixtures, and converts any remaining provisional numerical budget into an accepted measurement contract.
+Phase 0, Phase 0.5, Phase 0.6, Phase 0.7, and Phase 0.8 requirements and acceptance criteria are the authorized engineering baseline as of 2026-07-24. Phase 0.7's deployed implementation has not passed its visual acceptance gate and is not an approved motion baseline; Phase 0.8 is the current authorized authoring step. Later requirements describe the intended target and gates; each later phase must begin with a short entry review that resolves its open questions, confirms its fixtures, and converts any remaining provisional numerical budget into an accepted measurement contract.
 
 | Requirement family | First owning phase | Primary owner | Required evidence | Blocks Modern default |
 |---|---|---|---|---|
@@ -2383,7 +2735,8 @@ Phase 0, Phase 0.5, Phase 0.6, and Phase 0.7 requirements and acceptance criteri
 | `FR-TEST-*` | Phase 0/1 | Browser and renderer test harness | Semantic snapshots, deterministic visual fixtures, cross-renderer suite | Evidence enabler |
 | `FR-LOBBY-*` | Phase 0.5 | Menu and graphics coordinator | Five-card visual fixture, hand-only gate, async readiness, lifecycle, and fallback tests | Yes |
 | `FR-LOBBY-FLIP-*` | Phase 0.6 | Modern lobby surface and graphics coordinator | Choreography, canonical-back, per-card re-entry locks, independent-card concurrency, one bounded shared frame scheduler, per-card shadows, atomic lifecycle cancellation, reduced-motion, request-isolation, and Legacy-regression tests | Yes |
-| `FR-LOBBY-ARRIVAL-*` | Phase 0.7 | Menu, graphics coordinator, and reusable Modern card-animation module | One-use trigger, deterministic human-scatter planner/sampler, normal-speed motion review, compact packet and varied-gesture evidence, controlled waiting/flight/contact/slap/slide clock, table and depth-order sampling, frictional dissipation, exact settlement, reduced motion, cancellation, and Legacy-regression tests | Yes |
+| `FR-LOBBY-ARRIVAL-*` | Phase 0.7 | Menu, graphics coordinator, and reusable Modern card-animation module | One-use trigger, deterministic planner/sampler, controlled clock, table/depth sampling, exact settlement, reduced motion, cancellation, Legacy regression, and a still-unmet normal-speed human-motion approval | Yes |
+| `FR-MOTION-STUDIO-*` | Phase 0.8 | Motion Studio UI and renderer-neutral card-motion module | Mode-isolation, control synchronization, deterministic pose, playback/scrub, session persistence, import/export, accessibility, lifecycle/resource, no-side-effect, and visual-review evidence | Evidence enabler |
 | `NFR-PERF-*` | Phase 2 | Modern build and renderer | GM-P100/GM-P200 performance and bundle report | Yes |
 | `NFR-REL-*` | Phase 1/5 | Both renderers and controller | Repeated lifecycle, heap/resource, stale-revision, and severity report | Yes |
 | `NFR-SEC-*` | Phase 2 | Build/deployment boundary | CSP, same-origin, dependency, and network audit | Yes |
@@ -2425,6 +2778,8 @@ else:
 ```
 
 A valid force-mode override may replace `requested` only in an automated test or explicit local diagnostic context. It must be visible in diagnostics and must not write `localStorage`. Tests may bypass `modernEnabled` only when deliberately testing disabled Modern code; normal users may not.
+
+Motion Studio is outside this selection state machine. It may load the Modern dependency and own a temporary isolated study context, but it neither supplies nor replaces `requested` or `effective`, never writes the Graphics preference, and never satisfies a capability check on behalf of the production Modern renderer. Studio session storage uses a distinct key and lifetime.
 
 The selection state machine must preserve these properties:
 
@@ -2493,6 +2848,10 @@ The preference should survive browser restarts. It is intentionally browser/orig
 | Off-axis perspective makes the rotating outer lobby cards lean in opposite directions | The row appears fanned across a curved or spherical surface even though every resting card is flat | Keep pickup X/Y/Z tilt exactly zero; apply the face-anchored flat-table projection neutralizer outside local rotation; compare projected lateral shear and normalized four-corner silhouettes for the outer-left, center, and outer-right cards at deterministic animation samples; reset zero-lift coefficients on every settlement and reusable cancellation |
 | Hardware or persistent shadows reintroduce grid artifacts, cross-card state leakage, or distort the resting row | Flashing motion, darkened art, a hand that appears curved before interaction, or one animation moves/fades another card's shadow | Keep hardware shadow mapping disabled; share only analytic-shadow geometry/texture; give every card its own mesh/material; show each shadow only while its card has nonzero lift; and hide/reset all affected shadows on individual settlement and every surface cancellation path |
 | Lobby animations survive mode or lifecycle changes | A late frame re-hides Legacy, mutates a new hand, leaves one card locked, or leaks GPU activity | Atomically generation-token-cancel every active card on Legacy, hide, hand replacement, surface replacement/disposal, and context loss; release all per-card locks and assert zero pending frames and visible shadows afterward |
+| The deployed Phase 0.7 motion is mistaken for an approved baseline | Its flat leftward slide is copied into the shop, match, or later five-card work and visual failure becomes entrenched | Label it `Unapproved current lobby` in documentation and Studio UI; require an exported recipe, actual-size 1× capture, and explicit review decision before promotion |
+| Motion Studio accidentally participates in Graphics selection | Opening a tool rewrites the user's preference, hides the Legacy hand, or makes later fallback state ambiguous | Give the Studio an isolated surface and storage key; prohibit calls to the mode setter and assert requested/effective mode and Graphics storage identity before and after every lifecycle test |
+| Studio controls directly mutate Three.js objects as their source of truth | Export, scrub, replay, and later consumers diverge from what was authored | Make a validated renderer-neutral recipe the sole draft, sample poses deterministically from it, and treat scene objects as disposable projections |
+| Invalid or future recipe import partially applies | The preview crosses the camera or table, becomes non-finite, or leaves a corrupted draft | Parse and validate into a temporary value, reject atomically with field-specific feedback, and retain the last valid draft |
 | Remote dependency delivery violates self-contained design | Startup, CSP, and archival failure | Pin, bundle, and serve all Modern code locally |
 
 ## 22. Open design questions
@@ -2515,6 +2874,7 @@ These questions do not block Phase 0 unless noted, but each must be resolved in 
 | OQ-012 | Modern-default eligibility policy | Require all Phase 6 gates and an explicit decision | Phase 6 |
 | OQ-013 | Runtime recovery timeout and snapshot-safe fallback checkpoint | Decide through the Phase 2 context-loss experiment; do not promise a live swap beforehand | Phase 2 |
 | OQ-014 | Retained-heap diagnostic tolerance | Set it from warmed Chromium/CDP lifecycle baselines | Phase 2 |
+| OQ-015 | How one approved card recipe is distributed across five lobby cards | Do not decide through hidden randomness in Phase 0.8. First approve one exported recipe, then define release origins, per-card variance, cadence, overlap, and final destinations in a separately reviewed integration phase. | After Phase 0.8 visual approval |
 
 ## 23. Program completion criteria
 
@@ -2547,7 +2907,9 @@ Changes to any of the following require an explicit update to this document or a
 - weakening same-origin or Content Security Policy requirements;
 - adding external telemetry;
 - making the WebGL canvas the sole accessible interaction surface;
-- expanding the initiative to application Raphael surfaces beyond the explicitly approved lobby-hand exception.
+- expanding the initiative to application Raphael surfaces beyond the explicitly approved lobby-hand exception;
+- promoting a Motion Studio draft or preset into the lobby, shop, or active match;
+- changing the Motion Studio recipe schema or persistence from session-local to account/server state;
 
 Each revision should record:
 
@@ -2570,6 +2932,9 @@ Each revision should record:
 - Lobby/main-menu implementation and five-card hand projection: `public/js/plugins/gh.menu.js`
 - Graphics-mode and surface-kind coordinator: `public/js/plugins/gh.graphics.js`
 - Modern active-match and lobby-hand source: `frontend/src/modern-graphics.js`
+- Renderer-neutral Motion Studio recipe/planner source: `frontend/src/card-motion.js`
+- Isolated Motion Studio Three.js surface source: `frontend/src/motion-studio-surface.js`
+- Legacy-shell Motion Studio coordinator/UI: `public/js/plugins/gh.motionstudio.js`
 - Application manager and scaling: `public/js/default/index.js`
 - Context-menu markup: `application/views/partials/overlays.phtml`
 - Active-board styles: `public/css/default/index.css`

@@ -26,6 +26,22 @@ import {
   createCardArrivalBatch,
   sampleCardArrival
 } from './card-arrival-animations.js';
+import {
+  CARD_MOTION_AUTHORING_LIMITS,
+  CARD_MOTION_CONTROLS,
+  CARD_MOTION_LIMITS,
+  CARD_MOTION_PRESETS,
+  CARD_MOTION_SCHEMA_VERSION,
+  createCardMotionPlan,
+  parseCardMotionPreset,
+  sampleCardMotion,
+  serializeCardMotionPreset
+} from './card-motion.js';
+import {
+  MOTION_STUDIO_CAMERA,
+  MotionStudioSurface,
+  validateMotionStudioPreset
+} from './motion-studio-surface.js';
 
 const LOGICAL_WIDTH = 693;
 const LOGICAL_HEIGHT = 500;
@@ -2264,10 +2280,40 @@ window.gh.modernGraphics = {
       return sampleCardArrival(plan, elapsedMs);
     }
   }),
+  motionStudio: Object.freeze({
+    schemaVersion: CARD_MOTION_SCHEMA_VERSION,
+    camera: MOTION_STUDIO_CAMERA,
+    controls: CARD_MOTION_CONTROLS,
+    limits: CARD_MOTION_AUTHORING_LIMITS,
+    recipeLimits: CARD_MOTION_LIMITS,
+    presets: Object.freeze({
+      'gentle-drop': CARD_MOTION_PRESETS.gentleDrop,
+      'casual-toss': CARD_MOTION_PRESETS.casualToss,
+      'energetic-scatter': CARD_MOTION_PRESETS.energeticScatter
+    }),
+    normalizePreset(preset) {
+      return validateMotionStudioPreset(preset);
+    },
+    createPlan(preset, instance) {
+      return createCardMotionPlan(preset, instance);
+    },
+    samplePlan(plan, elapsedMs) {
+      return sampleCardMotion(plan, elapsedMs);
+    },
+    serializePreset(preset) {
+      return serializeCardMotionPreset(preset);
+    },
+    parsePreset(json) {
+      return parseCardMotionPreset(json);
+    }
+  }),
   createSurface(host, options) {
     return new ModernGraphicsSurface(host, options);
   },
   createLobbyHandSurface(host, options) {
     return new LobbyHandSurface(host, options);
+  },
+  createMotionStudioSurface(host, options) {
+    return new MotionStudioSurface(host, options);
   }
 };

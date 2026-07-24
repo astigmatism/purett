@@ -13,7 +13,7 @@ gh.graphics.prototype = {
         this.storageKey = 'purett.graphicsMode.v1';
         this.threePackageVersion = '0.185.1';
         this.threeRevision = '185';
-        this.modernScriptUrl = '/js/modern/purett-modern-graphics.min.js?v=0.185.1-lobby-card-arrival.3';
+        this.modernScriptUrl = '/js/modern/purett-modern-graphics.min.js?v=0.185.1-motion-studio.1';
         this.requestedMode = 'legacy';
         this.effectiveMode = 'legacy';
         this.loadState = 'idle';
@@ -22,6 +22,9 @@ gh.graphics.prototype = {
         this.fallbackReason = null;
         this.surface = null;
         this.surfaceKind = null;
+        this.studioSurface = null;
+        this.studioOpen = false;
+        this.studioGeneration = 0;
         this.modernGraphics = null;
         this.lobbyVisible = false;
         this.lobbyCards = [];
@@ -162,7 +165,9 @@ gh.graphics.prototype = {
             modernGraphics.packageVersion === this.threePackageVersion &&
             String(modernGraphics.revision) === this.threeRevision &&
             typeof modernGraphics.createSurface === 'function' &&
-            typeof modernGraphics.createLobbyHandSurface === 'function';
+            typeof modernGraphics.createLobbyHandSurface === 'function' &&
+            typeof modernGraphics.createMotionStudioSurface === 'function' &&
+            modernGraphics.motionStudio;
     },
     completeModernLoad: function(error, modernGraphics) {
         var callbacks = this.loadCallbacks.slice(0);
@@ -182,7 +187,11 @@ gh.graphics.prototype = {
                 this.surfaceKind = null;
             }
             this.modernGraphics = modernGraphics;
-            this.ensureSurface(this.lobbyVisible ? 'lobby-hand' : 'active-match');
+            if (!this.studioOpen) {
+                this.ensureSurface(
+                    this.lobbyVisible ? 'lobby-hand' : 'active-match'
+                );
+            }
         } catch (error) {
             this.disposeSurface();
             $('#modernGraphics canvas.modern-graphics-canvas, #modernLobbyHand canvas.modern-graphics-canvas').remove();
@@ -196,12 +205,14 @@ gh.graphics.prototype = {
         }
         this.effectiveMode = 'modern';
         this.fallbackReason = null;
-        try {
-            this.renderCurrentSurface();
-        } catch (error) {
-            this.disposeSurface();
-            this.activateLegacy(error);
-            return;
+        if (!this.studioOpen) {
+            try {
+                this.renderCurrentSurface();
+            } catch (error) {
+                this.disposeSurface();
+                this.activateLegacy(error);
+                return;
+            }
         }
         if (this.effectiveMode !== 'modern') {
             return;
@@ -254,6 +265,9 @@ gh.graphics.prototype = {
         if (this.surface) {
             this.surface.setContentScale(scale);
         }
+        if (this.studioSurface) {
+            this.studioSurface.setContentScale(scale);
+        }
     },
     showLobbyHand: function(cards, presentation) {
         this.lobbyVisible = true;
@@ -270,7 +284,9 @@ gh.graphics.prototype = {
         if (this.menu && this.menu.setModernHandReady) {
             this.menu.setModernHandReady(false);
         }
-        if (this.effectiveMode === 'modern' && this.modernGraphics) {
+        if (!this.studioOpen &&
+            this.effectiveMode === 'modern' &&
+            this.modernGraphics) {
             try {
                 this.ensureSurface('lobby-hand');
                 this.renderCurrentSurface();
@@ -285,7 +301,9 @@ gh.graphics.prototype = {
         this.lobbyVisible = false;
         this.lobbyCards = [];
         this.lobbyPresentation = null;
-        if (this.effectiveMode === 'modern' && this.modernGraphics) {
+        if (!this.studioOpen &&
+            this.effectiveMode === 'modern' &&
+            this.modernGraphics) {
             try {
                 this.ensureSurface('active-match');
                 this.renderCurrentSurface();
@@ -360,7 +378,7 @@ gh.graphics.prototype = {
     renderCurrentSurface: function() {
         var arrival = null;
 
-        if (!this.surface) {
+        if (this.studioOpen || !this.surface) {
             return;
         }
         this.surface.setContentScale(this.getContentScale());
@@ -393,6 +411,90 @@ gh.graphics.prototype = {
         }
         this.surface = null;
         this.surfaceKind = null;
+    },
+    openMotionStudio: function(host, options, callback) {
+        var me = this;
+        var generation;
+
+        callback = callback || function() {};
+        if (!host) {
+            callback(new Error('The Motion Studio preview host is unavailable.'));
+            return;
+        }
+        if (!this.modernEnabled) {
+            callback(new Error(
+                'Modern graphics are disabled by configuration.'
+            ));
+            return;
+        }
+
+        this.studioGeneration += 1;
+        generation = this.studioGeneration;
+        this.studioOpen = true;
+        this.disposeMotionStudioSurface();
+        if (this.surfaceKind === 'lobby-hand' &&
+                this.surface &&
+                typeof this.surface.suspend === 'function') {
+            this.surface.suspend();
+        }
+
+        this.loadModernGraphics(function(error, modernGraphics) {
+            var createdSurface;
+            if (!me.studioOpen || generation !== me.studioGeneration) {
+                return;
+            }
+            if (error) {
+                callback(error);
+                return;
+            }
+            try {
+                me.modernGraphics = modernGraphics;
+                createdSurface = modernGraphics.createMotionStudioSurface(
+                    host,
+                    $.extend({}, options || {}, {
+                        contentScale: me.getContentScale()
+                    })
+                );
+                me.studioSurface = createdSurface;
+            } catch (surfaceError) {
+                me.disposeMotionStudioSurface();
+                callback(surfaceError);
+                return;
+            }
+            callback(
+                null,
+                createdSurface,
+                modernGraphics.motionStudio
+            );
+        });
+    },
+    closeMotionStudio: function() {
+        this.studioGeneration += 1;
+        this.studioOpen = false;
+        this.disposeMotionStudioSurface();
+
+        if (this.effectiveMode === 'modern' &&
+            this.modernGraphics &&
+            this.surface) {
+            try {
+                this.surface.setContentScale(this.getContentScale());
+                this.renderCurrentSurface();
+                this.updateModernStatus();
+            } catch (error) {
+                this.disposeSurface();
+                this.activateLegacy(error);
+            }
+        }
+    },
+    disposeMotionStudioSurface: function() {
+        if (this.studioSurface) {
+            try {
+                this.studioSurface.dispose();
+            } catch (cleanupError) {
+                // Studio cleanup must not disrupt the application surface.
+            }
+        }
+        this.studioSurface = null;
     },
     updateModernStatus: function() {
         var surfaceState;
@@ -460,7 +562,11 @@ gh.graphics.prototype = {
                 : null,
             lobbyPresentationDeliveredId:
                 this.lobbyPresentationDeliveredId,
-            surface: this.surface ? this.surface.getDebugState() : null
+            surface: this.surface ? this.surface.getDebugState() : null,
+            motionStudioOpen: this.studioOpen,
+            motionStudio: this.studioSurface
+                ? this.studioSurface.getDebugState()
+                : null
         };
     }
 };

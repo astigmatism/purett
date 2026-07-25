@@ -4,6 +4,7 @@ const {test, expect} = require('@playwright/test');
 
 const PLAYBOOK_STORAGE_KEY = 'purett.lobbyMotionPlaybook.v1';
 const STUDIO_SESSION_KEY = 'purett.motionStudio.v2';
+const CONTENT_SCALE_STORAGE_KEY = 'purett.contentScale';
 const TARGET_IDS = [
   'lobby-card-1-intro',
   'lobby-card-2-intro',
@@ -20,6 +21,7 @@ async function loginWithLegacyGraphics(page) {
     window.localStorage.removeItem(playbookKey);
     window.sessionStorage.removeItem('purett.motionStudio.v1');
     window.sessionStorage.removeItem(sessionKey);
+    window.sessionStorage.removeItem('purett.contentScale');
   }, {
     playbookKey: PLAYBOOK_STORAGE_KEY,
     sessionKey: STUDIO_SESSION_KEY
@@ -319,6 +321,226 @@ test('authors six application targets as one playbook and keeps edits draft-only
     legacyCardsIntact: true
   });
   expect(modernRequests).toHaveLength(1);
+});
+
+test('inherits the selected game scale while retaining logical board coordinates and reachable controls', async ({page}) => {
+  await loginWithLegacyGraphics(page);
+  await page.locator('#title-icon').click();
+  await page.locator(
+    '#contextmenu button[data-scale="2"]'
+  ).click();
+  await openMotionStudio(page);
+
+  const inspectScale = () => page.evaluate(({storageKey}) => {
+    const rect = node => {
+      const value = node.getBoundingClientRect();
+      return {
+        left: value.left,
+        top: value.top,
+        right: value.right,
+        bottom: value.bottom,
+        width: value.width,
+        height: value.height
+      };
+    };
+    const intersects = (first, second) => !(
+      first.right <= second.left ||
+      first.left >= second.right ||
+      first.bottom <= second.top ||
+      first.top >= second.bottom
+    );
+    const root = document.querySelector('#motionstudio');
+    const stage = document.querySelector(
+      '.motion-studio-scale-stage'
+    );
+    const shell = document.querySelector('.motion-studio-shell');
+    const previewNode = document.querySelector(
+      '#motionstudio-preview'
+    );
+    const preview = rect(previewNode);
+    const host = rect(document.querySelector(
+      '#motionstudio-canvas-host'
+    ));
+    const canvasNode = document.querySelector(
+      '#motionstudio-canvas-host canvas'
+    );
+    const canvas = rect(canvasNode);
+    const helpersNode = document.querySelector(
+      '#motionstudio .motion-studio-helpers'
+    );
+    const helpers = rect(helpersNode);
+    const dock = rect(document.querySelector('.motion-studio-dock'));
+    const controls = Array.from(document.querySelectorAll(
+      '#motionstudio button, #motionstudio select, ' +
+      '#motionstudio input, #motionstudio textarea, ' +
+      '#motionstudio summary'
+    )).filter(node => {
+      const style = window.getComputedStyle(node);
+      return style.display !== 'none' &&
+        style.visibility !== 'hidden' &&
+        node.getClientRects().length > 0;
+    }).map(node => rect(node));
+    const graphicsState = gh.manager.graphics.getState();
+    return {
+      managerScale: gh.manager.contentScale,
+      controllerScale: gh.manager.motionstudio.contentScale,
+      scaleAttribute: root.getAttribute('data-content-scale'),
+      storedScale: window.sessionStorage.getItem(storageKey),
+      activeElementId: document.activeElement.id,
+      logicalPreview: {
+        width: previewNode.offsetWidth,
+        height: previewNode.offsetHeight
+      },
+      content: rect(document.querySelector('#content')),
+      stage: rect(stage),
+      shell: rect(shell),
+      preview,
+      host,
+      canvas,
+      helpers,
+      dock,
+      helperViewBox: helpersNode.getAttribute('viewBox'),
+      controlsIntersectBoard:
+        controls.some(control => intersects(control, preview)),
+      rootClient: {
+        width: root.clientWidth,
+        height: root.clientHeight
+      },
+      rootScroll: {
+        width: root.scrollWidth,
+        height: root.scrollHeight,
+        left: root.scrollLeft,
+        top: root.scrollTop
+      },
+      pixelRatio: graphicsState.motionStudio.pixelRatio,
+      motionPath: graphicsState.motionStudio.plan.path,
+      motionContext: graphicsState.motionStudio.motionContext,
+      devicePixelRatio: window.devicePixelRatio || 1,
+      canvasBacking: {
+        width: canvasNode.width,
+        height: canvasNode.height
+      }
+    };
+  }, {storageKey: CONTENT_SCALE_STORAGE_KEY});
+
+  const doubled = await inspectScale();
+  expect(doubled).toMatchObject({
+    managerScale: 2,
+    controllerScale: 2,
+    scaleAttribute: '2',
+    storedScale: '2',
+    activeElementId: 'motionstudio',
+    logicalPreview: {
+      width: 755,
+      height: 562
+    },
+    helperViewBox: '0 0 755 562',
+    controlsIntersectBoard: false
+  });
+  expect(doubled.content.width).toBeCloseTo(1510, 0);
+  expect(doubled.content.height).toBeCloseTo(1124, 0);
+  expect(doubled.preview.width).toBeCloseTo(1510, 0);
+  expect(doubled.preview.height).toBeCloseTo(1124, 0);
+  for (const layer of [
+    doubled.host,
+    doubled.canvas,
+    doubled.helpers
+  ]) {
+    expect(layer).toMatchObject({
+      left: doubled.preview.left,
+      top: doubled.preview.top
+    });
+    expect(layer.width).toBeCloseTo(1510, 0);
+    expect(layer.height).toBeCloseTo(1124, 0);
+  }
+  expect(doubled.stage.width).toBeCloseTo(1510, 0);
+  expect(doubled.stage.height).toBeCloseTo(2272, 0);
+  expect(doubled.shell).toMatchObject({
+    left: doubled.stage.left,
+    top: doubled.stage.top
+  });
+  expect(doubled.shell.width).toBeCloseTo(1510, 0);
+  expect(doubled.shell.height).toBeCloseTo(2272, 0);
+  expect(doubled.dock.top).toBeGreaterThanOrEqual(
+    doubled.preview.bottom
+  );
+  expect(doubled.rootScroll.width).toBeGreaterThan(
+    doubled.rootClient.width
+  );
+  expect(doubled.rootScroll.height).toBeGreaterThan(
+    doubled.rootClient.height
+  );
+  expect(doubled.rootScroll).toMatchObject({
+    left: 0,
+    top: 0
+  });
+  const expectedDoubledPixelRatio = Math.min(
+    doubled.devicePixelRatio * 2,
+    3
+  );
+  expect(doubled.pixelRatio).toBeCloseTo(
+    expectedDoubledPixelRatio,
+    5
+  );
+  expect(doubled.canvasBacking).toEqual({
+    width: Math.floor(755 * expectedDoubledPixelRatio),
+    height: Math.floor(562 * expectedDoubledPixelRatio)
+  });
+
+  await page.evaluate(() => {
+    gh.manager.setContentScale(3, true);
+  });
+  await expect.poll(() => inspectScale()).toMatchObject({
+    managerScale: 3,
+    controllerScale: 3,
+    scaleAttribute: '3',
+    storedScale: '3',
+    logicalPreview: {
+      width: 755,
+      height: 562
+    }
+  });
+  const tripled = await inspectScale();
+  expect(tripled.preview.width).toBeCloseTo(2265, 0);
+  expect(tripled.preview.height).toBeCloseTo(1686, 0);
+  expect(tripled.stage.width).toBeCloseTo(2265, 0);
+  expect(tripled.stage.height).toBeCloseTo(3408, 0);
+  expect(tripled.controlsIntersectBoard).toBe(false);
+  expect(tripled.motionPath).toEqual(doubled.motionPath);
+  expect(tripled.motionContext).toEqual(doubled.motionContext);
+  const expectedTripledPixelRatio = Math.min(
+    tripled.devicePixelRatio * 3,
+    3
+  );
+  expect(tripled.pixelRatio).toBeCloseTo(
+    expectedTripledPixelRatio,
+    5
+  );
+  expect(tripled.canvasBacking).toEqual({
+    width: Math.floor(755 * expectedTripledPixelRatio),
+    height: Math.floor(562 * expectedTripledPixelRatio)
+  });
+
+  const reachability = await page.evaluate(() => {
+    const root = document.querySelector('#motionstudio');
+    root.scrollLeft = root.scrollWidth;
+    root.scrollTop = root.scrollHeight;
+    const transport = document.querySelector(
+      '.motion-studio-transport'
+    ).getBoundingClientRect();
+    return {
+      maxScrollLeft: root.scrollLeft,
+      maxScrollTop: root.scrollTop,
+      transportVisible:
+        transport.right > 0 &&
+        transport.left < root.clientWidth &&
+        transport.bottom > 0 &&
+        transport.top < root.clientHeight
+    };
+  });
+  expect(reachability.maxScrollLeft).toBeGreaterThan(0);
+  expect(reachability.maxScrollTop).toBeGreaterThan(0);
+  expect(reachability.transportVisible).toBe(true);
 });
 
 test('uses the full lobby board as its stage and copies shared intro motion without flattening per-card travel', async ({page}) => {

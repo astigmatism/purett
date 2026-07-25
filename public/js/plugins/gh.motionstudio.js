@@ -7,6 +7,8 @@ gh.motionstudio.prototype = {
         var me = this;
 
         this.graphics = options.graphics;
+        this.getContentScale =
+            options.getContentScale || function() { return 1; };
         this.getCard = options.getCard || function() { return null; };
         this.getCards = options.getCards || function() { return []; };
         this.closeContextMenu = options.closeContextMenu || function() {};
@@ -34,6 +36,7 @@ gh.motionstudio.prototype = {
         this.previewPlan = null;
         this.controlsBuilt = false;
         this.helperDrag = null;
+        this.contentScale = 1;
         this.reducedMotion = this.prefersReducedMotion();
         this.controlDefinitions = [
             {group: 'sequence', field: 'entry.delayMs', label: 'Start delay', min: 0, max: 1500, step: 5, unit: 'ms'},
@@ -69,8 +72,12 @@ gh.motionstudio.prototype = {
         ];
 
         $('#motionstudio').appendTo(document.body);
+        this.setContentScale(this.getContentScale());
         this.buildControls();
         this.bindUi();
+        $(window).on('resize.motionstudio', function() {
+            me.syncContentScaleLayout();
+        });
 
         $('#contextmenu li.motion-studio > button').click(function(event) {
             event.preventDefault();
@@ -123,6 +130,45 @@ gh.motionstudio.prototype = {
             $row.append($label, $range, $number, $unit);
             $('[data-motion-control-group="' + definition.group + '"]')
                 .append($row);
+        });
+    },
+
+    setContentScale: function(scale) {
+        scale = parseFloat(scale);
+        if (!isFinite(scale) || scale <= 0) {
+            scale = 1;
+        }
+        this.contentScale = scale;
+        this.syncContentScaleLayout();
+    },
+
+    syncContentScaleLayout: function() {
+        var scale = this.contentScale || 1;
+        var shell =
+            document.querySelector(
+                '#motionstudio .motion-studio-shell'
+            );
+        var stacked =
+            window.matchMedia &&
+            window.matchMedia('(max-width: 1190px)').matches;
+        var logicalWidth =
+            shell && shell.offsetWidth
+                ? shell.offsetWidth
+                : (stacked ? 755 : 1177);
+        var logicalHeight =
+            shell && shell.offsetHeight
+                ? shell.offsetHeight
+                : (stacked ? 1136 : 562);
+
+        $('#motionstudio')
+            .attr('data-content-scale', String(scale));
+        $('#motionstudio .motion-studio-shell')
+            .css('transform', 'scale(' + scale + ')');
+        $('#motionstudio .motion-studio-scale-stage').css({
+            width: (logicalWidth * scale) + 'px',
+            height: (logicalHeight * scale) + 'px',
+            marginTop: (18 * scale) + 'px',
+            marginBottom: (18 * scale) + 'px'
         });
     },
 
@@ -307,6 +353,7 @@ gh.motionstudio.prototype = {
         $('#motionstudio')
             .addClass('motion-studio-open')
             .attr('aria-hidden', 'false');
+        this.setContentScale(this.getContentScale());
         $('#motionstudio .motion-studio-loading')
             .removeClass('ready')
             .text('Preparing Three.js preview\u2026');
@@ -371,7 +418,18 @@ gh.motionstudio.prototype = {
             }
         );
         window.setTimeout(function() {
-            $('#motionstudio .motion-studio-back').focus();
+            var root = document.getElementById('motionstudio');
+            if (root && root.focus) {
+                try {
+                    root.focus({preventScroll: true});
+                } catch (error) {
+                    root.focus();
+                }
+            }
+            if (root) {
+                root.scrollLeft = 0;
+                root.scrollTop = 0;
+            }
         }, 0);
     },
 

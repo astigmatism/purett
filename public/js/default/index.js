@@ -10,6 +10,7 @@ gh.load(['util', ['game'], 'cover', 'menu', ['dialog'], ['jquerytools'], 'audio'
         deck:       null,
         shop:       null,
         graphics:   null,
+        motionstudio: null,
         
         erroroverlay:   null,
         contextmenu:    null,
@@ -90,6 +91,9 @@ gh.load(['util', ['game'], 'cover', 'menu', ['dialog'], ['jquerytools'], 'audio'
                     });
                     me.motionstudio = new gh.motionstudio({
                         graphics: me.graphics,
+                        getContentScale: function() {
+                            return me.contentScale;
+                        },
                         getCard: function(index) {
                             var currentCards = me.menu.currentHandCards || [];
                             var cardIndex = Number(index) || 0;
@@ -178,6 +182,9 @@ gh.load(['util', ['game'], 'cover', 'menu', ['dialog'], ['jquerytools'], 'audio'
             me.updateContentScaleLayout();
             if (me.graphics) {
                 me.graphics.setContentScale(scale);
+            }
+            if (me.motionstudio) {
+                me.motionstudio.setContentScale(scale);
             }
 
             if (persist) {

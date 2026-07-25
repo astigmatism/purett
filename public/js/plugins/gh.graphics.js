@@ -589,9 +589,7 @@ gh.graphics.prototype = {
                 createdSurface = modernGraphics.createMotionStudioSurface(
                     host,
                     $.extend({}, options || {}, {
-                        // The Studio is detached from the scaled game shell
-                        // and always owns a true 755 × 562 CSS-pixel stage.
-                        contentScale: 1
+                        contentScale: me.getContentScale()
                     })
                 );
                 me.studioSurface = createdSurface;

@@ -78,13 +78,15 @@ try {
     'the main menu does not expose the Motion Studio'
   );
   assert(
-    contextMenu.includes('id="motionstudio"') &&
+      contextMenu.includes('id="motionstudio"') &&
       contextMenu.includes('role="dialog"') &&
       contextMenu.includes('aria-labelledby="motionstudio-title"') &&
+      contextMenu.includes('tabindex="-1"') &&
       contextMenu.includes('id="motionstudio-canvas-host"') &&
       contextMenu.includes('id="motionstudio-controls"') &&
       contextMenu.includes('id="motionstudio-timeline"') &&
       contextMenu.includes('id="motionstudio-json"') &&
+      contextMenu.includes('class="motion-studio-scale-stage"') &&
       contextMenu.includes('class="motion-studio-shell"') &&
       contextMenu.includes('id="motionstudio-copy-target"') &&
       contextMenu.includes('class="motion-studio-copy-intro"'),
@@ -98,7 +100,10 @@ try {
   );
   assert(
     application.includes('me.motionstudio = new gh.motionstudio({') &&
-      application.includes('graphics: me.graphics'),
+      application.includes('graphics: me.graphics') &&
+      application.includes(
+        'me.motionstudio.setContentScale(scale)'
+      ),
     'the application does not initialize the Motion Studio controller with the graphics coordinator'
   );
   assert(
@@ -108,6 +113,12 @@ try {
       motionStudioController.includes('this.graphics.closeMotionStudio()') &&
       motionStudioController.includes(
         "$('#motionstudio').appendTo(document.body)"
+      ) &&
+      motionStudioController.includes(
+        'setContentScale: function(scale)'
+      ) &&
+      motionStudioController.includes(
+        'syncContentScaleLayout: function()'
       ) &&
       motionStudioController.includes(
         'copyIntroSharedMotion: function()'
@@ -159,11 +170,11 @@ try {
     coordinator.includes('openMotionStudio: function(host, options, callback)') &&
       coordinator.includes('closeMotionStudio: function()') &&
       coordinator.includes('disposeMotionStudioSurface: function()') &&
-      coordinator.includes('contentScale: 1') &&
+      coordinator.includes('contentScale: me.getContentScale()') &&
       coordinator.includes('this.studioGeneration += 1') &&
       coordinator.includes('motionStudioOpen: this.studioOpen') &&
       coordinator.includes('motionStudio: this.studioSurface'),
-    'the graphics coordinator does not own the fixed-scale Motion Studio surface lifecycle'
+    'the graphics coordinator does not own the application-scaled Motion Studio surface lifecycle'
   );
   assert(
     coordinator.includes('cancelLobbyPreview: function(outcome)') &&
@@ -251,6 +262,8 @@ try {
   assert(
     boardCss.includes('grid-template-columns: 755px 410px') &&
       boardCss.includes('width: 755px;\n    height: 562px;') &&
+      boardCss.includes('.motion-studio-scale-stage') &&
+      boardCss.includes('transform-origin: top left') &&
       boardCss.includes("url('/images/gameBoard.png')") &&
       !boardCss.includes('.motion-studio-preview.actual-size'),
     'Motion Studio does not preserve a full-size board stage outside its controls'

@@ -56,7 +56,7 @@ try {
   assert(!/window\.THREE\s*=/.test(modernSource + modernBundle), 'modern bundle overwrites the legacy snow THREE global');
   assert(fs.existsSync(path.join(root, 'public/js/modern/THREE-LICENSE.txt')), 'distributed Three.js license is missing');
 
-  assert(coordinator.includes('/js/modern/purett-modern-graphics.min.js?v=0.185.1-lobby-playbook.1'), 'coordinator does not use the lobby-playbook bundle cache revision');
+  assert(coordinator.includes('/js/modern/purett-modern-graphics.min.js?v=0.185.1-lobby-playbook.2'), 'coordinator does not use the lobby-playbook bundle cache revision');
   assert(!/https?:\/\//.test(coordinator), 'coordinator references a third-party graphics URL');
   assert(coordinator.includes("this.storageKey = 'purett.graphicsMode.v1'"), 'graphics preference does not have a stable storage key');
   assert(coordinator.includes("this.requestedMode = 'legacy'"), 'Legacy is not the safe default');
@@ -84,7 +84,10 @@ try {
       contextMenu.includes('id="motionstudio-canvas-host"') &&
       contextMenu.includes('id="motionstudio-controls"') &&
       contextMenu.includes('id="motionstudio-timeline"') &&
-      contextMenu.includes('id="motionstudio-json"'),
+      contextMenu.includes('id="motionstudio-json"') &&
+      contextMenu.includes('class="motion-studio-shell"') &&
+      contextMenu.includes('id="motionstudio-copy-target"') &&
+      contextMenu.includes('class="motion-studio-copy-intro"'),
     'the Motion Studio overlay is missing its dialog, preview, controls, timeline, or recipe editor'
   );
   assert(
@@ -103,6 +106,12 @@ try {
       motionStudioController.includes("this.storageKey = 'purett.motionStudio.v2'") &&
       motionStudioController.includes('this.graphics.openMotionStudio(') &&
       motionStudioController.includes('this.graphics.closeMotionStudio()') &&
+      motionStudioController.includes(
+        "$('#motionstudio').appendTo(document.body)"
+      ) &&
+      motionStudioController.includes(
+        'copyIntroSharedMotion: function()'
+      ) &&
       motionStudioController.includes('this.api.playbook.serialize(') &&
       motionStudioController.includes('this.api.playbook.parse(') &&
       motionStudioController.includes('applyAndPreview: function()') &&
@@ -150,10 +159,11 @@ try {
     coordinator.includes('openMotionStudio: function(host, options, callback)') &&
       coordinator.includes('closeMotionStudio: function()') &&
       coordinator.includes('disposeMotionStudioSurface: function()') &&
+      coordinator.includes('contentScale: 1') &&
       coordinator.includes('this.studioGeneration += 1') &&
       coordinator.includes('motionStudioOpen: this.studioOpen') &&
       coordinator.includes('motionStudio: this.studioSurface'),
-    'the graphics coordinator does not own the Motion Studio surface lifecycle'
+    'the graphics coordinator does not own the fixed-scale Motion Studio surface lifecycle'
   );
   assert(
     coordinator.includes('cancelLobbyPreview: function(outcome)') &&
@@ -213,12 +223,37 @@ try {
         'export function createLobbyMotionBatch'
       ) &&
       lobbyPlaybookSource.includes(
+        'export function copyLobbyIntroSharedMotion'
+      ) &&
+      lobbyPlaybookSource.includes(
         'export function sampleLobbyMotionPlan'
       ) &&
       !/\b(?:window|document|HTMLElement|WebGLRenderer|from ['"]three['"])\b/.test(
         lobbyPlaybookSource
       ),
     'the application-bound lobby playbook is not a DOM-free, versioned planning API'
+  );
+  assert(
+    modernSource.includes('copyIntroSharedMotion(') &&
+      modernSource.includes(
+        'introSharedMotionFields: LOBBY_INTRO_SHARED_MOTION_FIELDS'
+      ) &&
+      motionStudioController.includes(
+        'this.api.playbook.copyIntroSharedMotion('
+      ) &&
+      (
+        motionStudioController.match(
+          /this\.graphics\.setLobbyPlaybook\(/g
+        ) || []
+      ).length === 2,
+    'shared intro copying is not exposed as a draft-only playbook operation'
+  );
+  assert(
+    boardCss.includes('grid-template-columns: 755px 410px') &&
+      boardCss.includes('width: 755px;\n    height: 562px;') &&
+      boardCss.includes("url('/images/gameBoard.png')") &&
+      !boardCss.includes('.motion-studio-preview.actual-size'),
+    'Motion Studio does not preserve a full-size board stage outside its controls'
   );
 
   assert(application.includes('menu: me.menu'), 'application does not pass the lobby menu to the graphics coordinator');

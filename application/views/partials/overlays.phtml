@@ -73,40 +73,7 @@
     aria-labelledby="motionstudio-title"
     aria-hidden="true"
 >
-    <header class="motion-studio-header">
-        <button type="button" class="motion-studio-back">&larr; Back to Lobby</button>
-        <div class="motion-studio-heading">
-            <strong id="motionstudio-title">Motion Studio</strong>
-            <span>Lobby card animation playbook</span>
-        </div>
-        <label class="motion-studio-target-label" for="motionstudio-target">
-            Application animation
-            <select id="motionstudio-target">
-                <optgroup label="Lobby intros">
-                    <option value="lobby-card-1-intro">Lobby card 1 — Intro</option>
-                    <option value="lobby-card-2-intro">Lobby card 2 — Intro</option>
-                    <option value="lobby-card-3-intro">Lobby card 3 — Intro</option>
-                    <option value="lobby-card-4-intro">Lobby card 4 — Intro</option>
-                    <option value="lobby-card-5-intro">Lobby card 5 — Intro</option>
-                </optgroup>
-                <optgroup label="Lobby exits">
-                    <option value="lobby-hand-gentle-wind-exit">Lobby hand — Gentle Wind Exit</option>
-                </optgroup>
-            </select>
-        </label>
-        <label class="motion-studio-preset-label" for="motionstudio-preset">
-            Starting motion
-            <select id="motionstudio-preset">
-                <option value="gentle-drop">Gentle Drop</option>
-                <option value="casual-toss" selected>Casual Toss</option>
-                <option value="energetic-scatter">Energetic Scatter</option>
-                <option value="custom">Custom</option>
-            </select>
-        </label>
-        <button type="button" class="motion-studio-reset">Reset target</button>
-    </header>
-
-    <div class="motion-studio-workspace">
+    <div class="motion-studio-shell">
         <section class="motion-studio-preview-panel" aria-label="Motion preview">
             <div id="motionstudio-preview" class="motion-studio-preview">
                 <div id="motionstudio-canvas-host" aria-hidden="true"></div>
@@ -150,8 +117,43 @@
                 </div>
                 <div class="motion-studio-loading" role="status">Preparing Three.js preview&hellip;</div>
             </div>
+        </section>
 
-            <div class="motion-studio-readout">
+        <div class="motion-studio-dock">
+            <header class="motion-studio-header">
+                <button type="button" class="motion-studio-back">&larr; Back to Lobby</button>
+                <div class="motion-studio-heading">
+                    <strong id="motionstudio-title">Motion Studio</strong>
+                    <span>Lobby card animation playbook</span>
+                </div>
+                <label class="motion-studio-target-label" for="motionstudio-target">
+                    Application animation
+                    <select id="motionstudio-target">
+                        <optgroup label="Lobby intros">
+                            <option value="lobby-card-1-intro">Lobby card 1 — Intro</option>
+                            <option value="lobby-card-2-intro">Lobby card 2 — Intro</option>
+                            <option value="lobby-card-3-intro">Lobby card 3 — Intro</option>
+                            <option value="lobby-card-4-intro">Lobby card 4 — Intro</option>
+                            <option value="lobby-card-5-intro">Lobby card 5 — Intro</option>
+                        </optgroup>
+                        <optgroup label="Lobby exits">
+                            <option value="lobby-hand-gentle-wind-exit">Lobby hand — Gentle Wind Exit</option>
+                        </optgroup>
+                    </select>
+                </label>
+                <label class="motion-studio-preset-label" for="motionstudio-preset">
+                    Starting motion
+                    <select id="motionstudio-preset">
+                        <option value="gentle-drop">Gentle Drop</option>
+                        <option value="casual-toss" selected>Casual Toss</option>
+                        <option value="energetic-scatter">Energetic Scatter</option>
+                        <option value="custom">Custom</option>
+                    </select>
+                </label>
+                <button type="button" class="motion-studio-reset">Reset target</button>
+            </header>
+
+            <div class="motion-studio-readout" aria-label="Live motion readout">
                 <span><strong>Phase</strong> <output data-motion-readout="phase" aria-live="polite">Ready</output></span>
                 <span><strong>Height</strong> <span data-motion-readout="height">0</span></span>
                 <span><strong>Perspective</strong> <span data-motion-readout="perspectiveScale">1.00&times;</span></span>
@@ -159,133 +161,151 @@
                 <span><strong>Rendered</strong> <span data-motion-readout="renderedScale">1.00&times;</span></span>
                 <span><strong>Face</strong> <span data-motion-readout="face">Front</span></span>
             </div>
-        </section>
 
-        <aside class="motion-studio-inspector" aria-label="Motion parameters">
-            <div class="motion-studio-inspector-tools">
-                <label>
-                    <input type="checkbox" id="motionstudio-auto-replay" checked>
-                    Auto replay
-                </label>
-                <label>
-                    <input type="checkbox" id="motionstudio-show-helpers" checked>
-                    Helpers
-                </label>
-                <label>
-                    <input type="checkbox" id="motionstudio-actual-size">
-                    1:1 card
-                </label>
-            </div>
-            <div class="motion-studio-wind-tools">
-                <label>
-                    <input type="checkbox" id="motionstudio-lock-wind-seed">
-                    Lock wind seed
-                </label>
-                <button type="button" class="motion-studio-new-wind">
-                    New variation
-                </button>
-                <output
-                    id="motionstudio-wind-seed"
-                    aria-label="Active wind variation seed"
-                ></output>
-            </div>
-            <div
-                class="motion-studio-control-status"
-                role="status"
-                aria-live="polite"
-            ></div>
+            <aside class="motion-studio-inspector" aria-label="Motion parameters">
+                <div class="motion-studio-inspector-tools">
+                    <label>
+                        <input type="checkbox" id="motionstudio-auto-replay" checked>
+                        Auto replay
+                    </label>
+                    <label>
+                        <input type="checkbox" id="motionstudio-show-helpers" checked>
+                        Helpers
+                    </label>
+                </div>
 
-            <form id="motionstudio-controls">
-                <fieldset>
-                    <legend>Sequence</legend>
-                    <div data-motion-control-group="sequence"></div>
-                </fieldset>
-                <fieldset>
-                    <legend>Travel</legend>
-                    <div data-motion-control-group="path"></div>
-                </fieldset>
-                <fieldset>
-                    <legend>Height &amp; scale</legend>
-                    <label class="motion-studio-select-row" for="motionstudio-scale-mode">
-                        <span>Scale mode</span>
-                        <select id="motionstudio-scale-mode" data-motion-field="scale.mode">
-                            <option value="perspective">Perspective</option>
-                            <option value="keyframed">Keyframed</option>
+                <section
+                    class="motion-studio-intro-copy"
+                    aria-label="Reuse intro motion settings"
+                >
+                    <strong>Reuse shared intro motion</strong>
+                    <span>
+                        Keeps each destination card&rsquo;s delay, heading,
+                        distance, and curve.
+                    </span>
+                    <label for="motionstudio-copy-target">
+                        Copy from this card to
+                        <select id="motionstudio-copy-target">
+                            <option value="">Choose lobby card&hellip;</option>
+                            <option value="all">All other lobby intro cards</option>
                         </select>
                     </label>
-                    <div data-motion-control-group="height"></div>
-                    <div data-motion-keyframed-scale>
-                        <div data-motion-control-group="keyframed-scale"></div>
-                    </div>
-                </fieldset>
-                <fieldset>
-                    <legend>Rotation</legend>
-                    <div data-motion-control-group="rotation"></div>
-                </fieldset>
-                <fieldset>
-                    <legend>Contact &amp; depth cues</legend>
-                    <div data-motion-control-group="landing"></div>
-                </fieldset>
-            </form>
+                    <button type="button" class="motion-studio-copy-intro">
+                        Copy settings
+                    </button>
+                </section>
 
-            <details class="motion-studio-json">
-                <summary>Advanced playbook data</summary>
-                <textarea
-                    id="motionstudio-json"
-                    rows="10"
-                    spellcheck="false"
-                    aria-label="Lobby motion playbook JSON"
-                ></textarea>
-                <div class="motion-studio-json-actions">
-                    <button type="button" class="motion-studio-copy">Export Playbook</button>
-                    <button type="button" class="motion-studio-apply-json">Import Playbook</button>
+                <div class="motion-studio-wind-tools">
+                    <label>
+                        <input type="checkbox" id="motionstudio-lock-wind-seed">
+                        Lock wind seed
+                    </label>
+                    <button type="button" class="motion-studio-new-wind">
+                        New variation
+                    </button>
+                    <output
+                        id="motionstudio-wind-seed"
+                        aria-label="Active wind variation seed"
+                    ></output>
                 </div>
-                <div class="motion-studio-json-status" role="status"></div>
-            </details>
-        </aside>
-    </div>
+                <div
+                    class="motion-studio-control-status"
+                    role="status"
+                    aria-live="polite"
+                ></div>
 
-    <footer class="motion-studio-transport">
-        <div class="motion-studio-transport-buttons">
-            <button type="button" class="motion-studio-apply-preview">
-                Apply &amp; Preview in Lobby
-            </button>
-            <button type="button" class="motion-studio-replay" title="Replay (R)">Replay</button>
-            <button type="button" class="motion-studio-play" title="Play or pause (Space)">Pause</button>
-            <button type="button" class="motion-studio-step-back" title="Previous frame">&larr; Frame</button>
-            <button type="button" class="motion-studio-step-forward" title="Next frame">Frame &rarr;</button>
+                <form id="motionstudio-controls">
+                    <fieldset>
+                        <legend>Sequence</legend>
+                        <div data-motion-control-group="sequence"></div>
+                    </fieldset>
+                    <fieldset>
+                        <legend>Travel</legend>
+                        <div data-motion-control-group="path"></div>
+                    </fieldset>
+                    <fieldset>
+                        <legend>Height &amp; scale</legend>
+                        <label class="motion-studio-select-row" for="motionstudio-scale-mode">
+                            <span>Scale mode</span>
+                            <select id="motionstudio-scale-mode" data-motion-field="scale.mode">
+                                <option value="perspective">Perspective</option>
+                                <option value="keyframed">Keyframed</option>
+                            </select>
+                        </label>
+                        <div data-motion-control-group="height"></div>
+                        <div data-motion-keyframed-scale>
+                            <div data-motion-control-group="keyframed-scale"></div>
+                        </div>
+                    </fieldset>
+                    <fieldset>
+                        <legend>Rotation</legend>
+                        <div data-motion-control-group="rotation"></div>
+                    </fieldset>
+                    <fieldset>
+                        <legend>Contact &amp; depth cues</legend>
+                        <div data-motion-control-group="landing"></div>
+                    </fieldset>
+                </form>
+
+                <details class="motion-studio-json">
+                    <summary>Advanced playbook data</summary>
+                    <textarea
+                        id="motionstudio-json"
+                        rows="10"
+                        spellcheck="false"
+                        aria-label="Lobby motion playbook JSON"
+                    ></textarea>
+                    <div class="motion-studio-json-actions">
+                        <button type="button" class="motion-studio-copy">Export Playbook</button>
+                        <button type="button" class="motion-studio-apply-json">Import Playbook</button>
+                    </div>
+                    <div class="motion-studio-json-status" role="status"></div>
+                </details>
+            </aside>
+
+            <footer class="motion-studio-transport">
+                <div class="motion-studio-transport-buttons">
+                    <button type="button" class="motion-studio-apply-preview">
+                        Apply &amp; Preview in Lobby
+                    </button>
+                    <button type="button" class="motion-studio-replay" title="Replay (R)">Replay</button>
+                    <button type="button" class="motion-studio-play" title="Play or pause (Space)">Pause</button>
+                    <button type="button" class="motion-studio-step-back" title="Previous frame">&larr; Frame</button>
+                    <button type="button" class="motion-studio-step-forward" title="Next frame">Frame &rarr;</button>
+                </div>
+                <div class="motion-studio-timeline-wrap">
+                    <input
+                        id="motionstudio-timeline"
+                        type="range"
+                        min="0"
+                        max="1000"
+                        step="1"
+                        value="0"
+                        aria-label="Motion timeline"
+                    >
+                    <div class="motion-studio-timeline-markers" aria-hidden="true">
+                        <span data-motion-marker="release">Release</span>
+                        <span data-motion-marker="apex">Apex</span>
+                        <span data-motion-marker="contact">Contact</span>
+                        <span data-motion-marker="flat">Flat</span>
+                        <span data-motion-marker="settled">Settled</span>
+                    </div>
+                </div>
+                <output id="motionstudio-time">0 / 0 ms</output>
+                <label for="motionstudio-speed">
+                    Speed
+                    <select id="motionstudio-speed">
+                        <option value="0.25">0.25&times;</option>
+                        <option value="0.5">0.5&times;</option>
+                        <option value="1" selected>1&times;</option>
+                        <option value="2">2&times;</option>
+                    </select>
+                </label>
+                <label>
+                    <input type="checkbox" id="motionstudio-loop" checked>
+                    Loop
+                </label>
+            </footer>
         </div>
-        <div class="motion-studio-timeline-wrap">
-            <input
-                id="motionstudio-timeline"
-                type="range"
-                min="0"
-                max="1000"
-                step="1"
-                value="0"
-                aria-label="Motion timeline"
-            >
-            <div class="motion-studio-timeline-markers" aria-hidden="true">
-                <span data-motion-marker="release">Release</span>
-                <span data-motion-marker="apex">Apex</span>
-                <span data-motion-marker="contact">Contact</span>
-                <span data-motion-marker="flat">Flat</span>
-                <span data-motion-marker="settled">Settled</span>
-            </div>
-        </div>
-        <output id="motionstudio-time">0 / 0 ms</output>
-        <label for="motionstudio-speed">
-            Speed
-            <select id="motionstudio-speed">
-                <option value="0.25">0.25&times;</option>
-                <option value="0.5">0.5&times;</option>
-                <option value="1" selected>1&times;</option>
-                <option value="2">2&times;</option>
-            </select>
-        </label>
-        <label>
-            <input type="checkbox" id="motionstudio-loop" checked>
-            Loop
-        </label>
-    </footer>
+    </div>
 </section>

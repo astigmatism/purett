@@ -3,12 +3,14 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {
   DEFAULT_LOBBY_MOTION_PLAYBOOK,
+  LOBBY_INTRO_SHARED_MOTION_FIELDS,
   LOBBY_MOTION_PLAYBOOK_ID,
   LOBBY_MOTION_PLAYBOOK_METADATA,
   LOBBY_MOTION_PLAYBOOK_SCHEMA_VERSION,
   LOBBY_MOTION_TARGETS,
   LOBBY_WIND_EXIT_TARGET_ID,
   LOBBY_WIND_VARIATION,
+  copyLobbyIntroSharedMotion,
   createLobbyMotionBatch,
   getLobbyMotionTarget,
   getLobbyMotionTargetForCard,
@@ -61,6 +63,13 @@ function assertThrows(callback, pattern, message) {
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+function getNested(value, field) {
+  return field.split('.').reduce(
+    (current, part) => current[part],
+    value
+  );
 }
 
 function assertDeepFrozen(value, pathName) {
@@ -267,6 +276,191 @@ try {
       parseLobbyMotionPlaybook(changedSerialized)
         .targets['lobby-card-3-intro'].delayMs === 777,
     'export does not contain the complete edited playbook'
+  );
+
+  const sharedSourcePreset = clone(
+    normalizedDefault.targets['lobby-card-1-intro'].preset
+  );
+  sharedSourcePreset.path.releaseHeight = 212;
+  sharedSourcePreset.path.apexHeight = 333;
+  sharedSourcePreset.path.flightMs = 1110;
+  sharedSourcePreset.rotation = {
+    releasePitchDeg: 31,
+    releaseYawDeg: -22,
+    releaseRollDeg: 67,
+    contactPitchDeg: 14,
+    contactYawDeg: -12,
+    contactRollDeg: 23,
+    xTurns: 1.25,
+    yTurns: -0.45,
+    zTurns: 0.62,
+    finalRollDeg: -9
+  };
+  sharedSourcePreset.landing = {
+    skidDistancePx: 71,
+    skidAngleDeg: -28,
+    slapMs: 155,
+    skidMs: 615
+  };
+  sharedSourcePreset.scale = {
+    mode: 'keyframed',
+    cardScale: 1,
+    start: 0.77,
+    apex: 1.31,
+    contact: 1.09,
+    end: 1
+  };
+  sharedSourcePreset.shadow = {
+    strength: 0.73,
+    spread: 1.64
+  };
+  const destinationTwoPreset = clone(
+    normalizedDefault.targets['lobby-card-2-intro'].preset
+  );
+  destinationTwoPreset.path.directionDeg = -77;
+  destinationTwoPreset.path.distancePx = 333;
+  destinationTwoPreset.path.curvePx = 91;
+  const destinationThreePreset = clone(
+    normalizedDefault.targets['lobby-card-3-intro'].preset
+  );
+  destinationThreePreset.path.directionDeg = 120;
+  destinationThreePreset.path.distancePx = 420;
+  destinationThreePreset.path.curvePx = -48;
+  let copyFixture = updateLobbyMotionTarget(
+    normalizedDefault,
+    'lobby-card-1-intro',
+    sharedSourcePreset,
+    25
+  );
+  copyFixture = updateLobbyMotionTarget(
+    copyFixture,
+    'lobby-card-2-intro',
+    destinationTwoPreset,
+    135
+  );
+  copyFixture = updateLobbyMotionTarget(
+    copyFixture,
+    'lobby-card-3-intro',
+    destinationThreePreset,
+    275
+  );
+  const copyFixtureBefore = serializeLobbyMotionPlaybook(copyFixture);
+  const copiedSharedMotion = copyLobbyIntroSharedMotion(
+    copyFixture,
+    'lobby-card-1-intro',
+    ['lobby-card-2-intro', 'lobby-card-3-intro']
+  );
+  assertDeepFrozen(copiedSharedMotion, 'copied shared intro motion');
+  ['lobby-card-2-intro', 'lobby-card-3-intro'].forEach(
+    (targetId) => {
+      LOBBY_INTRO_SHARED_MOTION_FIELDS.forEach((field) => {
+        assert(
+          getNested(
+            copiedSharedMotion.targets[targetId].preset,
+            field
+          ) === getNested(
+            copiedSharedMotion.targets['lobby-card-1-intro']
+              .preset,
+            field
+          ),
+          `${targetId} did not copy shared field ${field}`
+        );
+      });
+    }
+  );
+  [
+    {
+      targetId: 'lobby-card-2-intro',
+      delayMs: 135,
+      directionDeg: -77,
+      distancePx: 333,
+      curvePx: 91
+    },
+    {
+      targetId: 'lobby-card-3-intro',
+      delayMs: 275,
+      directionDeg: 120,
+      distancePx: 420,
+      curvePx: -48
+    }
+  ].forEach((expected) => {
+    const copiedEntry =
+      copiedSharedMotion.targets[expected.targetId];
+    assert(
+      copiedEntry.delayMs === expected.delayMs &&
+        copiedEntry.preset.path.directionDeg ===
+          expected.directionDeg &&
+        copiedEntry.preset.path.distancePx ===
+          expected.distancePx &&
+        copiedEntry.preset.path.curvePx === expected.curvePx,
+      `${expected.targetId} lost its sequence or travel placement`
+    );
+    assert(
+      copiedEntry.targetId === expected.targetId &&
+        copiedEntry.preset.id === expected.targetId &&
+        copiedEntry.preset.path.landingXPx === 0 &&
+        copiedEntry.preset.path.landingYPx === 0 &&
+        copiedEntry.preset.scale.cardScale === 1 &&
+        copiedEntry.preset.scale.end === 1,
+      `${expected.targetId} lost application-owned identity or locks`
+    );
+  });
+  assert(
+    JSON.stringify(
+      copiedSharedMotion.targets['lobby-card-1-intro']
+    ) === JSON.stringify(
+      copyFixture.targets['lobby-card-1-intro']
+    ) &&
+      JSON.stringify(
+        copiedSharedMotion.targets['lobby-card-4-intro']
+      ) === JSON.stringify(
+        copyFixture.targets['lobby-card-4-intro']
+      ) &&
+      JSON.stringify(
+        copiedSharedMotion.targets[LOBBY_WIND_EXIT_TARGET_ID]
+      ) === JSON.stringify(
+        copyFixture.targets[LOBBY_WIND_EXIT_TARGET_ID]
+      ),
+    'shared copy mutates its source, an unselected intro, or Gentle Wind'
+  );
+  assert(
+    serializeLobbyMotionPlaybook(
+      parseLobbyMotionPlaybook(
+        serializeLobbyMotionPlaybook(copiedSharedMotion)
+      )
+    ) === serializeLobbyMotionPlaybook(copiedSharedMotion),
+    'copied shared motion is not canonically round-trippable'
+  );
+  [
+    [],
+    ['lobby-card-1-intro'],
+    ['lobby-card-2-intro', 'lobby-card-2-intro'],
+    [LOBBY_WIND_EXIT_TARGET_ID],
+    ['missing-intro']
+  ].forEach((destinationIds) => {
+    assertThrows(
+      () => copyLobbyIntroSharedMotion(
+        copyFixture,
+        'lobby-card-1-intro',
+        destinationIds
+      ),
+      /destination|intro|Unknown/,
+      `invalid shared copy ${JSON.stringify(destinationIds)} is accepted`
+    );
+    assert(
+      serializeLobbyMotionPlaybook(copyFixture) ===
+        copyFixtureBefore,
+      'failed shared copy mutates its input playbook'
+    );
+  });
+  assertThrows(
+    () => copyLobbyIntroSharedMotion(
+      copyFixture,
+      LOBBY_WIND_EXIT_TARGET_ID,
+      ['lobby-card-2-intro']
+    ),
+    /only be copied from an intro/,
+    'Gentle Wind is accepted as a shared-copy source'
   );
 
   const future = clone(rawDefault);

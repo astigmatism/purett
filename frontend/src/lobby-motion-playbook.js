@@ -23,6 +23,32 @@ const EXIT_HEADING_MIN_DEGREES = -28;
 const EXIT_HEADING_MAX_DEGREES = -2;
 const EXIT_CARD_ORDER = Object.freeze([4, 3, 2, 1, 0]);
 
+export const LOBBY_INTRO_SHARED_MOTION_FIELDS = deepFreeze([
+  'path.releaseHeight',
+  'path.apexHeight',
+  'path.flightMs',
+  'rotation.releasePitchDeg',
+  'rotation.releaseYawDeg',
+  'rotation.releaseRollDeg',
+  'rotation.contactPitchDeg',
+  'rotation.contactYawDeg',
+  'rotation.contactRollDeg',
+  'rotation.xTurns',
+  'rotation.yTurns',
+  'rotation.zTurns',
+  'rotation.finalRollDeg',
+  'landing.skidDistancePx',
+  'landing.skidAngleDeg',
+  'landing.slapMs',
+  'landing.skidMs',
+  'scale.mode',
+  'scale.start',
+  'scale.apex',
+  'scale.contact',
+  'shadow.strength',
+  'shadow.spread'
+]);
+
 const ROOT_KEYS = Object.freeze([
   'schemaVersion',
   'id',
@@ -122,6 +148,13 @@ function replacePresetFields(preset, changes) {
     target[parts[parts.length - 1]] = changes[path];
   });
   return candidate;
+}
+
+function getPresetField(preset, path) {
+  return path.split('.').reduce(
+    (value, part) => value[part],
+    preset
+  );
 }
 
 function createTargetDefinitions() {
@@ -520,6 +553,74 @@ export function updateLobbyMotionTarget(
     preset: clonePlain(constrainPreset(preset, target))
   };
   return normalizeLobbyMotionPlaybook(next);
+}
+
+export function copyLobbyIntroSharedMotion(
+  playbook,
+  sourceTargetId,
+  destinationTargetIds
+) {
+  const normalized = normalizeLobbyMotionPlaybook(playbook);
+  const sourceTarget = targetDefinition(sourceTargetId);
+  if (sourceTarget.kind !== 'intro') {
+    throw new Error(
+      'Shared lobby motion can only be copied from an intro target.'
+    );
+  }
+  if (!Array.isArray(destinationTargetIds) ||
+      destinationTargetIds.length === 0) {
+    throw new Error(
+      'Choose at least one lobby intro destination.'
+    );
+  }
+
+  const destinations = [];
+  const seen = new Set();
+  destinationTargetIds.forEach((destinationTargetId) => {
+    const destinationTarget = targetDefinition(destinationTargetId);
+    if (destinationTarget.kind !== 'intro') {
+      throw new Error(
+        'Shared lobby motion can only be copied to intro targets.'
+      );
+    }
+    if (destinationTarget.id === sourceTarget.id) {
+      throw new Error(
+        'The source lobby intro cannot also be a copy destination.'
+      );
+    }
+    if (seen.has(destinationTarget.id)) {
+      throw new Error(
+        `Lobby intro destination "${destinationTarget.id}" is duplicated.`
+      );
+    }
+    seen.add(destinationTarget.id);
+    destinations.push(destinationTarget);
+  });
+
+  const sourcePreset =
+    normalized.targets[sourceTarget.id].preset;
+  const sharedChanges = {};
+  LOBBY_INTRO_SHARED_MOTION_FIELDS.forEach((path) => {
+    sharedChanges[path] = clonePlain(
+      getPresetField(sourcePreset, path)
+    );
+  });
+
+  let next = normalized;
+  destinations.forEach((destinationTarget) => {
+    const destinationEntry =
+      next.targets[destinationTarget.id];
+    next = updateLobbyMotionTarget(
+      next,
+      destinationTarget.id,
+      replacePresetFields(
+        destinationEntry.preset,
+        sharedChanges
+      ),
+      destinationEntry.delayMs
+    );
+  });
+  return next;
 }
 
 export function updateLobbyWindSeed(playbook, seed, locked) {

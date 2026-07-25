@@ -161,23 +161,44 @@ body::before {
 
 /* Three.js single-card authoring workbench. */
 #motionstudio {
-    position: absolute;
-    z-index: 40;
-    top: 0;
-    left: 0;
+    position: fixed;
+    z-index: 10000;
+    inset: 0;
     display: none;
-    width: 755px;
-    height: 562px;
-    overflow: hidden;
+    width: auto;
+    height: auto;
+    overflow: auto;
     color: #361a0c;
     background:
-        linear-gradient(rgba(246, 232, 201, 0.96), rgba(218, 193, 151, 0.97)),
-        url('/images/menu.jpg') center center / cover;
+        radial-gradient(
+            ellipse at 50% 38%,
+            rgba(74, 51, 35, 0.58),
+            rgba(18, 13, 10, 0.94) 72%
+        );
     font: 12px/1.3 'Spinnaker', sans-serif;
-    box-shadow: inset 0 0 0 1px rgba(76, 44, 22, 0.38);
+    overscroll-behavior: contain;
 }
 #motionstudio.motion-studio-open {
     display: block;
+}
+.motion-studio-shell {
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: 755px 410px;
+    gap: 12px;
+    width: 1177px;
+    height: 562px;
+    margin: 18px auto;
+}
+.motion-studio-dock {
+    display: grid;
+    grid-template-rows: auto 48px minmax(0, 1fr) 110px;
+    min-width: 0;
+    height: 562px;
+    overflow: hidden;
+    background: #ead7b4;
+    border: 1px solid rgba(230, 205, 163, 0.46);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.58);
 }
 .motion-studio button,
 .motion-studio select,
@@ -208,16 +229,11 @@ body::before {
 .motion-studio-header {
     box-sizing: border-box;
     display: grid;
-    grid-template-columns:
-        auto
-        minmax(104px, 1fr)
-        minmax(182px, 214px)
-        minmax(108px, 126px)
-        auto;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-rows: auto auto auto;
     align-items: center;
-    gap: 7px;
-    height: 54px;
-    padding: 7px 10px;
+    gap: 5px 7px;
+    padding: 8px 9px 9px;
     color: #fff;
     background: #080604;
     box-shadow: 0 2px 8px rgba(30, 13, 3, 0.45);
@@ -229,6 +245,8 @@ body::before {
     background: #2d2118;
 }
 .motion-studio-heading {
+    grid-row: 1;
+    grid-column: 2 / -1;
     min-width: 0;
 }
 .motion-studio-heading strong,
@@ -260,6 +278,14 @@ body::before {
     letter-spacing: 0.04em;
     text-transform: uppercase;
 }
+.motion-studio-target-label {
+    grid-row: 2;
+    grid-column: 1 / -1;
+}
+.motion-studio-preset-label {
+    grid-row: 3;
+    grid-column: 1 / 3;
+}
 .motion-studio-target-label select,
 .motion-studio-preset-label select {
     box-sizing: border-box;
@@ -275,30 +301,29 @@ body::before {
     padding-left: 7px;
     white-space: nowrap;
 }
-.motion-studio-workspace {
-    display: flex;
-    height: 430px;
+.motion-studio-header > .motion-studio-back {
+    grid-row: 1;
+    grid-column: 1;
+}
+.motion-studio-header > .motion-studio-reset {
+    grid-row: 3;
+    grid-column: 3;
 }
 .motion-studio-preview-panel {
+    position: relative;
     box-sizing: border-box;
-    width: 495px;
-    padding: 8px 7px 6px 8px;
-    background:
-        radial-gradient(ellipse at 50% 48%, rgba(213, 167, 92, 0.28), transparent 58%),
-        linear-gradient(135deg, #6f3f20, #382115);
+    width: 755px;
+    height: 562px;
+    overflow: hidden;
+    background: #2d1a10 url('/images/gameBoard.png') no-repeat 0 0 / 755px 562px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.58);
 }
 .motion-studio-preview {
     position: relative;
-    width: 480px;
-    height: 357px;
+    width: 755px;
+    height: 562px;
     overflow: hidden;
-    background:
-        radial-gradient(ellipse at 52% 48%, rgba(211, 169, 98, 0.24), transparent 62%),
-        linear-gradient(140deg, #93602f 0%, #5c351d 52%, #3f2417 100%);
-    border: 1px solid rgba(255, 232, 181, 0.3);
-    box-shadow:
-        inset 0 0 54px rgba(22, 10, 4, 0.48),
-        0 1px 4px rgba(20, 8, 2, 0.55);
+    background: transparent;
 }
 #motionstudio-canvas-host,
 #motionstudio-canvas-host .modern-graphics-canvas {
@@ -325,19 +350,6 @@ body::before {
 }
 .motion-studio-preview.helpers-hidden .motion-studio-preview-hint {
     display: none;
-}
-.motion-studio-preview.actual-size #motionstudio-canvas-host,
-.motion-studio-preview.actual-size .motion-studio-helpers {
-    top: -100px;
-    right: auto;
-    bottom: auto;
-    left: -150px;
-    width: 755px !important;
-    height: 562px !important;
-}
-.motion-studio-preview.actual-size .motion-studio-preview-hint::after {
-    content: ' \00b7  1:1 crop';
-    color: #fff1ce;
 }
 .motion-studio-destination rect {
     fill: rgba(255, 241, 204, 0.06);
@@ -402,8 +414,8 @@ body::before {
 .motion-studio-preview-hint {
     position: absolute;
     z-index: 3;
-    top: 8px;
-    right: 9px;
+    top: 38px;
+    right: 40px;
     max-width: 235px;
     padding: 4px 6px;
     color: rgba(255, 239, 208, 0.82);
@@ -439,13 +451,12 @@ body::before {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 3px 10px;
-    width: 480px;
-    height: 55px;
+    width: 100%;
+    height: 48px;
     padding: 7px 9px;
     color: #f4e4c6;
-    background: rgba(19, 10, 5, 0.77);
+    background: #1b120d;
     border: 1px solid rgba(255, 232, 181, 0.22);
-    border-top: 0;
     font-size: 9px;
 }
 .motion-studio-readout span {
@@ -461,11 +472,10 @@ body::before {
 }
 .motion-studio-inspector {
     box-sizing: border-box;
-    width: 260px;
-    height: 430px;
+    width: 100%;
+    min-height: 0;
     overflow-y: auto;
     padding: 8px 8px 18px;
-    border-left: 1px solid rgba(74, 40, 17, 0.35);
     background: linear-gradient(#f8e9c9, #e1ca9f);
     scrollbar-color: #8b6541 #ead7b4;
     scrollbar-width: thin;
@@ -478,6 +488,61 @@ body::before {
     margin: 0 2px 7px;
     color: #6a4b32;
     font-size: 10px;
+}
+.motion-studio-intro-copy {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 4px 7px;
+    margin: 0 0 7px;
+    padding: 7px;
+    color: #533621;
+    background:
+        linear-gradient(
+            135deg,
+            rgba(255, 252, 238, 0.92),
+            rgba(225, 197, 148, 0.64)
+        );
+    border: 1px solid rgba(105, 67, 37, 0.34);
+    border-radius: 5px;
+    box-shadow: inset 0 1px rgba(255, 255, 255, 0.58);
+}
+.motion-studio-intro-copy[aria-hidden="true"] {
+    display: none;
+}
+.motion-studio-intro-copy > strong,
+.motion-studio-intro-copy > span {
+    grid-column: 1 / -1;
+}
+.motion-studio-intro-copy > strong {
+    font-size: 10px;
+    letter-spacing: 0.025em;
+    text-transform: uppercase;
+}
+.motion-studio-intro-copy > span {
+    color: #72513a;
+    font-size: 8px;
+    line-height: 1.35;
+}
+.motion-studio-intro-copy label {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 2px;
+    color: #6a4b32;
+    font-size: 8px;
+}
+.motion-studio-intro-copy select {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    height: 24px;
+    font-size: 9px;
+}
+.motion-studio-intro-copy button {
+    padding: 5px 7px;
+    font-size: 9px;
+    white-space: nowrap;
 }
 .motion-studio-wind-tools {
     display: grid;
@@ -674,11 +739,11 @@ body::before {
 .motion-studio-transport {
     box-sizing: border-box;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto auto;
-    grid-template-rows: 27px 35px;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-rows: 29px 24px 39px;
     align-items: center;
     gap: 1px 8px;
-    height: 78px;
+    height: 110px;
     padding: 6px 10px 9px;
     color: #e8d5b6;
     background: #100b08;
@@ -694,9 +759,17 @@ body::before {
 .motion-studio-transport-buttons {
     display: flex;
     grid-row: 1;
-    grid-column: 1;
+    grid-column: 1 / -1;
     align-items: center;
     gap: 4px;
+}
+.motion-studio-transport-buttons button {
+    padding-right: 6px;
+    padding-left: 6px;
+    white-space: nowrap;
+}
+.motion-studio-transport-buttons .motion-studio-apply-preview {
+    margin-right: auto;
 }
 .motion-studio-transport .motion-studio-apply-preview {
     border-color: #d6a04e;
@@ -722,7 +795,7 @@ body::before {
 }
 .motion-studio-timeline-wrap {
     position: relative;
-    grid-row: 2;
+    grid-row: 3;
     grid-column: 1 / -1;
     align-self: stretch;
     min-width: 130px;
@@ -770,8 +843,8 @@ body::before {
     background: #8f7557;
 }
 #motionstudio-time {
-    grid-row: 1;
-    grid-column: 2;
+    grid-row: 2;
+    grid-column: 1;
     min-width: 83px;
     color: #fff0d1;
     font-size: 9px;
@@ -785,12 +858,12 @@ body::before {
     white-space: nowrap;
 }
 .motion-studio-transport > label:first-of-type {
-    grid-row: 1;
-    grid-column: 3;
+    grid-row: 2;
+    grid-column: 2;
 }
 .motion-studio-transport > label:last-of-type {
-    grid-row: 1;
-    grid-column: 4;
+    grid-row: 2;
+    grid-column: 3;
 }
 #contextmenu li.motion-studio {
     padding-top: 2px;
@@ -816,8 +889,24 @@ body.motion-studio-active #title,
 body.motion-studio-active #title-icon {
     pointer-events: none;
 }
+body.motion-studio-active {
+    overflow: hidden;
+}
 body.motion-studio-active #contextmenu {
     display: none !important;
+}
+@media (max-width: 1190px) {
+    .motion-studio-shell {
+        grid-template-columns: 755px;
+        grid-template-rows: 562px 562px;
+        width: 755px;
+        height: 1136px;
+    }
+    .motion-studio-dock {
+        grid-row: 2;
+        grid-column: 1;
+        width: 755px;
+    }
 }
 #end-game, #deck, #shop {
     z-index: 15;

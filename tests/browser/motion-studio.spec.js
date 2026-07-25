@@ -62,6 +62,13 @@ async function openMotionStudio(page) {
   })).toBe(true);
 }
 
+async function fillMotionField(page, field, value) {
+  await page.locator(
+    '#motionstudio input[type="number"]' +
+      `[data-motion-field="${field}"]`
+  ).fill(String(value));
+}
+
 test('authors six application targets as one playbook and keeps edits draft-only until an explicit apply', async ({page}) => {
   const modernRequests = [];
   page.on('request', request => {
@@ -312,6 +319,276 @@ test('authors six application targets as one playbook and keeps edits draft-only
     legacyCardsIntact: true
   });
   expect(modernRequests).toHaveLength(1);
+});
+
+test('uses the full lobby board as its stage and copies shared intro motion without flattening per-card travel', async ({page}) => {
+  await loginWithLegacyGraphics(page);
+  await openMotionStudio(page);
+  await page.locator('#motionstudio-auto-replay').uncheck();
+
+  const geometry = await page.evaluate(() => {
+    const rect = node => {
+      const value = node.getBoundingClientRect();
+      return {
+        left: value.left,
+        top: value.top,
+        right: value.right,
+        bottom: value.bottom,
+        width: value.width,
+        height: value.height
+      };
+    };
+    const intersects = (first, second) => !(
+      first.right <= second.left ||
+      first.left >= second.right ||
+      first.bottom <= second.top ||
+      first.top >= second.bottom
+    );
+    const preview = rect(document.querySelector('#motionstudio-preview'));
+    const host = rect(
+      document.querySelector('#motionstudio-canvas-host')
+    );
+    const canvas = rect(
+      document.querySelector('#motionstudio-canvas-host canvas')
+    );
+    const helpers = rect(
+      document.querySelector('#motionstudio .motion-studio-helpers')
+    );
+    const controls = Array.from(document.querySelectorAll(
+      '#motionstudio button, #motionstudio select, ' +
+      '#motionstudio input, #motionstudio textarea, ' +
+      '#motionstudio summary'
+    )).filter(node => {
+      const style = window.getComputedStyle(node);
+      return style.display !== 'none' &&
+        style.visibility !== 'hidden' &&
+        node.getClientRects().length > 0;
+    }).map(node => ({
+      label:
+        node.getAttribute('aria-label') ||
+        node.textContent.trim() ||
+        node.id,
+      intersects: intersects(preview, rect(node))
+    }));
+    return {
+      parentIsBody:
+        document.querySelector('#motionstudio').parentNode ===
+          document.body,
+      content: rect(document.querySelector('#content')),
+      preview,
+      host,
+      canvas,
+      helpers,
+      helperViewBox: document.querySelector(
+        '#motionstudio .motion-studio-helpers'
+      ).getAttribute('viewBox'),
+      boardBackdrop: window.getComputedStyle(
+        document.querySelector('.motion-studio-preview-panel')
+      ).backgroundImage,
+      intersectingControls:
+        controls.filter(control => control.intersects)
+    };
+  });
+  expect(geometry.parentIsBody).toBe(true);
+  expect(geometry.content).toMatchObject({
+    width: 755,
+    height: 562
+  });
+  expect(geometry.preview).toMatchObject({
+    width: 755,
+    height: 562
+  });
+  for (const layer of [
+    geometry.host,
+    geometry.canvas,
+    geometry.helpers
+  ]) {
+    expect(layer).toMatchObject({
+      left: geometry.preview.left,
+      top: geometry.preview.top,
+      width: 755,
+      height: 562
+    });
+  }
+  expect(geometry.helperViewBox).toBe('0 0 755 562');
+  expect(geometry.boardBackdrop).toContain('gameBoard.png');
+  expect(geometry.intersectingControls).toEqual([]);
+
+  await page.locator('#motionstudio-target').selectOption(
+    'lobby-card-2-intro'
+  );
+  await fillMotionField(page, 'entry.delayMs', 165);
+  await fillMotionField(page, 'path.directionDeg', -44);
+  await fillMotionField(page, 'path.distancePx', 350);
+  await fillMotionField(page, 'path.curvePx', 85);
+
+  await page.locator('#motionstudio-target').selectOption(
+    'lobby-card-3-intro'
+  );
+  await fillMotionField(page, 'entry.delayMs', 320);
+  await fillMotionField(page, 'path.directionDeg', 52);
+  await fillMotionField(page, 'path.distancePx', 620);
+  await fillMotionField(page, 'path.curvePx', -75);
+
+  await page.locator('#motionstudio-target').selectOption(
+    'lobby-card-1-intro'
+  );
+  await fillMotionField(page, 'path.releaseHeight', 219);
+  await fillMotionField(page, 'path.apexHeight', 341);
+  await fillMotionField(page, 'path.flightMs', 1080);
+  await fillMotionField(page, 'rotation.xTurns', 1.35);
+  await fillMotionField(page, 'rotation.releaseRollDeg', 73);
+  await page.locator('#motionstudio-scale-mode').selectOption(
+    'keyframed'
+  );
+  await fillMotionField(page, 'scale.apex', 1.27);
+
+  await expect(page.locator(
+    '#motionstudio .motion-studio-intro-copy'
+  )).toBeVisible();
+  expect(await page.locator(
+    '#motionstudio-copy-target option'
+  ).evaluateAll(options => options.map(option => option.value))).toEqual([
+    '',
+    'all',
+    'lobby-card-2-intro',
+    'lobby-card-3-intro',
+    'lobby-card-4-intro',
+    'lobby-card-5-intro'
+  ]);
+
+  await page.locator('#motionstudio-copy-target').selectOption(
+    'lobby-card-2-intro'
+  );
+  await page.locator(
+    '#motionstudio .motion-studio-copy-intro'
+  ).click();
+  await expect(page.locator(
+    '#motionstudio .motion-studio-control-status'
+  )).toContainText('Lobby card 2 — Intro');
+  const copiedToOne = await page.evaluate(() => {
+    const targets = gh.manager.motionstudio.playbook.targets;
+    return {
+      secondHeight:
+        targets['lobby-card-2-intro'].preset.path.releaseHeight,
+      secondDelay:
+        targets['lobby-card-2-intro'].delayMs,
+      thirdHeight:
+        targets['lobby-card-3-intro'].preset.path.releaseHeight
+    };
+  });
+  expect(copiedToOne).toEqual({
+    secondHeight: 219,
+    secondDelay: 165,
+    thirdHeight: 185
+  });
+
+  await page.locator('#motionstudio-copy-target').selectOption('all');
+  await page.locator(
+    '#motionstudio .motion-studio-copy-intro'
+  ).click();
+  await expect(page.locator(
+    '#motionstudio .motion-studio-control-status'
+  )).toContainText('kept its start delay, heading, distance, and curve');
+
+  const copied = await page.evaluate(({playbookKey, sessionKey}) => {
+    const controller = gh.manager.motionstudio;
+    const targets = controller.playbook.targets;
+    const source = targets['lobby-card-1-intro'].preset;
+    return {
+      storedPlaybook: window.localStorage.getItem(playbookKey),
+      application: controller.api.playbook.serialize(
+        gh.manager.graphics.getLobbyPlaybook()
+      ),
+      draft: controller.api.playbook.serialize(controller.playbook),
+      sessionDraft: JSON.parse(
+        window.sessionStorage.getItem(sessionKey)
+      ).draftPlaybook,
+      copiedShared: [
+        'lobby-card-2-intro',
+        'lobby-card-3-intro',
+        'lobby-card-4-intro',
+        'lobby-card-5-intro'
+      ].every(targetId => {
+        const preset = targets[targetId].preset;
+        return preset.path.releaseHeight ===
+            source.path.releaseHeight &&
+          preset.path.apexHeight === source.path.apexHeight &&
+          preset.path.flightMs === source.path.flightMs &&
+          preset.rotation.xTurns === source.rotation.xTurns &&
+          preset.rotation.releaseRollDeg ===
+            source.rotation.releaseRollDeg &&
+          preset.scale.mode === source.scale.mode &&
+          preset.scale.apex === source.scale.apex;
+      }),
+      second: {
+        delayMs: targets['lobby-card-2-intro'].delayMs,
+        directionDeg:
+          targets['lobby-card-2-intro'].preset.path.directionDeg,
+        distancePx:
+          targets['lobby-card-2-intro'].preset.path.distancePx,
+        curvePx:
+          targets['lobby-card-2-intro'].preset.path.curvePx
+      },
+      third: {
+        delayMs: targets['lobby-card-3-intro'].delayMs,
+        directionDeg:
+          targets['lobby-card-3-intro'].preset.path.directionDeg,
+        distancePx:
+          targets['lobby-card-3-intro'].preset.path.distancePx,
+        curvePx:
+          targets['lobby-card-3-intro'].preset.path.curvePx
+      },
+      windUnchanged:
+        JSON.stringify(targets[
+          'lobby-hand-gentle-wind-exit'
+        ]) === JSON.stringify(
+          controller.api.playbook.defaults.targets[
+            'lobby-hand-gentle-wind-exit'
+          ]
+        )
+    };
+  }, {
+    playbookKey: PLAYBOOK_STORAGE_KEY,
+    sessionKey: STUDIO_SESSION_KEY
+  });
+  expect(copied.storedPlaybook).toBeNull();
+  expect(copied.application).not.toBe(copied.draft);
+  expect(copied.sessionDraft).toBe(copied.draft);
+  expect(copied.copiedShared).toBe(true);
+  expect(copied.second).toEqual({
+    delayMs: 165,
+    directionDeg: -44,
+    distancePx: 350,
+    curvePx: 85
+  });
+  expect(copied.third).toEqual({
+    delayMs: 320,
+    directionDeg: 52,
+    distancePx: 620,
+    curvePx: -75
+  });
+  expect(copied.windUnchanged).toBe(true);
+
+  await page.locator('#motionstudio-target').selectOption(
+    'lobby-hand-gentle-wind-exit'
+  );
+  await expect(page.locator(
+    '#motionstudio .motion-studio-intro-copy'
+  )).toBeHidden();
+  await page.locator('#motionstudio .motion-studio-back').click();
+  await openMotionStudio(page);
+  await page.locator('#motionstudio-target').selectOption(
+    'lobby-card-2-intro'
+  );
+  await expect(page.locator(
+    '#motionstudio input[type="number"]' +
+      '[data-motion-field="path.releaseHeight"]'
+  )).toHaveValue('219');
+  await expect(page.locator(
+    '#motionstudio input[type="number"]' +
+      '[data-motion-field="entry.delayMs"]'
+  )).toHaveValue('165');
 });
 
 test('Apply & Preview runs the production Gentle Wind exit and restores the Legacy preference', async ({page}) => {

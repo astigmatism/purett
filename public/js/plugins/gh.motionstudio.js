@@ -68,6 +68,7 @@ gh.motionstudio.prototype = {
             {group: 'landing', field: 'shadow.spread', label: 'Shadow spread', min: 0.5, max: 2, step: 0.01, unit: '\u00d7'}
         ];
 
+        $('#motionstudio').appendTo(document.body);
         this.buildControls();
         this.bindUi();
 
@@ -160,15 +161,15 @@ gh.motionstudio.prototype = {
             );
             me.saveSessionPreset();
         });
-        $('#motionstudio-actual-size').change(function() {
-            $('#motionstudio-preview').toggleClass(
-                'actual-size',
-                this.checked
-            );
-            me.saveSessionPreset();
-        });
         $('#motionstudio-auto-replay').change(function() {
             me.saveSessionPreset();
+        });
+        $('#motionstudio-copy-target').change(function() {
+            $('#motionstudio .motion-studio-copy-intro')
+                .prop('disabled', !$(this).val());
+        });
+        $('#motionstudio .motion-studio-copy-intro').click(function() {
+            me.copyIntroSharedMotion();
         });
         $('#motionstudio-preview').on(
             'pointerdown',
@@ -499,10 +500,6 @@ gh.motionstudio.prototype = {
                         $('#motionstudio-show-helpers')
                             .prop('checked', ui.helpers);
                     }
-                    if (typeof ui.actualSize === 'boolean') {
-                        $('#motionstudio-actual-size')
-                            .prop('checked', ui.actualSize);
-                    }
                     if (typeof ui.recipeOpen === 'boolean') {
                         $('#motionstudio .motion-studio-json')
                             .prop('open', ui.recipeOpen);
@@ -529,10 +526,6 @@ gh.motionstudio.prototype = {
             .toggleClass(
                 'helpers-hidden',
                 !$('#motionstudio-show-helpers').is(':checked')
-            )
-            .toggleClass(
-                'actual-size',
-                $('#motionstudio-actual-size').is(':checked')
             );
         this.selectTarget(this.activeTargetId, false);
     },
@@ -613,6 +606,7 @@ gh.motionstudio.prototype = {
                     : 'Start delay value'
             );
         this.previewCardKey = null;
+        this.syncIntroCopyUi();
         this.syncWindUi();
         this.setControlStatus('', false);
         this.applyPresetToSurface(
@@ -695,6 +689,120 @@ gh.motionstudio.prototype = {
             false
         );
         this.applyPresetToSurface(true);
+    },
+
+    syncIntroCopyUi: function() {
+        var me = this;
+        var isIntro = this.activeTarget &&
+            this.activeTarget.kind === 'intro';
+        var $section = $('#motionstudio .motion-studio-intro-copy');
+        var $select = $('#motionstudio-copy-target');
+
+        $section.attr('aria-hidden', isIntro ? 'false' : 'true');
+        $select
+            .empty()
+            .append(
+                $('<option></option>')
+                    .val('')
+                    .text('Choose lobby card\u2026')
+            )
+            .append(
+                $('<option></option>')
+                    .val('all')
+                    .text('All other lobby intro cards')
+            );
+        if (isIntro && this.api && this.api.playbook) {
+            $.each(this.api.playbook.targets, function(index, target) {
+                if (target.kind !== 'intro' ||
+                        target.id === me.activeTargetId) {
+                    return;
+                }
+                $select.append(
+                    $('<option></option>')
+                        .val(target.id)
+                        .text(target.label)
+                );
+            });
+        }
+        $select
+            .val('')
+            .prop('disabled', !isIntro);
+        $('#motionstudio .motion-studio-copy-intro')
+            .prop('disabled', true);
+    },
+
+    copyIntroSharedMotion: function() {
+        var selection;
+        var destinationIds = [];
+        var destinationLabels = [];
+        var me = this;
+
+        if (!this.api || !this.api.playbook ||
+                !this.playbook || !this.preset ||
+                !this.activeTarget ||
+                this.activeTarget.kind !== 'intro') {
+            return;
+        }
+        selection = $('#motionstudio-copy-target').val();
+        if (!selection) {
+            this.setControlStatus(
+                'Choose a lobby intro destination first.',
+                true
+            );
+            return;
+        }
+        $.each(this.api.playbook.targets, function(index, target) {
+            if (target.kind !== 'intro' ||
+                    target.id === me.activeTargetId) {
+                return;
+            }
+            if (selection === 'all' || selection === target.id) {
+                destinationIds.push(target.id);
+                destinationLabels.push(target.label);
+            }
+        });
+        if (destinationIds.length === 0) {
+            this.setControlStatus(
+                'The selected lobby intro destination is unavailable.',
+                true
+            );
+            this.syncIntroCopyUi();
+            return;
+        }
+        try {
+            this.playbook = this.api.playbook.updateTarget(
+                this.playbook,
+                this.activeTargetId,
+                this.preset,
+                this.entryDelayMs
+            );
+            this.playbook =
+                this.api.playbook.copyIntroSharedMotion(
+                    this.playbook,
+                    this.activeTargetId,
+                    destinationIds
+                );
+            $.each(destinationIds, function(index, targetId) {
+                delete me.targetPresetNames[targetId];
+            });
+            this.updateRecipeJson();
+            this.saveSessionPreset();
+            this.syncIntroCopyUi();
+            this.setControlStatus(
+                'Copied shared motion to ' +
+                    destinationLabels.join(', ') +
+                    '. Each card kept its start delay, heading, ' +
+                    'distance, and curve.',
+                false
+            );
+        } catch (error) {
+            this.setControlStatus(
+                error && error.message
+                    ? error.message
+                    : 'The shared intro motion could not be copied.',
+                true
+            );
+        }
     },
 
     onControlChange: function(control, eventType) {
@@ -1485,8 +1593,6 @@ gh.motionstudio.prototype = {
                         $('#motionstudio-auto-replay').is(':checked'),
                     helpers:
                         $('#motionstudio-show-helpers').is(':checked'),
-                    actualSize:
-                        $('#motionstudio-actual-size').is(':checked'),
                     recipeOpen:
                         $('#motionstudio .motion-studio-json')
                             .prop('open') === true,

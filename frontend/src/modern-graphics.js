@@ -39,10 +39,12 @@ import {
 } from './card-motion.js';
 import {
   DEFAULT_LOBBY_MOTION_PLAYBOOK,
+  LOBBY_INTRO_SHARED_MOTION_FIELDS,
   LOBBY_MOTION_PLAYBOOK_METADATA,
   LOBBY_MOTION_TARGETS,
   LOBBY_WIND_EXIT_TARGET_ID,
   LOBBY_WIND_VARIATION,
+  copyLobbyIntroSharedMotion,
   createLobbyMotionBatch,
   getLobbyMotionTarget,
   getLobbyMotionTargetDefinition,
@@ -3011,6 +3013,7 @@ class LobbyHandSurface {
 const lobbyPlaybookApi = Object.freeze({
   metadata: LOBBY_MOTION_PLAYBOOK_METADATA,
   targets: LOBBY_MOTION_TARGETS,
+  introSharedMotionFields: LOBBY_INTRO_SHARED_MOTION_FIELDS,
   windTargetId: LOBBY_WIND_EXIT_TARGET_ID,
   windVariation: LOBBY_WIND_VARIATION,
   defaults: DEFAULT_LOBBY_MOTION_PLAYBOOK,
@@ -3035,6 +3038,17 @@ const lobbyPlaybookApi = Object.freeze({
       targetId,
       preset,
       delayMs
+    );
+  },
+  copyIntroSharedMotion(
+    playbook,
+    sourceTargetId,
+    destinationTargetIds
+  ) {
+    return copyLobbyIntroSharedMotion(
+      playbook,
+      sourceTargetId,
+      destinationTargetIds
     );
   },
   updateWindSeed(playbook, seed, locked) {

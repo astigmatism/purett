@@ -2,13 +2,13 @@
 
 | Field | Value |
 |---|---|
-| Status | Phase 0.9 application-bound lobby motion playbook implemented, acceptance verification in progress; Phase 0.7 visual baseline rejected |
-| Version | 1.3 |
+| Status | Phase 0.9 application-bound lobby motion playbook and full-board authoring refinement implemented, acceptance verification in progress; Phase 0.7 visual baseline rejected |
+| Version | 1.4 |
 | Last updated | 2026-07-24 |
 | Scope | Active-match graphics roadmap plus Modern lobby-hand rendering, an application-bound lobby intro/exit playbook, Motion Studio authoring, renderer-neutral motion recipes, and bounded decorative card experiments |
 | Modern renderer | Three.js `0.185.1` (`r185`) with `WebGLRenderer`, selected for Phase 0 and provisional for the playable renderer |
 
-> **Implementation status — 2026-07-24:** Phase 0 established the runtime Graphics switch, safe Legacy fallback, and inert active-match Modern surface. Phase 0.5 rendered only the five lobby-hand cards beneath the Play, Shop, and Tutorials bar. Phase 0.6 added the calibrated flat-table Three.js card model and independent decorative double flips. Phase 0.7 deployed a deterministic `casual-drop-left` implementation with a pure planner, bounded lifecycle, table-clearance safeguards, and exact settlement. Its current visible motion does **not** convincingly resemble cards being dropped or scattered by a player: it reads primarily as flat cards sliding in from the left. It therefore failed the human visual acceptance requirement in `AC-P07-003` and is **not an approved visual baseline**. Its parameter values, named gestures, cadence, scale policy, and apparent motion must not be copied into the lobby, shop, active match, or another surface as an accepted design. Phase 0.8 introduced the isolated one-card Motion Studio and deterministic renderer-neutral recipes. Phase 0.9 now binds that authoring loop to a browser-local application playbook: five independently editable lobby-card intro targets land on runtime-owned fixed anchors, and one shared Gentle Wind exit compiles into five deterministic seeded variants with distinct lower-left offscreen endpoints. `Apply & Preview in Lobby` exercises the same production path used by normal lobby presentation and command exit while preserving the stored Legacy/Modern preference. Modern lobby commands wait for the exit or a fail-open watchdog; Tutorials Back replays the intro. The active-match Modern renderer remains intentionally blank and follows the renderer-neutral roadmap later in this document.
+> **Implementation status — 2026-07-24:** Phase 0 established the runtime Graphics switch, safe Legacy fallback, and inert active-match Modern surface. Phase 0.5 rendered only the five lobby-hand cards beneath the Play, Shop, and Tutorials bar. Phase 0.6 added the calibrated flat-table Three.js card model and independent decorative double flips. Phase 0.7 deployed a deterministic `casual-drop-left` implementation with a pure planner, bounded lifecycle, table-clearance safeguards, and exact settlement. Its current visible motion does **not** convincingly resemble cards being dropped or scattered by a player: it reads primarily as flat cards sliding in from the left. It therefore failed the human visual acceptance requirement in `AC-P07-003` and is **not an approved visual baseline**. Its parameter values, named gestures, cadence, scale policy, and apparent motion must not be copied into the lobby, shop, active match, or another surface as an accepted design. Phase 0.8 introduced the isolated one-card Motion Studio and deterministic renderer-neutral recipes. Phase 0.9 now binds that authoring loop to a browser-local application playbook: five independently editable lobby-card intro targets land on runtime-owned fixed anchors, and one shared Gentle Wind exit compiles into five deterministic seeded variants with distinct lower-left offscreen endpoints. Its authoring refinement presents the entire 755 by 562 lobby board at true logical size, keeps every HTML control outside that stage, and can copy one intro card's shared motion character to selected or all other intro cards while preserving each destination's delay and travel placement. `Apply & Preview in Lobby` exercises the same production path used by normal lobby presentation and command exit while preserving the stored Legacy/Modern preference. Modern lobby commands wait for the exit or a fail-open watchdog; Tutorials Back replays the intro. The active-match Modern renderer remains intentionally blank and follows the renderer-neutral roadmap later in this document.
 
 ## Contents
 
@@ -2107,6 +2107,8 @@ Lobby exits
 
 The five intro entries own independent recipe snapshots and start delays. Changing card 1 must not change cards 2–5. The exit entry owns one base recipe and one base cadence for the sequence; it is not five independently authored exits.
 
+The Studio may explicitly copy **shared intro motion** from the currently selected intro to one or all other intro targets. This is a draft-only, allowlisted operation. It copies flight time, release and apex height, rotation, contact and skid behavior, scale mode and authored scale curve, and shadow treatment. It preserves every destination target's start delay, travel heading, travel distance, path curve, stable identity, locked landing offsets, application card scale, and final settled scale. Gentle Wind is never a source or destination. Future recipe fields do not begin propagating merely because the card-motion schema grows; adding a shared field requires a reviewed allowlist change and contract update.
+
 A representative playbook envelope is:
 
 ```json
@@ -2170,19 +2172,22 @@ The result must feel like one gentle force moving five cards rather than five un
 
 #### 12.12.4 Motion Studio application workflow
 
+The authoring stage is the complete 755 by 562 lobby board coordinate space, not a scaled-down panel or crop. Its transparent Three.js surface, helper SVG, and board backdrop share the exact logical bounds used by the production lobby. Header, target selectors, copy tools, inspector controls, advanced JSON editor, readout, and playback transport remain outside that rectangle in a viewport-level Studio shell. The stage is never distorted to make controls fit; narrow viewports scroll or stack the control dock outside the stage.
+
 The application-bound authoring workflow is:
 
 1. Open `Motion Studio…` from either Legacy or Modern.
 2. Choose one of the six application targets.
 3. Edit the selected target's recipe and start delay. The locked application start/destination is visible but cannot be dragged or imported to a different location.
-4. For Gentle Wind, optionally lock the current seed or request a new variation.
-5. Use the one-card study transport for detailed tuning.
-6. Select `Apply & Preview in Lobby`.
-7. Validate and persist the entire playbook atomically.
-8. Close the Studio and run the corresponding complete production sequence:
+4. For an intro, optionally copy its shared motion character to one selected intro or all other intros. Destination-specific delay and travel placement remain unchanged.
+5. For Gentle Wind, optionally lock the current seed or request a new variation.
+6. Use the one-card study transport for detailed tuning.
+7. Select `Apply & Preview in Lobby`.
+8. Validate and persist the entire playbook atomically.
+9. Close the Studio and run the corresponding complete production sequence:
    - an intro target previews all current intro entries in context; or
    - the Gentle Wind target previews all five seeded exit instances.
-9. Hold the completed lobby state briefly for observation, restore the hand where required, restore the prior Graphics selection, and reopen the Studio on the same target.
+10. Hold the completed lobby state briefly for observation, restore the hand where required, restore the prior Graphics selection, and reopen the Studio on the same target.
 
 The production preview is not a duplicate approximation implemented inside the Studio. It must call the same playbook compiler, same lobby surface, same pose sampler, same scheduler, same fixed anchors, and same completion path used by ordinary Modern lobby intro or exit.
 
@@ -2281,6 +2286,14 @@ Reduced-motion intro and exit reach their correct terminal states and continuati
 
 Normal-speed actual-size review judges the five-entry intro as a complete phrase and the Gentle Wind exit as a coherent gust with natural variance. Passing deterministic and lifecycle tests does not by itself approve the artistic values. Phase 0.7 remains labeled rejected and is not used as the approval reference.
 
+**AC-P09-013 — Full-board one-to-one authoring stage**
+
+Motion Studio's preview, Three.js canvas, and helper coordinate layer are exactly 755 by 562 logical pixels and share the production lobby camera and anchor coordinates. No visible HTML button, selector, field, editor, readout, or transport overlaps that rectangle. The obsolete scaled-panel crop control is absent. At narrower viewport widths the control dock may stack or scroll outside the board, but the board stage itself remains undistorted.
+
+**AC-P09-014 — Selective shared intro copying**
+
+From any intro target, the author may copy shared motion to one selected intro or all other intros. The operation is atomic, immutable, draft-only, and session-persistent. Every destination receives the declared shared-field allowlist while retaining its delay, heading, distance, curve, target identity, and application-owned landing and scale locks. The source, unselected intros, and Gentle Wind remain unchanged. Copy controls are unavailable while Gentle Wind is selected, and no local production playbook changes until Import or Apply & Preview.
+
 #### 12.12.8 Required tests and evidence
 
 Phase 0.9 requires:
@@ -2294,6 +2307,8 @@ Phase 0.9 requires:
 - Tutorials Back coverage proving the command list returns before or independently of intro replay;
 - Legacy-only startup and command regression proving no playbook animation or new Modern dependency load;
 - storage failure, malformed/future import, and canonical whole-playbook round-trip coverage;
+- a pure shared-motion-copy contract covering the explicit field allowlist, protected destination timing/travel values, identity and anchor locks, immutability, atomic rejection, and Gentle Wind exclusion;
+- browser geometry evidence that the 755 by 562 board, canvas, and helpers coincide while every visible HTML control remains outside, plus copy-to-one/copy-to-all draft and session behavior;
 - actual-size 1× normal-speed and slowed captures for human intro and exit review.
 
 #### 12.12.9 Status summary and definition of done
@@ -2304,7 +2319,7 @@ The Phase 0.9 implementation is present in the current feature branch:
 - the Modern lobby surface consumes intro and exit batches through its shared demand-driven scheduler;
 - the graphics coordinator owns local playbook persistence, production preview, temporary Modern restoration, generic command exit, exact-once continuation, and fail-open watchdog;
 - the menu routes Play, Shop, Tutorials, Replay, and Deck through that coordinator and replays intro on Tutorials Back;
-- Motion Studio edits application targets, locks landing anchors, controls the wind seed, imports/exports the whole playbook, and applies it to the real lobby path.
+- Motion Studio edits application targets on a full-size lobby board stage, copies shared motion across selected intro drafts without flattening per-card delay or travel, locks landing anchors, controls the wind seed, imports/exports the whole playbook, and applies it to the real lobby path.
 
 Phase 0.9 is complete only when all `AC-P09-*` criteria and required static/browser evidence pass, the generated Modern bundle matches its source, applicable Phase 0 through Phase 0.8 and Legacy regressions remain green, and a normal-speed human review records the current intro and Gentle Wind visual decision. This status does not revise Phase 0.7's rejection or authorize any shop or active-match consumer.
 

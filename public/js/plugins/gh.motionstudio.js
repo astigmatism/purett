@@ -8,41 +8,49 @@ gh.motionstudio.prototype = {
 
         this.graphics = options.graphics;
         this.getCard = options.getCard || function() { return null; };
+        this.getCards = options.getCards || function() { return []; };
         this.closeContextMenu = options.closeContextMenu || function() {};
-        this.storageKey = 'purett.motionStudio.v1';
-        this.sessionVersion = 1;
+        this.storageKey = 'purett.motionStudio.v2';
+        this.sessionVersion = 2;
         this.opened = false;
         this.surface = null;
         this.api = null;
         this.preset = null;
+        this.playbook = null;
+        this.activeTargetId = 'lobby-card-1-intro';
+        this.activeTarget = null;
+        this.entryDelayMs = 0;
+        this.previewingLobby = false;
+        this.previewGeneration = 0;
+        this.pendingPreviewToken = null;
         this.activePresetName = 'casual-toss';
         this.basePresetName = 'casual-toss';
+        this.targetPresetNames = {};
         this.replayTimer = null;
         this.lastTrigger = null;
         this.lastSurfaceState = null;
         this.lastHelperPlanRevision = null;
+        this.previewCardKey = null;
+        this.previewPlan = null;
         this.controlsBuilt = false;
         this.helperDrag = null;
         this.reducedMotion = this.prefersReducedMotion();
         this.controlDefinitions = [
+            {group: 'sequence', field: 'entry.delayMs', label: 'Start delay', min: 0, max: 1500, step: 5, unit: 'ms'},
             {group: 'path', field: 'path.directionDeg', label: 'Travel heading', min: -180, max: 180, step: 1, unit: '\u00b0'},
             {group: 'path', field: 'path.distancePx', label: 'Travel distance', min: 0, max: 1000, step: 1, unit: 'px'},
             {group: 'path', field: 'path.curvePx', label: 'Path curve', min: -300, max: 300, step: 1, unit: 'px'},
-            {group: 'path', field: 'path.landingXPx', label: 'Landing offset X', min: -300, max: 300, step: 1, unit: 'px'},
-            {group: 'path', field: 'path.landingYPx', label: 'Landing offset Y', min: -220, max: 220, step: 1, unit: 'px'},
             {group: 'path', field: 'path.flightMs', label: 'Flight time', min: 200, max: 2500, step: 10, unit: 'ms'},
 
             {group: 'height', field: 'path.releaseHeight', label: 'Release height', min: 0, max: 300, step: 1, unit: 'z'},
             {group: 'height', field: 'path.apexHeight', label: 'Apex height', min: 0, max: 400, step: 1, unit: 'z'},
-            {group: 'height', field: 'scale.cardScale', label: 'Card size', min: 0.5, max: 2, step: 0.01, unit: '\u00d7'},
 
             {group: 'keyframed-scale', field: 'scale.start', label: 'Release scale', min: 0.5, max: 2, step: 0.01, unit: '\u00d7'},
             {group: 'keyframed-scale', field: 'scale.apex', label: 'Apex scale', min: 0.5, max: 2, step: 0.01, unit: '\u00d7'},
             {group: 'keyframed-scale', field: 'scale.contact', label: 'Contact scale', min: 0.5, max: 2, step: 0.01, unit: '\u00d7'},
-            {group: 'keyframed-scale', field: 'scale.end', label: 'Rest scale', min: 0.5, max: 2, step: 0.01, unit: '\u00d7'},
 
-            {group: 'rotation', field: 'rotation.xTurns', label: 'End-over-end', min: -3, max: 3, step: 0.25, unit: 'turn'},
-            {group: 'rotation', field: 'rotation.yTurns', label: 'Side-over-side', min: -3, max: 3, step: 0.25, unit: 'turn'},
+            {group: 'rotation', field: 'rotation.xTurns', label: 'End-over-end', min: -3, max: 3, step: 0.01, unit: 'turn'},
+            {group: 'rotation', field: 'rotation.yTurns', label: 'Side-over-side', min: -3, max: 3, step: 0.01, unit: 'turn'},
             {group: 'rotation', field: 'rotation.zTurns', label: 'Table spin', min: -2, max: 2, step: 0.01, unit: 'turn'},
             {group: 'rotation', field: 'rotation.releasePitchDeg', label: 'Release pitch', min: -75, max: 75, step: 1, unit: '\u00b0'},
             {group: 'rotation', field: 'rotation.releaseYawDeg', label: 'Release yaw', min: -75, max: 75, step: 1, unit: '\u00b0'},
@@ -124,7 +132,10 @@ gh.motionstudio.prototype = {
             me.close();
         });
         $('#motionstudio .motion-studio-reset').click(function() {
-            me.selectPreset(me.basePresetName);
+            me.resetActiveTarget();
+        });
+        $('#motionstudio-target').change(function() {
+            me.selectTarget($(this).val(), true);
         });
         $('#motionstudio-preset').change(function() {
             var name = $(this).val();
@@ -161,15 +172,9 @@ gh.motionstudio.prototype = {
         });
         $('#motionstudio-preview').on(
             'pointerdown',
-            '.motion-studio-marker-start, .motion-studio-marker-land',
+            '.motion-studio-marker-start',
             function(event) {
-                me.beginHelperDrag(
-                    this.classList &&
-                    this.classList.contains('motion-studio-marker-start')
-                        ? 'start'
-                        : 'land',
-                    event
-                );
+                me.beginHelperDrag('start', event);
             }
         );
         $(document).on('pointermove.motionstudio', function(event) {
@@ -220,6 +225,20 @@ gh.motionstudio.prototype = {
         $('#motionstudio .motion-studio-apply-json').click(function() {
             me.applyJson();
         });
+        $('#motionstudio-lock-wind-seed').change(function() {
+            me.updateWindSeed(
+                me.playbook && me.playbook.wind
+                    ? me.playbook.wind.seed
+                    : null,
+                this.checked
+            );
+        });
+        $('#motionstudio .motion-studio-new-wind').click(function() {
+            me.newWindVariation();
+        });
+        $('#motionstudio .motion-studio-apply-preview').click(function() {
+            me.applyAndPreview();
+        });
         $('#motionstudio .motion-studio-json').on('toggle', function() {
             me.saveSessionPreset();
         });
@@ -230,6 +249,10 @@ gh.motionstudio.prototype = {
             }
             if (event.key === 'Tab') {
                 me.trapFocus(event);
+                return;
+            }
+            if (event.key === 'Escape' &&
+                    $(event.target).is('input, textarea, select')) {
                 return;
             }
             if (event.key === 'Escape') {
@@ -258,9 +281,22 @@ gh.motionstudio.prototype = {
         });
     },
 
-    open: function() {
+    open: function(options) {
         var me = this;
         var card;
+        var settings = options || {};
+        var previewToken = settings.previewToken;
+        var ownsPreview =
+            previewToken !== undefined &&
+            previewToken !== null &&
+            previewToken === this.pendingPreviewToken;
+
+        if (ownsPreview) {
+            this.pendingPreviewToken = null;
+            this.previewingLobby = false;
+        } else {
+            this.invalidatePreviewOwnership();
+        }
 
         if (this.opened) {
             return;
@@ -276,7 +312,7 @@ gh.motionstudio.prototype = {
         this.setControlStatus('', false);
         this.setJsonStatus('', false);
         $('body').addClass('motion-studio-active');
-        card = this.getCard();
+        card = this.getCard(this.previewCardIndex());
         if (!card) {
             this.showLoadError('A card is required to open the Motion Studio.');
             return;
@@ -331,8 +367,6 @@ gh.motionstudio.prototype = {
                 me.surface.setPlaybackRate(
                     Number($('#motionstudio-speed').val())
                 );
-                me.surface.setPreset(me.preset);
-                me.surface.setCard(card);
             }
         );
         window.setTimeout(function() {
@@ -340,7 +374,11 @@ gh.motionstudio.prototype = {
         }, 0);
     },
 
-    close: function() {
+    close: function(options) {
+        var settings = options || {};
+        if (settings.preservePreview !== true) {
+            this.invalidatePreviewOwnership();
+        }
         if (!this.opened) {
             return;
         }
@@ -371,12 +409,38 @@ gh.motionstudio.prototype = {
         }
     },
 
+    invalidatePreviewOwnership: function() {
+        this.previewGeneration += 1;
+        this.pendingPreviewToken = null;
+        this.previewingLobby = false;
+    },
+
     loadInitialPreset: function() {
         var stored = null;
         var session = null;
         var ui = null;
-        var selectedName;
-        var baseName;
+        var storedPlaybook;
+        var storedPresetNames;
+
+        if (!this.api || !this.api.playbook) {
+            throw new Error(
+                'The application motion playbook API is unavailable.'
+            );
+        }
+        this.activeTargetId = 'lobby-card-1-intro';
+        this.activePresetName = 'custom';
+        this.basePresetName = 'casual-toss';
+        this.targetPresetNames = {};
+        try {
+            storedPlaybook = this.graphics.getLobbyPlaybook();
+            this.playbook = this.api.playbook.normalize(
+                storedPlaybook || this.api.playbook.defaults
+            );
+        } catch (error) {
+            this.playbook = this.api.playbook.normalize(
+                this.api.playbook.defaults
+            );
+        }
         try {
             stored = window.sessionStorage.getItem(this.storageKey);
         } catch (error) {
@@ -388,19 +452,44 @@ gh.motionstudio.prototype = {
                 session = JSON.parse(stored);
                 if (session &&
                         session.studioSessionVersion ===
-                            this.sessionVersion &&
-                        session.preset) {
-                    this.preset = this.api.normalizePreset(session.preset);
-                    selectedName = session.activePresetName;
-                    baseName = session.basePresetName;
-                    this.activePresetName =
-                        selectedName === 'custom' ||
-                        this.api.presets[selectedName]
-                            ? selectedName
-                            : 'custom';
-                    this.basePresetName = this.api.presets[baseName]
-                        ? baseName
-                        : 'casual-toss';
+                            this.sessionVersion) {
+                    if (typeof session.draftPlaybook === 'string') {
+                        this.playbook = this.api.playbook.parse(
+                            session.draftPlaybook
+                        );
+                    }
+                    if (session.activeTargetId) {
+                        this.activeTargetId =
+                            String(session.activeTargetId);
+                    }
+                    storedPresetNames = session.targetPresetNames;
+                    if (storedPresetNames &&
+                            typeof storedPresetNames === 'object') {
+                        $.each(
+                            storedPresetNames,
+                            function(targetId, presetName) {
+                                presetName = String(presetName);
+                                if (this.api.presets[presetName]) {
+                                    this.targetPresetNames[
+                                        String(targetId)
+                                    ] = presetName;
+                                }
+                            }.bind(this)
+                        );
+                    } else if (session.activePresetName &&
+                            this.api.presets[
+                                String(session.activePresetName)
+                            ]) {
+                        this.targetPresetNames[this.activeTargetId] =
+                            String(session.activePresetName);
+                    }
+                    if (session.basePresetName &&
+                            this.api.presets[
+                                String(session.basePresetName)
+                            ]) {
+                        this.basePresetName =
+                            String(session.basePresetName);
+                    }
                     ui = session.ui || {};
                     if (typeof ui.autoReplay === 'boolean') {
                         $('#motionstudio-auto-replay')
@@ -428,21 +517,10 @@ gh.motionstudio.prototype = {
                         $('#motionstudio-speed')
                             .val(String(ui.playbackRate));
                     }
-                } else {
-                    this.preset = this.api.parsePreset(stored);
-                    this.activePresetName = 'custom';
-                    this.basePresetName = 'casual-toss';
                 }
             } catch (error) {
-                this.preset = null;
+                session = null;
             }
-        }
-        if (!this.preset) {
-            this.preset = this.api.normalizePreset(
-                this.api.presets['casual-toss']
-            );
-            this.activePresetName = 'casual-toss';
-            this.basePresetName = 'casual-toss';
         }
         if (this.reducedMotion) {
             $('#motionstudio-auto-replay').prop('checked', false);
@@ -456,8 +534,117 @@ gh.motionstudio.prototype = {
                 'actual-size',
                 $('#motionstudio-actual-size').is(':checked')
             );
-        this.syncUiFromPreset();
-        this.updateRecipeJson();
+        this.selectTarget(this.activeTargetId, false);
+    },
+
+    previewCardIndex: function() {
+        if (this.activeTarget &&
+                this.activeTarget.kind === 'intro') {
+            return Number(this.activeTarget.slotIndex) || 0;
+        }
+        return 2;
+    },
+
+    selectTarget: function(targetId, replayImmediately) {
+        var definition;
+        var entry;
+        if (!this.api || !this.api.playbook || !this.playbook) {
+            return;
+        }
+        try {
+            definition = this.api.playbook.getTargetDefinition(targetId);
+        } catch (error) {
+            definition = this.api.playbook.targets[0];
+        }
+        entry = this.api.playbook.getTarget(
+            this.playbook,
+            definition.id
+        );
+        this.activeTargetId = definition.id;
+        this.activeTarget = definition;
+        this.entryDelayMs = Number(entry.delayMs) || 0;
+        this.preset = this.api.normalizePreset(entry.preset);
+        this.activePresetName =
+            this.presetMatchesNamed(
+                this.targetPresetNames[definition.id],
+                this.preset,
+                definition.id
+            )
+                ? this.targetPresetNames[definition.id]
+                : 'custom';
+        if (this.targetPresetNames[definition.id] &&
+                this.api.presets[
+                    this.targetPresetNames[definition.id]
+                ]) {
+            this.basePresetName =
+                this.targetPresetNames[definition.id];
+        }
+        $('#motionstudio-target').val(this.activeTargetId);
+        $('#motionstudio').toggleClass(
+            'motion-studio-exit-target',
+            definition.kind === 'exit'
+        );
+        $('.motion-studio-wind-tools').toggle(
+            definition.kind === 'exit'
+        );
+        $('.motion-studio-marker-start text').text(
+            definition.kind === 'exit'
+                ? 'WIND END'
+                : 'START'
+        );
+        $('.motion-studio-preview-hint').html(
+            definition.kind === 'exit'
+                ? 'Adjust <strong>Travel</strong>; the lobby origin is locked'
+                : 'Drag <strong>START</strong>; the application target is locked'
+        );
+        $('[data-motion-field="entry.delayMs"]')
+            .closest('.motion-studio-control')
+            .find('label')
+            .text(
+                definition.kind === 'exit'
+                    ? 'Pickup cadence'
+                    : 'Start delay'
+            );
+        $('[data-motion-field="entry.delayMs"]' +
+            '[data-motion-control="number"]').attr(
+                'aria-label',
+                definition.kind === 'exit'
+                    ? 'Pickup cadence value'
+                    : 'Start delay value'
+            );
+        this.previewCardKey = null;
+        this.syncWindUi();
+        this.setControlStatus('', false);
+        this.applyPresetToSurface(
+            replayImmediately === true,
+            replayImmediately !== true
+        );
+    },
+
+    presetMatchesNamed: function(name, preset, targetId) {
+        var referencePlaybook;
+        var referencePreset;
+        if (!name || name === 'custom' || !this.api ||
+                !this.api.playbook || !this.api.presets[name] ||
+                !preset || !targetId) {
+            return false;
+        }
+        try {
+            referencePlaybook = this.api.playbook.updateTarget(
+                this.api.playbook.defaults,
+                targetId,
+                this.api.presets[name],
+                0
+            );
+            referencePreset = this.api.playbook.getTarget(
+                referencePlaybook,
+                targetId
+            ).preset;
+            return JSON.stringify(this.api.normalizePreset(preset)) ===
+                JSON.stringify(this.api.normalizePreset(referencePreset));
+        } catch (error) {
+            return false;
+        }
     },
 
     selectPreset: function(name) {
@@ -466,8 +653,47 @@ gh.motionstudio.prototype = {
         }
         this.activePresetName = name;
         this.basePresetName = name;
+        if (this.activeTargetId) {
+            this.targetPresetNames[this.activeTargetId] = name;
+        }
         this.preset = this.api.normalizePreset(this.api.presets[name]);
         this.setControlStatus('', false);
+        this.applyPresetToSurface(true);
+    },
+
+    resetActiveTarget: function() {
+        var defaultEntry;
+        var sourceName;
+        if (!this.api || !this.api.playbook ||
+                !this.playbook || !this.activeTarget) {
+            return;
+        }
+        sourceName = this.targetPresetNames[this.activeTargetId];
+        defaultEntry = this.api.playbook.getTarget(
+            this.api.playbook.defaults,
+            this.activeTargetId
+        );
+        if (sourceName && this.api.presets[sourceName]) {
+            defaultEntry = {
+                delayMs: defaultEntry.delayMs,
+                preset: this.api.presets[sourceName]
+            };
+        }
+        this.entryDelayMs = Number(defaultEntry.delayMs) || 0;
+        this.preset = this.api.normalizePreset(defaultEntry.preset);
+        this.activePresetName =
+            sourceName && this.api.presets[sourceName]
+                ? sourceName
+                : 'custom';
+        this.setControlStatus(
+            this.activeTarget.label + ' restored to ' +
+                (
+                    this.activePresetName === 'custom'
+                        ? 'its application default.'
+                        : this.titleCase(this.activePresetName) + '.'
+                ),
+            false
+        );
         this.applyPresetToSurface(true);
     },
 
@@ -498,6 +724,17 @@ gh.motionstudio.prototype = {
                 value = Math.min(maximum, value);
             }
         }
+        if (field === 'entry.delayMs') {
+            this.entryDelayMs = value;
+            this.activePresetName = 'custom';
+            this.setControlStatus('', false);
+            this.applyPresetToSurface(
+                false,
+                eventType === 'input' &&
+                    $(control).is('input[type="range"]')
+            );
+            return;
+        }
         candidate = this.clonePreset(this.preset);
         this.setNestedValue(candidate, field, value);
         try {
@@ -524,15 +761,70 @@ gh.motionstudio.prototype = {
 
     applyPresetToSurface: function(replayImmediately, suppressAutoReplay) {
         var me = this;
-        if (!this.preset || !this.api) {
+        var batch;
+        var plan;
+        var card;
+        var cardKey;
+        if (!this.preset || !this.api || !this.api.playbook ||
+                !this.playbook || !this.activeTarget) {
+            return;
+        }
+        try {
+            this.playbook = this.api.playbook.updateTarget(
+                this.playbook,
+                this.activeTargetId,
+                this.preset,
+                this.entryDelayMs
+            );
+            this.preset = this.api.normalizePreset(
+                this.api.playbook.getTarget(
+                    this.playbook,
+                    this.activeTargetId
+                ).preset
+            );
+            this.entryDelayMs = Number(
+                this.api.playbook.getTarget(
+                    this.playbook,
+                    this.activeTargetId
+                ).delayMs
+            ) || 0;
+            batch = this.createPreviewBatch();
+            plan = this.findPreviewPlan(batch);
+            this.previewPlan = plan;
+        } catch (error) {
+            this.setControlStatus(
+                error && error.message
+                    ? error.message
+                    : 'That application animation cannot be previewed.',
+                true
+            );
             return;
         }
         this.syncUiFromPreset();
+        this.syncWindUi();
         this.updateRecipeJson();
         this.saveSessionPreset();
         if (this.surface) {
             try {
-                this.surface.setPreset(this.preset);
+                this.surface.setMotionContext({
+                    direction: this.activeTarget.kind,
+                    destination: plan.anchor,
+                    delayMs: plan.delayMs,
+                    targetId: this.activeTargetId
+                });
+                this.surface.setPreset(plan.effectivePreset);
+                card = this.getCard(plan.cardIndex);
+                if (!card) {
+                    throw new Error(
+                        'The selected lobby card is unavailable.'
+                    );
+                }
+                cardKey = String(card.textureUrl) + '|' +
+                    String(card.backTextureUrl);
+                if (this.previewCardKey !== cardKey) {
+                    this.previewCardKey = cardKey;
+                    this.surface.setCard(card);
+                }
             } catch (error) {
                 this.setControlStatus(
                     error && error.message
@@ -558,6 +850,57 @@ gh.motionstudio.prototype = {
         }
     },
 
+    createPreviewBatch: function() {
+        var cards = this.getCards() || [];
+        var fallbackCard;
+        var index;
+        cards = $.map(cards.slice(0, 5), function(card, cardIndex) {
+            var descriptor = $.extend({}, card);
+            if (!isFinite(Number(descriptor.index))) {
+                descriptor.index = cardIndex;
+            }
+            return descriptor;
+        });
+        if (cards.length === 0) {
+            for (index = 0; index < 5; index += 1) {
+                fallbackCard = this.getCard(index);
+                if (fallbackCard) {
+                    fallbackCard = $.extend({}, fallbackCard);
+                    fallbackCard.index = index;
+                    cards.push(fallbackCard);
+                }
+            }
+        }
+        return this.api.playbook.createBatch(
+            this.playbook,
+            this.activeTarget.kind,
+            cards,
+            {
+                id: 'motion-studio-' + this.activeTargetId,
+                trigger: 'motion-studio-workbench',
+                seed: this.playbook.wind.seed
+            }
+        );
+    },
+
+    findPreviewPlan: function(batch) {
+        var requestedCardIndex = this.previewCardIndex();
+        var plan = null;
+        $.each(batch.plans || [], function(index, candidate) {
+            if (Number(candidate.cardIndex) === requestedCardIndex) {
+                plan = candidate;
+                return false;
+            }
+        });
+        plan = plan || (batch.plans && batch.plans[0]);
+        if (!plan) {
+            throw new Error(
+                'The selected animation has no lobby card to preview.'
+            );
+        }
+        return plan;
+    },
+
     syncUiFromPreset: function() {
         var me = this;
         if (!this.preset) {
@@ -578,8 +921,62 @@ gh.motionstudio.prototype = {
             if (field === 'scale.mode') {
                 return;
             }
-            $(this).val(me.getNestedValue(me.preset, field));
+            $(this).val(
+                field === 'entry.delayMs'
+                    ? me.entryDelayMs
+                    : me.getNestedValue(me.preset, field)
+            );
         });
+    },
+
+    syncWindUi: function() {
+        if (!this.playbook || !this.playbook.wind) {
+            return;
+        }
+        $('#motionstudio-lock-wind-seed').prop(
+            'checked',
+            this.playbook.wind.locked === true
+        );
+        $('#motionstudio-wind-seed').text(
+            this.playbook.wind.seed
+        );
+    },
+
+    updateWindSeed: function(seed, locked) {
+        if (!this.api || !this.api.playbook || !this.playbook) {
+            return;
+        }
+        try {
+            this.playbook = this.api.playbook.updateWindSeed(
+                this.playbook,
+                seed || this.playbook.wind.seed,
+                locked === true
+            );
+            this.syncWindUi();
+            this.updateRecipeJson();
+            this.saveSessionPreset();
+            if (this.activeTarget &&
+                    this.activeTarget.kind === 'exit') {
+                this.applyPresetToSurface(true);
+            }
+        } catch (error) {
+            this.setControlStatus(
+                error && error.message
+                    ? error.message
+                    : 'The wind variation could not be updated.',
+                true
+            );
+        }
+    },
+
+    newWindVariation: function() {
+        if (!this.playbook || !this.playbook.wind) {
+            return;
+        }
+        this.updateWindSeed(
+            this.graphics.nextWindSeed('studio-wind'),
+            this.playbook.wind.locked === true
+        );
     },
 
     replay: function() {
@@ -626,8 +1023,6 @@ gh.motionstudio.prototype = {
         var y;
         var plan;
         var destination;
-        var baseX;
-        var baseY;
         var deltaX;
         var deltaY;
         var changes;
@@ -667,35 +1062,22 @@ gh.motionstudio.prototype = {
         }
         plan = this.lastSurfaceState.plan;
         destination = plan.path.destination;
-        baseX = destination.x - this.preset.path.landingXPx;
-        baseY = destination.y - this.preset.path.landingYPx;
-        if (this.helperDrag.name === 'land') {
-            changes = {
-                'path.landingXPx': Math.round(
-                    Math.max(-300, Math.min(300, x - baseX))
+        deltaX = x - destination.x;
+        deltaY = y - destination.y;
+        changes = {
+            'path.directionDeg':
+                Math.round(
+                    Math.atan2(-deltaY, -deltaX) * 180 / Math.PI
                 ),
-                'path.landingYPx': Math.round(
-                    Math.max(-220, Math.min(220, y - baseY))
-                )
-            };
-        } else {
-            deltaX = x - destination.x;
-            deltaY = y - destination.y;
-            changes = {
-                'path.directionDeg':
-                    Math.round(
-                        Math.atan2(-deltaY, -deltaX) * 180 / Math.PI
-                    ),
-                'path.distancePx': Math.round(
-                    Math.min(
-                        1000,
-                        Math.sqrt(
-                            (deltaX * deltaX) + (deltaY * deltaY)
-                        )
+            'path.distancePx': Math.round(
+                Math.min(
+                    1000,
+                    Math.sqrt(
+                        (deltaX * deltaX) + (deltaY * deltaY)
                     )
                 )
-            };
-        }
+            )
+        };
         this.applyDraftChanges(changes, true);
     },
 
@@ -771,11 +1153,11 @@ gh.motionstudio.prototype = {
         if (state.plan &&
                 state.planRevision !== this.lastHelperPlanRevision) {
             this.lastHelperPlanRevision = state.planRevision;
-            this.updateHelpers(state.plan);
+            this.updateHelpers(state.plan, state.motionContext);
         }
     },
 
-    updateHelpers: function(plan) {
+    updateHelpers: function(plan, motionContext) {
         var sample;
         var points = [];
         var index;
@@ -784,15 +1166,31 @@ gh.motionstudio.prototype = {
         var flightDuration;
         var contactAt;
         var flatAt;
+        var direction;
+        var exitDelay;
+        var motionDuration;
+        var apexAt;
 
         if (!this.api || !plan) {
             return;
         }
-        total = plan.timing.totalMs || 1;
+        direction = motionContext &&
+            motionContext.direction === 'exit'
+            ? 'exit'
+            : 'intro';
+        motionDuration = plan.timing.motionMs || 1;
+        exitDelay = direction === 'exit'
+            ? Number(motionContext.delayMs) || 0
+            : 0;
+        total = direction === 'exit'
+            ? exitDelay + motionDuration
+            : plan.timing.totalMs || 1;
         releaseAt = plan.timing.delayMs || 0;
         flightDuration = plan.timing.flightMs;
         contactAt = releaseAt + flightDuration;
         flatAt = contactAt + plan.timing.slapMs;
+        apexAt = releaseAt +
+            (flightDuration * plan.path.apexProgress);
         for (index = 0; index <= 24; index += 1) {
             sample = this.api.samplePlan(
                 plan,
@@ -833,17 +1231,40 @@ gh.motionstudio.prototype = {
             plan.path.destination.x,
             plan.path.destination.y
         );
-        this.placeTimelineMarker('release', releaseAt / total);
-        this.placeTimelineMarker(
-            'apex',
-            (
-                releaseAt +
-                (flightDuration * plan.path.apexProgress)
-            ) / total
-        );
-        this.placeTimelineMarker('contact', contactAt / total);
-        this.placeTimelineMarker('flat', flatAt / total);
-        this.placeTimelineMarker('settled', 1);
+        if (direction === 'exit') {
+            this.placeTimelineMarker(
+                'settled',
+                exitDelay / total
+            );
+            this.placeTimelineMarker(
+                'flat',
+                (
+                    exitDelay +
+                    Math.max(0, motionDuration - flatAt)
+                ) / total
+            );
+            this.placeTimelineMarker(
+                'contact',
+                (
+                    exitDelay +
+                    Math.max(0, motionDuration - contactAt)
+                ) / total
+            );
+            this.placeTimelineMarker(
+                'apex',
+                (
+                    exitDelay +
+                    Math.max(0, motionDuration - apexAt)
+                ) / total
+            );
+            this.placeTimelineMarker('release', 1);
+        } else {
+            this.placeTimelineMarker('release', releaseAt / total);
+            this.placeTimelineMarker('apex', apexAt / total);
+            this.placeTimelineMarker('contact', contactAt / total);
+            this.placeTimelineMarker('flat', flatAt / total);
+            this.placeTimelineMarker('settled', 1);
+        }
     },
 
     placeMarker: function(name, x, y) {
@@ -852,26 +1273,53 @@ gh.motionstudio.prototype = {
     },
 
     placeTimelineMarker: function(name, progress) {
-        $('[data-motion-marker="' + name + '"]').css(
-            'left',
-            (Math.max(0, Math.min(1, progress)) * 100) + '%'
-        );
+        var bounded = Math.max(0, Math.min(1, progress));
+        $('[data-motion-marker="' + name + '"]')
+            .css('left', (bounded * 100) + '%')
+            .attr(
+                'data-motion-edge',
+                bounded < 0.08
+                    ? 'left'
+                    : (bounded > 0.92 ? 'right' : 'center')
+            );
     },
 
     updateRecipeJson: function() {
-        if (this.api && this.preset) {
+        if (this.api && this.api.playbook && this.playbook) {
             $('#motionstudio-json').val(
-                this.api.serializePreset(this.preset)
+                this.api.playbook.serialize(this.playbook)
             );
         }
     },
 
     copyJson: function() {
         var me = this;
-        var text = $('#motionstudio-json').val();
+        var text;
         var copied = function() {
-            me.setJsonStatus('Copied the versioned recipe.', false);
+            me.setJsonStatus(
+                'Exported the complete versioned lobby playbook.',
+                false
+            );
         };
+        if (!this.api || !this.api.playbook || !this.playbook) {
+            this.setJsonStatus(
+                'The lobby playbook is unavailable for export.',
+                true
+            );
+            return;
+        }
+        try {
+            text = this.api.playbook.serialize(this.playbook);
+            $('#motionstudio-json').val(text);
+        } catch (error) {
+            this.setJsonStatus(
+                error && error.message
+                    ? error.message
+                    : 'The lobby playbook could not be exported.',
+                true
+            );
+            return;
+        }
         if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(text).then(copied, function() {
                 me.fallbackCopy(text, copied);
@@ -894,44 +1342,144 @@ gh.motionstudio.prototype = {
 
     applyJson: function() {
         var candidate;
-        if (!this.api) {
+        if (!this.api || !this.api.playbook) {
             return;
         }
         try {
-            candidate = this.api.parsePreset(
+            candidate = this.api.playbook.parse(
                 $('#motionstudio-json').val()
             );
-            candidate = this.api.normalizePreset(candidate);
-            this.preset = candidate;
-            this.activePresetName = 'custom';
-            this.applyPresetToSurface(true);
-            this.setJsonStatus('Recipe applied.', false);
+            this.playbook = this.api.playbook.normalize(
+                this.graphics.setLobbyPlaybook(candidate, true)
+            );
+            this.targetPresetNames = {};
+            this.selectTarget(this.activeTargetId, true);
+            this.setJsonStatus(
+                'The complete lobby playbook was imported.',
+                false
+            );
             this.setControlStatus('', false);
         } catch (error) {
             this.setJsonStatus(
                 error && error.message
                     ? error.message
-                    : 'The recipe is invalid.',
+                    : 'The lobby playbook is invalid.',
                 true
             );
         }
     },
 
-    saveSessionPreset: function() {
-        var serializedPreset;
-        var session;
-        if (!this.api || !this.preset) {
+    applyAndPreview: function() {
+        var me = this;
+        var sequence;
+        var seed;
+        var previewToken;
+        var completePreview;
+        if (!this.api || !this.playbook || !this.activeTarget ||
+                !this.graphics ||
+                !gh.defined(
+                    this.graphics.previewLobbyPlaybook,
+                    'function'
+                )) {
+            this.setControlStatus(
+                'The real lobby preview is unavailable.',
+                true
+            );
             return;
         }
         try {
-            serializedPreset = JSON.parse(
-                this.api.serializePreset(this.preset)
+            this.playbook = this.api.playbook.normalize(
+                this.graphics.setLobbyPlaybook(
+                    this.playbook,
+                    true
+                )
             );
+        } catch (error) {
+            this.setControlStatus(
+                error && error.message
+                    ? error.message
+                    : 'The lobby playbook could not be applied.',
+                true
+            );
+            return;
+        }
+        sequence = this.activeTarget.kind;
+        seed = this.playbook.wind.seed;
+        previewToken = ++this.previewGeneration;
+        this.pendingPreviewToken = previewToken;
+        this.previewingLobby = true;
+        this.saveSessionPreset();
+        this.close({preservePreview: true});
+        completePreview = function(result) {
+            var outcome;
+            var canRestore = false;
+            if (me.pendingPreviewToken !== previewToken) {
+                return;
+            }
+            try {
+                canRestore =
+                    me.graphics &&
+                    gh.defined(
+                        me.graphics.canRestoreMotionStudioPreview,
+                        'function'
+                    ) &&
+                    me.graphics.canRestoreMotionStudioPreview();
+            } catch (error) {
+                canRestore = false;
+            }
+            if (!canRestore) {
+                me.invalidatePreviewOwnership();
+                return;
+            }
+            outcome = result && result.outcome
+                ? String(result.outcome)
+                : '';
+            me.open({previewToken: previewToken});
+            if (outcome &&
+                    outcome.indexOf('completed') !== 0 &&
+                    outcome !== 'skipped-reduced-motion') {
+                window.setTimeout(function() {
+                    me.setControlStatus(
+                        'The lobby preview ended with "' +
+                        outcome + '".',
+                        true
+                    );
+                }, 0);
+            }
+        };
+        try {
+            this.graphics.previewLobbyPlaybook(
+                sequence,
+                {seed: seed},
+                completePreview
+            );
+        } catch (error) {
+            completePreview({
+                outcome: 'failed',
+                sequence: sequence,
+                error: error
+            });
+        }
+    },
+
+    saveSessionPreset: function() {
+        var draftPlaybook = null;
+        var session;
+        try {
+            if (this.api && this.api.playbook && this.playbook) {
+                draftPlaybook =
+                    this.api.playbook.serialize(this.playbook);
+            }
             session = {
                 studioSessionVersion: this.sessionVersion,
+                activeTargetId: this.activeTargetId,
                 activePresetName: this.activePresetName,
                 basePresetName: this.basePresetName,
-                preset: serializedPreset,
+                draftPlaybook: draftPlaybook,
+                targetPresetNames: $.extend(
+                    {},
+                    this.targetPresetNames
+                ),
                 ui: {
                     autoReplay:
                         $('#motionstudio-auto-replay').is(':checked'),

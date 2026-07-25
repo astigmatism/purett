@@ -311,29 +311,24 @@ test('renders the five-card lobby hand with Three.js and preserves the Legacy lo
     .toEqual(expectedCards.map(card => card.textureUrl));
 });
 
-test('seeds one reusable casual-left arrival batch and settles it through the shared scheduler', async ({page}) => {
+test('runs the five application-owned lobby intro targets through one shared scheduler', async ({page}) => {
   await page.emulateMedia({reducedMotion: 'no-preference'});
   await loginWithLegacyGraphics(page);
   await selectGraphicsMode(page, 'modern');
   await waitForModernLobby(page);
-  await page.evaluate(() => {
-    gh.manager.graphics.disposeSurface();
-    gh.manager.graphics.ensureSurface('lobby-hand');
-    gh.manager.graphics.renderCurrentSurface();
-  });
-  await waitForModernLobby(page);
+
   await page.evaluate(() => {
     let nextFrameId = 1;
     const queuedFrames = new Map();
-    window.__arrivalFrameHarness = {
+    window.__playbookIntroHarness = {
       queuedFrames,
       originalRequestAnimationFrame: window.requestAnimationFrame,
       originalCancelAnimationFrame: window.cancelAnimationFrame,
+      completion: null,
       advance(timestamp) {
         const frames = Array.from(queuedFrames.values());
         queuedFrames.clear();
         frames.forEach(callback => callback(timestamp));
-        return queuedFrames.size;
       }
     };
     window.requestAnimationFrame = callback => {
@@ -345,410 +340,146 @@ test('seeds one reusable casual-left arrival batch and settles it through the sh
     window.cancelAnimationFrame = frameId => {
       queuedFrames.delete(frameId);
     };
-    gh.manager.menu.hand.forEach(card => card.remove());
-    gh.manager.menu.hand = [];
-    gh.manager.menu.show(() => {});
+    window.__playbookIntroBaseline =
+      gh.manager.graphics.getState().surface.completedPlaybookIntroCount;
+    gh.manager.graphics.replayLobbyIntro(result => {
+      window.__playbookIntroHarness.completion = result;
+    });
   });
-
-  await expect.poll(() => page.evaluate(() => {
-    const state = gh.manager.graphics.getState();
-    return Boolean(
-      state.surface &&
-      state.surface.ready &&
-      state.surface.activeArrivalCount === 5 &&
-      window.__arrivalFrameHarness.queuedFrames.size === 1
-    );
-  })).toBe(true);
 
   const initial = await page.evaluate(() => ({
-    presentation: gh.manager.graphics.getState().lobbyPresentation,
-    deliveredPresentationId:
-      gh.manager.graphics.getState().lobbyPresentationDeliveredId,
-    surface: gh.manager.graphics.getState().surface,
-    queuedFrames: window.__arrivalFrameHarness.queuedFrames.size
+    graphics: gh.manager.graphics.getState(),
+    queuedFrames: window.__playbookIntroHarness.queuedFrames.size
   }));
-  expect(initial.presentation).toMatchObject({
+  expect(initial.graphics.lobbyPresentation).toMatchObject({
     trigger: 'command-bar-reveal',
-    profile: 'casual-drop-left'
+    sequence: 'intro'
   });
-  expect(initial.presentation.startedAtMs).toEqual(expect.any(Number));
-  expect(initial.deliveredPresentationId).toBe(
-    String(initial.presentation.id)
+  expect(initial.graphics.lobbyPresentationDeliveredId).toBe(
+    String(initial.graphics.lobbyPresentation.id)
   );
-  expect(initial.surface).toMatchObject({
+  expect(initial.graphics.surface).toMatchObject({
     ready: true,
     interactive: false,
     activeAnimationCount: 5,
-    activeArrivalCount: 5,
+    activePlaybookCount: 5,
+    activeArrivalCount: 0,
     activeFlipCount: 0,
-    completedAnimationCount: 0,
-    completedArrivalCount: 0,
-    lastTransition: null,
-    motionProfile: {
-      arrival: {
-        profile: 'casual-drop-left',
-        originEdge: 'left',
-        seeded: true,
-        destinationDriven: true,
-        originPolicy: 'compact-left-hand-packet',
-        placementOrder: 'art-directed-human-scatter',
-        collisionPolicy: 'depth-separated-natural-overflight',
-        projectionProfile: 'flat-table-neutralized-through-arrival',
-        phases: ['flight', 'slap', 'slide'],
-        flightPolicy: 'analytic-ballistic-human-scatter',
-        landingPolicy: 'edge-contact-and-continuous-friction',
-        maxBatchDurationMs: 1500
-      }
-    },
-    lastArrivalBatch: {
-      trigger: 'command-bar-reveal',
-      profile: 'casual-drop-left',
-      originEdge: 'left',
-      originPolicy: 'compact-left-hand-packet',
-      placementOrder: 'art-directed-human-scatter',
-      collisionPolicy: 'depth-separated-natural-overflight',
-      outcome: 'running',
-      maxBatchDurationMs: 1500
+    lastPlaybookBatch: {
+      sequence: 'intro',
+      trigger: 'lobby-reentry',
+      outcome: 'running'
     }
   });
-  expect(initial.surface.lastArrivalBatch.totalDurationMs).toBeLessThanOrEqual(1500);
-  expect(initial.surface.lastArrivalBatch.startedAtMs).toBe(
-    initial.presentation.startedAtMs
-  );
-  expect(initial.surface.lastArrivalBatch.plans).toHaveLength(5);
-  expect(new Set(
-    initial.surface.lastArrivalBatch.plans.map(plan => plan.releaseIndex)
-  ).size).toBe(5);
-  expect(initial.surface.lastArrivalBatch.plans.map(plan => plan.releaseIndex))
-    .toEqual([4, 3, 1, 2, 0]);
-  expect(new Set(
-    initial.surface.lastArrivalBatch.plans.map(plan => plan.motionVariant)
-  ).size).toBe(5);
-  const releaseGaps = initial.surface.lastArrivalBatch.releaseTimes
-    .slice(1)
-    .map((release, index, releases) => (
-      release - initial.surface.lastArrivalBatch.releaseTimes[index]
-    ));
-  expect(releaseGaps.some(gap => gap < 100)).toBe(true);
-  expect(releaseGaps.some(gap => gap > 290)).toBe(true);
-  expect(initial.surface.lastArrivalBatch.releaseWindowMs)
-    .toBeLessThanOrEqual(720);
-  expect(initial.surface.lastArrivalBatch.plans.every(plan =>
-    plan.launchHalfExtent > (117 / 2) &&
-    plan.start.x + plan.launchHalfExtent < 0
-  )).toBe(true);
-  expect(initial.surface.cards.every(card =>
-    card.animationKind === 'arrival' &&
-    card.arrivalAnimating &&
-    card.phase.startsWith('arrival-')
-  )).toBe(true);
   expect(initial.queuedFrames).toBe(1);
+  expect(initial.graphics.surface.lastPlaybookBatch.plans.map(
+    plan => plan.targetId
+  )).toEqual([
+    'lobby-card-1-intro',
+    'lobby-card-2-intro',
+    'lobby-card-3-intro',
+    'lobby-card-4-intro',
+    'lobby-card-5-intro'
+  ]);
+  expect(initial.graphics.surface.lastPlaybookBatch.plans.every(
+    (plan, cardIndex) => (
+      plan.cardIndex === cardIndex &&
+      plan.endpoint.x === plan.anchor.x &&
+      plan.endpoint.y === plan.anchor.y &&
+      plan.delayMs === initial.graphics.lobbyPlaybook.targets[
+        `lobby-card-${cardIndex + 1}-intro`
+      ].delayMs
+    )
+  )).toBe(true);
+  expect(initial.graphics.surface.cards.every(card => (
+    card.animationKind === 'playbook' &&
+    card.playbookAnimating &&
+    card.phase.startsWith('intro-')
+  ))).toBe(true);
 
-  const samples = await page.evaluate(() => {
-    const harness = window.__arrivalFrameHarness;
-    const initialSurface = gh.manager.graphics.getState().surface;
-    const revealOrigin = initialSurface.lastArrivalBatch.startedAtMs;
-    const timeline = Array.from(
-      new Set([
-        ...Array.from({length: 123}, (_, index) => index * 16),
-        500,
-        1200,
-        initialSurface.lastArrivalBatch.maxBatchDurationMs
-      ])
-    ).filter(elapsed => (
-      elapsed <= initialSurface.lastArrivalBatch.maxBatchDurationMs
-    )).sort((left, right) => left - right);
-    let firstFrame = null;
-    let flight = null;
-    let contact = null;
-    let settled = null;
-    let overflightViolation = null;
-    let projectedOverflightCount = 0;
-    let maxPerspectiveScale = 1;
-    let maxProjectedEdgeScale = 1;
-    let sawSlap = false;
-    let sawSlide = false;
-
-    function polygonsOverlap(left, right) {
-      for (const polygon of [left, right]) {
-        for (let index = 0; index < polygon.length; index += 1) {
-          const start = polygon[index];
-          const end = polygon[(index + 1) % polygon.length];
-          const axisX = -(end.y - start.y);
-          const axisY = end.x - start.x;
-          const leftProjection = left.map(
-            point => (point.x * axisX) + (point.y * axisY)
-          );
-          const rightProjection = right.map(
-            point => (point.x * axisX) + (point.y * axisY)
-          );
-          if (
-            Math.max(...leftProjection) <=
-              Math.min(...rightProjection) + 0.01 ||
-            Math.max(...rightProjection) <=
-              Math.min(...leftProjection) + 0.01
-          ) {
-            return false;
-          }
-        }
-      }
-      return true;
-    }
-
-    timeline.forEach(elapsed => {
-      harness.advance(revealOrigin + elapsed);
-      const state = gh.manager.graphics.getState().surface;
-      if (elapsed === 0) firstFrame = state;
-      if (elapsed === 500) flight = state;
-      if (elapsed === 1200) contact = state;
-      if (elapsed === initialSurface.lastArrivalBatch.maxBatchDurationMs) {
-        settled = state;
-      }
-      sawSlap = sawSlap || state.cards.some(
-        card => card.phase === 'arrival-slap'
-      );
-      sawSlide = sawSlide || state.cards.some(
-        card => card.phase === 'arrival-slide'
-      );
-      state.cards.forEach(card => {
-        maxPerspectiveScale = Math.max(
-          maxPerspectiveScale,
-          card.transform.perspectiveScale
-        );
-        const corners = card.transform.projectedFace.corners;
-        const edgeLength = (start, end) => Math.hypot(
-          end.x - start.x,
-          end.y - start.y
-        );
-        maxProjectedEdgeScale = Math.max(
-          maxProjectedEdgeScale,
-          edgeLength(corners[0], corners[1]) / card.screenRect.width,
-          edgeLength(corners[2], corners[3]) / card.screenRect.width,
-          edgeLength(corners[0], corners[3]) / card.screenRect.height,
-          edgeLength(corners[1], corners[2]) / card.screenRect.height
-        );
-      });
-      const releasedCards = state.cards.filter(card => (
-        (card.arrivalAnimating && card.phase !== 'arrival-waiting') ||
-        card.completedArrivals > 0
-      ));
-      for (
-        let leftIndex = 0;
-        leftIndex < releasedCards.length;
-        leftIndex += 1
-      ) {
-        for (
-          let rightIndex = leftIndex + 1;
-          rightIndex < releasedCards.length;
-          rightIndex += 1
-        ) {
-          const left = releasedCards[leftIndex];
-          const right = releasedCards[rightIndex];
-          if (polygonsOverlap(
-              left.transform.projectedFace.corners,
-              right.transform.projectedFace.corners
-            )) {
-            projectedOverflightCount += 1;
-            const centerDistance = Math.hypot(
-              left.transform.screenPosition.x -
-                right.transform.screenPosition.x,
-              left.transform.screenPosition.y -
-                right.transform.screenPosition.y
-            );
-            const centerDepthSeparation = Math.abs(
-              left.transform.worldPosition.z -
-                right.transform.worldPosition.z
-            );
-            if (
-              !overflightViolation &&
-              centerDistance < 80 &&
-              centerDepthSeparation < 1
-            ) {
-              overflightViolation = {
-                elapsed,
-                cardIndexes: [left.index, right.index],
-                centerDistance,
-                centerDepthSeparation
-              };
-            }
-          }
-        }
-      }
-    });
-
+  const settled = await page.evaluate(() => {
+    const harness = window.__playbookIntroHarness;
+    const batch =
+      gh.manager.graphics.getState().surface.lastPlaybookBatch;
+    const startedAt = performance.now();
+    harness.advance(startedAt);
+    harness.advance(startedAt + batch.deadlineMs);
+    const state = gh.manager.graphics.getState().surface;
+    window.requestAnimationFrame =
+      harness.originalRequestAnimationFrame;
+    window.cancelAnimationFrame =
+      harness.originalCancelAnimationFrame;
     return {
-      firstFrame,
-      flight,
-      contact,
-      settled,
-      overflightViolation,
-      projectedOverflightCount,
-      maxPerspectiveScale,
-      maxProjectedEdgeScale,
-      sawSlap,
-      sawSlide,
+      state,
+      completion: harness.completion,
+      baseline: window.__playbookIntroBaseline,
       queuedFrames: harness.queuedFrames.size
     };
   });
-
-  expect(samples.firstFrame.activeArrivalCount).toBe(5);
-  expect(samples.flight.cards.some(card =>
-    card.phase === 'arrival-flight' &&
-    card.transform.z > 0 &&
-    card.transform.screenPosition.x > card.lastArrivalTransition.plan.start.x
-  )).toBe(true);
-  expect(samples.sawSlap).toBe(true);
-  expect(samples.sawSlide).toBe(true);
-  expect(samples.contact.completedArrivalCount).toBeLessThanOrEqual(5);
-  expect(samples.overflightViolation).toBeNull();
-  expect(samples.projectedOverflightCount).toBeGreaterThan(0);
-  expect(samples.maxPerspectiveScale).toBeLessThanOrEqual(1.090001);
-  expect(samples.maxProjectedEdgeScale).toBeLessThanOrEqual(1.090001);
-  expect(samples.settled).toMatchObject({
+  expect(settled.state).toMatchObject({
     interactive: true,
     activeAnimationCount: 0,
-    activeArrivalCount: 0,
-    activeFlipCount: 0,
-    completedAnimationCount: 0,
-    completedArrivalCount: 5,
+    activePlaybookCount: 0,
     rafActive: false,
-    analyticShadowVisible: false,
-    lastTransition: null,
-    lastArrivalBatch: {
-      outcome: 'completed'
+    lastPlaybookBatch: {
+      sequence: 'intro',
+      outcome: 'completed-intro'
     }
   });
-  expect(samples.settled.cards.every(card =>
+  expect(settled.state.completedPlaybookIntroCount).toBe(
+    settled.baseline + 1
+  );
+  expect(settled.completion).toMatchObject({
+    sequence: 'intro',
+    outcome: 'completed-intro'
+  });
+  expect(settled.queuedFrames).toBe(0);
+  expect(settled.state.cards.every(card => (
     card.phase === 'idle' &&
     card.visibleFace === 'front' &&
-    card.completedArrivals === 1 &&
-    card.completedFlips === 0 &&
-    card.animating === false &&
+    card.playbookAnimating === false &&
+    card.exited === false &&
     card.transform.z === 0 &&
     card.transform.scale === 1 &&
     card.transform.rotationX === 0 &&
     card.transform.rotationY === 0 &&
-    card.transform.pickupTiltX === 0 &&
-    card.transform.pickupTiltY === 0 &&
-    card.transform.staticRotationZ === 0 &&
     card.transform.screenPosition.x ===
       card.screenRect.x + (card.screenRect.width / 2) &&
     card.transform.screenPosition.y ===
       562 - card.screenRect.y - (card.screenRect.height / 2)
-  )).toBe(true);
-  expect(samples.settled.recentArrivalTransitions).toHaveLength(5);
-  expect(samples.settled.recentArrivalTransitions.every(transition =>
-    transition.kind === 'arrival' &&
-    transition.outcome === 'completed-arrival' &&
-    transition.phases.at(-1) === 'settled' &&
-    transition.evidence.exactSettlement === true &&
-    transition.evidence.maxVertexPerspectiveScale <= 1.090001 &&
-    transition.evidence.minimumTableClearance === 0
-  )).toBe(true);
-  expect(samples.queuedFrames).toBe(0);
-
-  await page.evaluate(() => {
-    const harness = window.__arrivalFrameHarness;
-    window.requestAnimationFrame = harness.originalRequestAnimationFrame;
-    window.cancelAnimationFrame = harness.originalCancelAnimationFrame;
-    gh.manager.graphics.disposeSurface();
-    gh.manager.graphics.ensureSurface('lobby-hand');
-    gh.manager.graphics.renderCurrentSurface();
-  });
-  await waitForModernLobby(page);
-  const recreated = await page.evaluate(() => gh.manager.graphics.getState());
-  expect(recreated.lobbyPresentationDeliveredId).toBe(
-    String(recreated.lobbyPresentation.id)
+  ))).toBe(true);
+  const replayTransitions = settled.state.recentPlaybookTransitions.filter(
+    transition => transition.requestId ===
+      settled.state.lastPlaybookBatch.requestId
   );
-  expect(recreated.surface).toMatchObject({
-    interactive: true,
-    activeArrivalCount: 0,
-    completedArrivalCount: 0,
-    lastArrivalBatch: null
-  });
-
-  const catchUp = await page.evaluate(() => {
-    let nextFrameId = 1;
-    const queuedFrames = new Map();
-    const originalRequestAnimationFrame = window.requestAnimationFrame;
-    const originalCancelAnimationFrame = window.cancelAnimationFrame;
-    window.requestAnimationFrame = callback => {
-      const frameId = nextFrameId;
-      nextFrameId += 1;
-      queuedFrames.set(frameId, callback);
-      return frameId;
-    };
-    window.cancelAnimationFrame = frameId => {
-      queuedFrames.delete(frameId);
-    };
-    gh.manager.menu.presentationSequence += 1;
-    gh.manager.menu.activePresentation = {
-      id: gh.manager.menu.presentationSequence,
-      trigger: 'command-bar-reveal',
-      profile: 'casual-drop-left',
-      startedAtMs: performance.now() - 500
-    };
-    gh.manager.graphics.showLobbyHand(
-      gh.manager.menu.currentHandCards,
-      gh.manager.menu.activePresentation
-    );
-    const caughtUp = gh.manager.graphics.getState().surface;
-    const frame = Array.from(queuedFrames.values())[0];
-    queuedFrames.clear();
-    frame(
-      caughtUp.lastArrivalBatch.startedAtMs +
-      caughtUp.lastArrivalBatch.maxBatchDurationMs
-    );
-    const settled = gh.manager.graphics.getState().surface;
-    window.requestAnimationFrame = originalRequestAnimationFrame;
-    window.cancelAnimationFrame = originalCancelAnimationFrame;
-    return {caughtUp, settled, queuedFrames: queuedFrames.size};
-  });
-  expect(catchUp.caughtUp.lastArrivalBatch.elapsedBeforeReadyMs)
-    .toBeGreaterThanOrEqual(450);
-  expect(catchUp.caughtUp.cards.every(card =>
-    card.phase === 'arrival-waiting' ||
-    card.phase === 'arrival-flight' ||
-    card.phase === 'arrival-slap' ||
-    card.phase === 'arrival-slide'
-  )).toBe(true);
-  expect(catchUp.caughtUp.cards.some(card =>
-    card.phase !== 'arrival-waiting' &&
-    card.transform.screenPosition.x >
-      card.lastArrivalTransition.plan.start.x
-  )).toBe(true);
-  expect(catchUp.settled).toMatchObject({
-    interactive: true,
-    activeArrivalCount: 0,
-    completedArrivalCount: 5,
-    rafActive: false,
-    lastArrivalBatch: {
-      outcome: 'completed'
-    }
-  });
-  expect(catchUp.queuedFrames).toBe(0);
+  expect(replayTransitions).toHaveLength(5);
+  expect(replayTransitions.every(transition => (
+    transition.kind === 'playbook' &&
+    transition.sequence === 'intro' &&
+    transition.outcome === 'completed-intro' &&
+    transition.phases.at(-1) === 'settled'
+  ))).toBe(true);
 });
 
-test('cancels an active lobby arrival atomically and cannot replay its presentation token', async ({page}) => {
+test('defers a lobby command behind one seeded Gentle Wind exit and ignores duplicate clicks', async ({page}) => {
   await page.emulateMedia({reducedMotion: 'no-preference'});
   await loginWithLegacyGraphics(page);
   await selectGraphicsMode(page, 'modern');
   await waitForModernLobby(page);
-  await page.evaluate(() => {
-    gh.manager.graphics.disposeSurface();
-    gh.manager.graphics.ensureSurface('lobby-hand');
-    gh.manager.graphics.renderCurrentSurface();
-  });
-  await waitForModernLobby(page);
 
   await page.evaluate(() => {
     let nextFrameId = 1;
     const queuedFrames = new Map();
-    window.__arrivalCancellationHarness = {
+    window.__commandExitHarness = {
       queuedFrames,
       originalRequestAnimationFrame: window.requestAnimationFrame,
       originalCancelAnimationFrame: window.cancelAnimationFrame,
-      staleFrame: null
+      invocations: 0,
+      advance(timestamp) {
+        const frames = Array.from(queuedFrames.values());
+        queuedFrames.clear();
+        frames.forEach(callback => callback(timestamp));
+      }
     };
     window.requestAnimationFrame = callback => {
       const frameId = nextFrameId;
@@ -759,98 +490,106 @@ test('cancels an active lobby arrival atomically and cannot replay its presentat
     window.cancelAnimationFrame = frameId => {
       queuedFrames.delete(frameId);
     };
-    gh.manager.menu.hand.forEach(card => card.remove());
-    gh.manager.menu.hand = [];
-    gh.manager.menu.show(() => {});
-    window.__arrivalCancellationHarness.staleFrame =
-      Array.from(queuedFrames.values())[0];
+    gh.manager.menu.main({
+      shop() {
+        window.__commandExitHarness.invocations += 1;
+      }
+    });
   });
+  await page.locator('ul.mainmenu li.shop').click();
 
-  await expect.poll(() => page.evaluate(() => {
-    const state = gh.manager.graphics.getState();
-    return state.surface.activeArrivalCount === 5 &&
-      window.__arrivalCancellationHarness.queuedFrames.size === 1;
-  })).toBe(true);
-  const activePresentationId = await page.evaluate(() => (
-    String(gh.manager.graphics.getState().lobbyPresentation.id)
-  ));
-
-  await selectGraphicsMode(page, 'legacy');
-  await expect.poll(() => page.evaluate(() => (
-    gh.manager.graphics.getState().effectiveMode === 'legacy'
-  ))).toBe(true);
-
-  const cancelled = await page.evaluate(() => ({
-    state: gh.manager.graphics.getState(),
-    queuedFrames:
-      window.__arrivalCancellationHarness.queuedFrames.size
+  const deferred = await page.evaluate(() => ({
+    graphics: gh.manager.graphics.getState(),
+    commandPending: gh.manager.menu.commandPending,
+    invocations: window.__commandExitHarness.invocations,
+    queuedFrames: window.__commandExitHarness.queuedFrames.size
   }));
-  expect(cancelled.queuedFrames).toBe(0);
-  expect(cancelled.state.lobbyPresentationDeliveredId).toBe(
-    activePresentationId
-  );
-  expect(cancelled.state.surface).toMatchObject({
-    suspended: true,
-    activeAnimationCount: 0,
-    activeArrivalCount: 0,
-    completedArrivalCount: 0,
-    animationFrameCount: 0,
-    rafActive: false,
-    analyticShadowVisible: false,
-    lastArrivalBatch: {
-      outcome: 'cancelled'
+  expect(deferred).toMatchObject({
+    commandPending: true,
+    invocations: 0,
+    queuedFrames: 1,
+    graphics: {
+      pendingLobbyCommand: {
+        command: 'shop'
+      },
+      surface: {
+        interactive: false,
+        activeAnimationCount: 5,
+        activePlaybookCount: 5,
+        lastPlaybookBatch: {
+          sequence: 'exit',
+          trigger: 'lobby-command-shop',
+          outcome: 'running'
+        }
+      }
     }
   });
-  expect(cancelled.state.surface.cards.every(card =>
-    card.phase === 'idle' &&
-    card.completedArrivals === 0 &&
-    card.animating === false &&
-    card.analyticShadowVisible === false &&
-    card.transform.z === 0 &&
-    card.transform.rotationX === 0 &&
-    card.transform.rotationY === 0 &&
-    card.transform.pickupTiltX === 0 &&
-    card.transform.pickupTiltY === 0 &&
-    card.transform.staticRotationZ === 0 &&
-    card.transform.screenPosition.x ===
-      card.screenRect.x + (card.screenRect.width / 2) &&
-    card.transform.screenPosition.y ===
-      562 - card.screenRect.y - (card.screenRect.height / 2)
-  )).toBe(true);
+  const exitBatch = deferred.graphics.surface.lastPlaybookBatch;
+  expect(exitBatch.plans).toHaveLength(5);
+  expect(exitBatch.plans.every(plan => (
+    plan.targetId === 'lobby-hand-gentle-wind-exit' &&
+    plan.endpoint.x < 0 &&
+    plan.endpoint.y > plan.anchor.y
+  ))).toBe(true);
+  expect(new Set(exitBatch.plans.map(plan => plan.seed)).size).toBe(5);
+  expect(new Set(exitBatch.plans.map(plan => (
+    `${Math.round(plan.endpoint.x)}:${Math.round(plan.endpoint.y)}`
+  ))).size).toBe(5);
 
-  const afterStaleFrame = await page.evaluate(() => {
-    const harness = window.__arrivalCancellationHarness;
-    harness.staleFrame(performance.now() + 1000);
-    return gh.manager.graphics.getState().surface;
-  });
-  expect(afterStaleFrame).toMatchObject({
-    suspended: true,
-    activeArrivalCount: 0,
-    completedArrivalCount: 0,
-    animationFrameCount: 0,
-    rafActive: false,
-    analyticShadowVisible: false
+  await page.locator('ul.mainmenu li.shop').click();
+  expect(await page.evaluate(() => ({
+    token: gh.manager.graphics.getState().pendingLobbyCommand.token,
+    invocations: window.__commandExitHarness.invocations,
+    queuedFrames: window.__commandExitHarness.queuedFrames.size
+  }))).toEqual({
+    token: deferred.graphics.pendingLobbyCommand.token,
+    invocations: 0,
+    queuedFrames: 1
   });
 
-  await page.evaluate(() => {
-    const harness = window.__arrivalCancellationHarness;
-    window.requestAnimationFrame = harness.originalRequestAnimationFrame;
-    window.cancelAnimationFrame = harness.originalCancelAnimationFrame;
+  const completed = await page.evaluate(() => {
+    const harness = window.__commandExitHarness;
+    const deadline =
+      gh.manager.graphics.getState().surface.lastPlaybookBatch.deadlineMs;
+    const startedAt = performance.now();
+    harness.advance(startedAt);
+    harness.advance(startedAt + deadline);
+    const state = gh.manager.graphics.getState();
+    const result = {
+      state,
+      commandPending: gh.manager.menu.commandPending,
+      invocations: harness.invocations,
+      queuedFrames: harness.queuedFrames.size
+    };
+    window.requestAnimationFrame =
+      harness.originalRequestAnimationFrame;
+    window.cancelAnimationFrame =
+      harness.originalCancelAnimationFrame;
+    gh.manager.graphics.surface.resetPlaybookCards();
+    return result;
   });
-  await selectGraphicsMode(page, 'modern');
-  await waitForModernLobby(page);
-  const resumed = await page.evaluate(() => gh.manager.graphics.getState());
-  expect(resumed.lobbyPresentationDeliveredId).toBe(activePresentationId);
-  expect(resumed.surface).toMatchObject({
-    suspended: false,
-    interactive: true,
-    activeArrivalCount: 0,
-    completedArrivalCount: 0,
-    rafActive: false,
-    lastArrivalBatch: {
-      outcome: 'cancelled'
+  expect(completed).toMatchObject({
+    commandPending: false,
+    invocations: 1,
+    queuedFrames: 0,
+    state: {
+      pendingLobbyCommand: null,
+      surface: {
+        activeAnimationCount: 0,
+        activePlaybookCount: 0,
+        rafActive: false,
+        lastPlaybookBatch: {
+          sequence: 'exit',
+          outcome: 'completed-exit'
+        }
+      }
     }
   });
+  expect(completed.state.surface.cards.every(card => (
+    card.phase === 'exited' &&
+    card.exited &&
+    card.playbookAnimating === false
+  ))).toBe(true);
 });
 
 test('keeps left, center, and right lobby cards on one flat projected plane during the lifted turn', async ({page}) => {
@@ -1533,45 +1272,57 @@ test('ray-picks cards with independent re-entry guards and one shared concurrent
   });
 });
 
-test('reduced motion shares three bounded frame boundaries across concurrent cards', async ({page}) => {
+test('reduced motion reaches the terminal playbook intro state before bounded concurrent flips', async ({page}) => {
   await page.emulateMedia({reducedMotion: 'reduce'});
   await loginWithLegacyGraphics(page);
   await selectGraphicsMode(page, 'modern');
   await waitForModernLobby(page);
 
-  const reducedArrival = await page.evaluate(() => {
+  const reducedIntro = await page.evaluate(() => {
     const state = gh.manager.graphics.getState().surface;
     return {
       animationFrameCount: state.animationFrameCount,
-      completedArrivalCount: state.completedArrivalCount,
-      activeArrivalCount: state.activeArrivalCount,
+      activePlaybookCount: state.activePlaybookCount,
       rafActive: state.rafActive,
-      batch: state.lastArrivalBatch,
+      batch: state.lastPlaybookBatch,
       cards: state.cards.map(card => ({
-        completedArrivals: card.completedArrivals,
+        phase: card.phase,
+        exited: card.exited,
+        playbookAnimating: card.playbookAnimating,
         transform: card.transform
       }))
     };
   });
-  expect(reducedArrival).toMatchObject({
+  expect(reducedIntro).toMatchObject({
     animationFrameCount: 0,
-    completedArrivalCount: 5,
-    activeArrivalCount: 0,
+    activePlaybookCount: 0,
     rafActive: false,
     batch: {
+      sequence: 'intro',
+      trigger: 'command-bar-reveal',
       outcome: 'skipped-reduced-motion'
     }
   });
-  expect(reducedArrival.cards.every(card =>
-    card.completedArrivals === 1 &&
+  expect(reducedIntro.batch.plans.map(plan => plan.targetId)).toEqual([
+    'lobby-card-1-intro',
+    'lobby-card-2-intro',
+    'lobby-card-3-intro',
+    'lobby-card-4-intro',
+    'lobby-card-5-intro'
+  ]);
+  expect(reducedIntro.cards.every(card =>
+    card.phase === 'idle' &&
+    card.exited === false &&
+    card.playbookAnimating === false &&
     card.transform.z === 0 &&
+    card.transform.scale === 1 &&
     card.transform.rotationX === 0 &&
     card.transform.rotationY === 0 &&
     card.transform.pickupTiltX === 0 &&
     card.transform.pickupTiltY === 0 &&
     card.transform.staticRotationZ === 0
   )).toBe(true);
-  const baselineFrames = reducedArrival.animationFrameCount;
+  const baselineFrames = reducedIntro.animationFrameCount;
   const startedStates = await dispatchLobbyCardClicks(page, [1, 3]);
   expect(startedStates.at(-1)).toMatchObject({
     acceptedClicks: 2,

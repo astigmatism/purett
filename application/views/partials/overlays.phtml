@@ -77,10 +77,25 @@
         <button type="button" class="motion-studio-back">&larr; Back to Lobby</button>
         <div class="motion-studio-heading">
             <strong id="motionstudio-title">Motion Studio</strong>
-            <span>Single-card Three.js motion study</span>
+            <span>Lobby card animation playbook</span>
         </div>
+        <label class="motion-studio-target-label" for="motionstudio-target">
+            Application animation
+            <select id="motionstudio-target">
+                <optgroup label="Lobby intros">
+                    <option value="lobby-card-1-intro">Lobby card 1 — Intro</option>
+                    <option value="lobby-card-2-intro">Lobby card 2 — Intro</option>
+                    <option value="lobby-card-3-intro">Lobby card 3 — Intro</option>
+                    <option value="lobby-card-4-intro">Lobby card 4 — Intro</option>
+                    <option value="lobby-card-5-intro">Lobby card 5 — Intro</option>
+                </optgroup>
+                <optgroup label="Lobby exits">
+                    <option value="lobby-hand-gentle-wind-exit">Lobby hand — Gentle Wind Exit</option>
+                </optgroup>
+            </select>
+        </label>
         <label class="motion-studio-preset-label" for="motionstudio-preset">
-            Preset
+            Starting motion
             <select id="motionstudio-preset">
                 <option value="gentle-drop">Gentle Drop</option>
                 <option value="casual-toss" selected>Casual Toss</option>
@@ -88,7 +103,7 @@
                 <option value="custom">Custom</option>
             </select>
         </label>
-        <button type="button" class="motion-studio-reset">Reset</button>
+        <button type="button" class="motion-studio-reset">Reset target</button>
     </header>
 
     <div class="motion-studio-workspace">
@@ -127,11 +142,11 @@
                     </g>
                     <g class="motion-studio-marker motion-studio-marker-land">
                         <rect x="-7" y="-7" width="14" height="14"></rect>
-                        <text x="11" y="20">LAND</text>
+                        <text x="11" y="20">LOCKED TARGET</text>
                     </g>
                 </svg>
                 <div class="motion-studio-preview-hint">
-                    Drag <strong>START</strong> or <strong>LAND</strong>
+                    Drag <strong>START</strong>; the application target is locked
                 </div>
                 <div class="motion-studio-loading" role="status">Preparing Three.js preview&hellip;</div>
             </div>
@@ -161,6 +176,19 @@
                     1:1 card
                 </label>
             </div>
+            <div class="motion-studio-wind-tools">
+                <label>
+                    <input type="checkbox" id="motionstudio-lock-wind-seed">
+                    Lock wind seed
+                </label>
+                <button type="button" class="motion-studio-new-wind">
+                    New variation
+                </button>
+                <output
+                    id="motionstudio-wind-seed"
+                    aria-label="Active wind variation seed"
+                ></output>
+            </div>
             <div
                 class="motion-studio-control-status"
                 role="status"
@@ -168,6 +196,10 @@
             ></div>
 
             <form id="motionstudio-controls">
+                <fieldset>
+                    <legend>Sequence</legend>
+                    <div data-motion-control-group="sequence"></div>
+                </fieldset>
                 <fieldset>
                     <legend>Travel</legend>
                     <div data-motion-control-group="path"></div>
@@ -197,16 +229,16 @@
             </form>
 
             <details class="motion-studio-json">
-                <summary>Recipe JSON</summary>
+                <summary>Advanced playbook data</summary>
                 <textarea
                     id="motionstudio-json"
                     rows="10"
                     spellcheck="false"
-                    aria-label="Motion recipe JSON"
+                    aria-label="Lobby motion playbook JSON"
                 ></textarea>
                 <div class="motion-studio-json-actions">
-                    <button type="button" class="motion-studio-copy">Copy JSON</button>
-                    <button type="button" class="motion-studio-apply-json">Apply JSON</button>
+                    <button type="button" class="motion-studio-copy">Export Playbook</button>
+                    <button type="button" class="motion-studio-apply-json">Import Playbook</button>
                 </div>
                 <div class="motion-studio-json-status" role="status"></div>
             </details>
@@ -215,6 +247,9 @@
 
     <footer class="motion-studio-transport">
         <div class="motion-studio-transport-buttons">
+            <button type="button" class="motion-studio-apply-preview">
+                Apply &amp; Preview in Lobby
+            </button>
             <button type="button" class="motion-studio-replay" title="Replay (R)">Replay</button>
             <button type="button" class="motion-studio-play" title="Play or pause (Space)">Pause</button>
             <button type="button" class="motion-studio-step-back" title="Previous frame">&larr; Frame</button>

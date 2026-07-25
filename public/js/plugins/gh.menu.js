@@ -19,6 +19,7 @@ gh.menu.prototype = {
     currentHandCards: [],
     presentationSequence: 0,
     activePresentation: null,
+    commandPending: false,
     
     initialize: function(wrapper, callback) {
         var me = this;
@@ -57,7 +58,9 @@ gh.menu.prototype = {
         me.activePresentation = {
             id: me.presentationSequence,
             trigger: 'command-bar-reveal',
-            profile: 'casual-drop-left',
+            sequence: 'intro',
+            seed: 'lobby-presentation-' +
+                String(me.presentationSequence),
             startedAtMs: window.performance.now()
         };
         $('#menu').show();
@@ -98,6 +101,7 @@ gh.menu.prototype = {
         var me = this;
         
         $(me.ul).empty();
+        me.commandPending = false;
         
         me.updatetopplayers();
         
@@ -115,9 +119,40 @@ gh.menu.prototype = {
         
         $.each($(me.ul).find('li'), function() {
             $(this).click(function() {
+                var command;
+                var invoke;
+                if (me.commandPending) {
+                    return;
+                }
+                command = $(this).attr('class');
+                if (!callbacks[command]) {
+                    return;
+                }
+                if (command === 'play' &&
+                        gh.data.hand.length !== 5) {
+                    gh.audio.select.play();
+                    return;
+                }
+                me.commandPending = true;
                 gh.audio.select.play();
-                $(this).unbind('click');
-                callbacks[$(this).attr('class')]();
+                invoke = function() {
+                    if (!me.commandPending) {
+                        return;
+                    }
+                    me.commandPending = false;
+                    callbacks[command]();
+                };
+                if (me.graphics &&
+                        me.graphics.beforeLobbyCommand) {
+                    if (me.graphics.beforeLobbyCommand(
+                        command,
+                        invoke
+                    ) === false) {
+                        me.commandPending = false;
+                    }
+                } else {
+                    invoke();
+                }
             });
         });
         
@@ -238,6 +273,14 @@ gh.menu.prototype = {
                 this.node.setAttribute('aria-hidden', useModernHand ? 'true' : 'false');
             }
         });
+    },
+    replayHandIntro: function(callback) {
+        if (this.graphics &&
+                this.graphics.replayLobbyIntro) {
+            this.graphics.replayLobbyIntro(callback);
+        } else if (gh.defined(callback, 'function')) {
+            callback();
+        }
     },
     domshow: function(el) {
         var me = this;

@@ -90,18 +90,41 @@ gh.load(['util', ['game'], 'cover', 'menu', ['dialog'], ['jquerytools'], 'audio'
                     });
                     me.motionstudio = new gh.motionstudio({
                         graphics: me.graphics,
-                        getCard: function() {
+                        getCard: function(index) {
                             var currentCards = me.menu.currentHandCards || [];
-                            if (currentCards.length > 0) {
-                                return $.extend({}, currentCards[0]);
+                            var cardIndex = Number(index) || 0;
+                            if (currentCards[cardIndex]) {
+                                return $.extend(
+                                    {},
+                                    currentCards[cardIndex]
+                                );
                             }
-                            if (gh.data.hand && gh.data.hand.length > 0) {
+                            if (gh.data.hand &&
+                                    gh.data.hand[cardIndex]) {
                                 return me.menu.describeHandCard(
-                                    gh.data.hand[0],
-                                    0
+                                    gh.data.hand[cardIndex],
+                                    cardIndex
                                 );
                             }
                             return null;
+                        },
+                        getCards: function() {
+                            var cards =
+                                me.menu.currentHandCards || [];
+                            if (cards.length > 0) {
+                                return $.map(cards, function(card) {
+                                    return $.extend({}, card);
+                                });
+                            }
+                            return $.map(
+                                (gh.data.hand || []).slice(0, 5),
+                                function(card, index) {
+                                    return me.menu.describeHandCard(
+                                        card,
+                                        index
+                                    );
+                                }
+                            );
                         },
                         closeContextMenu: function() {
                             if (me.contextmenu) {
@@ -542,6 +565,7 @@ gh.load(['util', ['game'], 'cover', 'menu', ['dialog'], ['jquerytools'], 'audio'
                 back: function() {
                     me.menu.domhide(me.menu.ul, function() {
                         me.buildmain();
+                        me.menu.replayHandIntro();
                     });
                 },
                 basics: function() {

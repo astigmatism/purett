@@ -38,6 +38,22 @@ import {
   serializeCardMotionPreset
 } from './card-motion.js';
 import {
+  DEFAULT_LOBBY_MOTION_PLAYBOOK,
+  LOBBY_MOTION_PLAYBOOK_METADATA,
+  LOBBY_MOTION_TARGETS,
+  LOBBY_WIND_EXIT_TARGET_ID,
+  LOBBY_WIND_VARIATION,
+  createLobbyMotionBatch,
+  getLobbyMotionTarget,
+  getLobbyMotionTargetDefinition,
+  normalizeLobbyMotionPlaybook,
+  parseLobbyMotionPlaybook,
+  sampleLobbyMotionPlan,
+  serializeLobbyMotionPlaybook,
+  updateLobbyMotionTarget,
+  updateLobbyWindSeed
+} from './lobby-motion-playbook.js';
+import {
   MOTION_STUDIO_CAMERA,
   MotionStudioSurface,
   validateMotionStudioPreset
@@ -75,6 +91,46 @@ const LOBBY_FLIP_DURATION = 2450;
 const LOBBY_FLIP_DEADLINE = 3000;
 const LOBBY_TRANSITION_HISTORY_LIMIT = 10;
 const LOBBY_ARRIVAL_HISTORY_LIMIT = 10;
+const LOBBY_PLAYBOOK_HISTORY_LIMIT = 30;
+
+function clonePlain(value) {
+  return value == null
+    ? value
+    : JSON.parse(JSON.stringify(value));
+}
+
+function cardMotionDepthMetrics(
+  width,
+  height,
+  faceOffset,
+  rotationX,
+  rotationY,
+  rotationZ,
+  scale
+) {
+  const cosineX = Math.cos(rotationX);
+  const sineX = Math.sin(rotationX);
+  const cosineY = Math.cos(rotationY);
+  const sineY = Math.sin(rotationY);
+  const cosineZ = Math.cos(rotationZ);
+  const sineZ = Math.sin(rotationZ);
+  const depthX =
+    (sineX * sineZ) -
+    (cosineX * cosineZ * sineY);
+  const depthY =
+    (sineX * cosineZ) +
+    (cosineX * sineZ * sineY);
+  const depthZ = cosineX * cosineY;
+  const halfDepthSpan =
+    ((width / 2) * Math.abs(depthX)) +
+    ((height / 2) * Math.abs(depthY)) +
+    (faceOffset * Math.abs(depthZ));
+  return {
+    minimum: -halfDepthSpan * scale,
+    maximum: halfDepthSpan * scale,
+    normalDepth: depthZ
+  };
+}
 
 class ModernGraphicsSurface {
   constructor(host, options) {
@@ -227,6 +283,16 @@ class LobbyHandSurface {
     this.lastArrivalBatch = null;
     this.lastArrivalTransition = null;
     this.arrivalTransitionHistory = [];
+    this.playbook = normalizeLobbyMotionPlaybook(
+      DEFAULT_LOBBY_MOTION_PLAYBOOK
+    );
+    this.pendingPlaybookRequest = null;
+    this.consumedPlaybookRequestIds = new Set();
+    this.lastPlaybookBatch = null;
+    this.playbookTransitionHistory = [];
+    this.activePlaybookCompletion = null;
+    this.completedPlaybookIntroCount = 0;
+    this.completedPlaybookExitCount = 0;
 
     try {
       this.scene = new Scene();
@@ -399,6 +465,40 @@ class LobbyHandSurface {
     };
   }
 
+  normalizePlaybookRequest(options) {
+    const request = options && options.playbookRequest;
+    if (!request || request.id == null) {
+      return null;
+    }
+    const sequence = request.sequence === 'exit'
+      ? 'exit'
+      : 'intro';
+    return {
+      id: String(request.id),
+      sequence,
+      trigger: request.trigger
+        ? String(request.trigger)
+        : (
+          sequence === 'exit'
+            ? 'lobby-command'
+            : 'command-bar-reveal'
+        ),
+      seed: request.seed == null
+        ? null
+        : String(request.seed),
+      startedAtMs: request.startedAtMs != null &&
+          Number.isFinite(Number(request.startedAtMs))
+        ? Number(request.startedAtMs)
+        : null
+    };
+  }
+
+  setPlaybook(playbook) {
+    this.playbook = normalizeLobbyMotionPlaybook(
+      playbook || DEFAULT_LOBBY_MOTION_PLAYBOOK
+    );
+  }
+
   setCards(cards, options) {
     if (this.disposed || this.contextLost) {
       return;
@@ -422,16 +522,34 @@ class LobbyHandSurface {
       card.width,
       card.height
     ]));
+    if (options && options.playbook) {
+      try {
+        this.setPlaybook(options.playbook);
+      } catch (error) {
+        this.reportError(error);
+        return;
+      }
+    }
+    const playbookRequest = this.normalizePlaybookRequest(options);
     const arrivalRequest = this.normalizeArrivalRequest(options);
-    if (arrivalRequest &&
+    if (playbookRequest &&
+        !this.consumedPlaybookRequestIds.has(playbookRequest.id)) {
+      this.pendingPlaybookRequest = playbookRequest;
+      this.pendingArrivalRequest = null;
+    } else if (arrivalRequest &&
         !this.consumedArrivalRequestIds.has(arrivalRequest.id)) {
       this.pendingArrivalRequest = arrivalRequest;
+      this.pendingPlaybookRequest = null;
     } else if (cardKey !== this.cardKey) {
       this.pendingArrivalRequest = null;
+      this.pendingPlaybookRequest = null;
     }
 
     if (cardKey === this.cardKey && this.status === 'ready') {
-      if (this.pendingArrivalRequest) {
+      if (this.pendingPlaybookRequest) {
+        this.cancelAnimations('replaced');
+        this.preparePendingPlaybook();
+      } else if (this.pendingArrivalRequest) {
         this.cancelAnimations('replaced');
         this.preparePendingArrival();
       }
@@ -457,7 +575,11 @@ class LobbyHandSurface {
     ), [])));
     if (!textureUrls.length) {
       this.status = 'ready';
-      this.consumePendingArrivalWithoutMotion('empty');
+      if (this.pendingPlaybookRequest) {
+        this.consumePendingPlaybookWithoutMotion('empty');
+      } else {
+        this.consumePendingArrivalWithoutMotion('empty');
+      }
       this.presentReady();
       return;
     }
@@ -500,7 +622,11 @@ class LobbyHandSurface {
       try {
         loaded.forEach((entry) => this.textures.set(entry.textureUrl, entry.texture));
         this.commitCards();
-        this.preparePendingArrival();
+        if (this.pendingPlaybookRequest) {
+          this.preparePendingPlaybook();
+        } else {
+          this.preparePendingArrival();
+        }
         this.status = 'ready';
         this.presentReady();
         this.scheduleAnimationFrame();
@@ -624,6 +750,8 @@ class LobbyHandSurface {
         liftShadow,
         liftShadowMaterial,
         basePosition,
+        settledRotationZ: 0,
+        exited: false,
         currentMotion: {
           screenLiftY: 0,
           depth: 0,
@@ -637,7 +765,8 @@ class LobbyHandSurface {
           projectionShearY: 0,
           previousFlipRotationX: 0,
           screenX: basePosition.x,
-          screenY: basePosition.y
+          screenY: basePosition.y,
+          authoredScale: 1
         },
         phase: 'idle',
         visibleFace: 'front',
@@ -656,6 +785,354 @@ class LobbyHandSurface {
       this.pickMeshes.push(frontMesh, backMesh);
       this.applyFlatTableProjection(entry, 0);
     });
+  }
+
+  playbookCards() {
+    return this.cardEntries.map((entry) => ({
+      index: entry.card.index,
+      width: entry.card.width,
+      height: entry.card.height,
+      rotationDegrees:
+        entry.settledRotationZ * 180 / Math.PI,
+      destination: {
+        x: entry.basePosition.x,
+        y:
+          LOBBY_LOGICAL_HEIGHT -
+          entry.basePosition.y,
+        z: 0
+      }
+    }));
+  }
+
+  preparePendingPlaybook() {
+    const request = this.pendingPlaybookRequest;
+    this.pendingPlaybookRequest = null;
+    if (!request ||
+        this.consumedPlaybookRequestIds.has(request.id) ||
+        this.cardEntries.length === 0) {
+      return false;
+    }
+    const batch = createLobbyMotionBatch(
+      this.playbook,
+      request.sequence,
+      this.playbookCards(),
+      request
+    );
+    const elapsedBeforeReadyMs = request.startedAtMs === null
+      ? 0
+      : Math.max(
+        0,
+        window.performance.now() - request.startedAtMs
+      );
+    this.consumedPlaybookRequestIds.add(String(request.id));
+    this.lastPlaybookBatch = this.clonePlaybookBatch(
+      batch,
+      'running',
+      elapsedBeforeReadyMs
+    );
+    if (this.prefersReducedMotion() || this.suspended) {
+      batch.plans.forEach((plan, index) => {
+        const entry = this.cardEntries[index];
+        if (request.sequence === 'intro') {
+          entry.settledRotationZ =
+            plan.effectivePreset.rotation.finalRollDeg *
+            Math.PI / 180;
+          this.settleEntry(entry);
+        } else if (!this.suspended) {
+          const finalPose = sampleLobbyMotionPlan(
+            plan,
+            plan.totalMs
+          );
+          this.applyCardMotionPose(entry, finalPose);
+          this.hideAnalyticShadow(entry);
+          entry.exited = true;
+          entry.phase = 'exited';
+          entry.visibleFace = this.visibleFaceForPose(finalPose);
+        } else {
+          this.settleEntry(entry);
+        }
+      });
+      this.lastPlaybookBatch.outcome = this.suspended
+        ? 'cancelled-before-ready'
+        : 'skipped-reduced-motion';
+      return false;
+    }
+    return this.startPlaybookBatch(
+      batch,
+      request.startedAtMs,
+      elapsedBeforeReadyMs,
+      null
+    );
+  }
+
+  consumePendingPlaybookWithoutMotion(outcome) {
+    const request = this.pendingPlaybookRequest;
+    if (!request) {
+      return;
+    }
+    this.consumedPlaybookRequestIds.add(String(request.id));
+    this.lastPlaybookBatch = {
+      requestId: request.id,
+      sequence: request.sequence,
+      trigger: request.trigger,
+      seed: request.seed,
+      totalDurationMs: 0,
+      deadlineMs: 0,
+      outcome: outcome || 'empty',
+      elapsedBeforeReadyMs: 0,
+      plans: []
+    };
+    this.pendingPlaybookRequest = null;
+  }
+
+  playPlaybookSequence(sequence, playbook, request, callback) {
+    const complete = typeof callback === 'function'
+      ? callback
+      : () => {};
+    if (this.disposed || this.contextLost ||
+        this.status !== 'ready' ||
+        this.cardEntries.length === 0 ||
+        this.suspended) {
+      complete({
+        outcome: 'unavailable',
+        sequence
+      });
+      return null;
+    }
+    try {
+      this.setPlaybook(playbook);
+      const normalizedRequest = Object.assign({}, request || {}, {
+        id: request && request.id != null
+          ? String(request.id)
+          : `${sequence}-${Date.now()}`,
+        sequence
+      });
+      const batch = createLobbyMotionBatch(
+        this.playbook,
+        sequence,
+        this.playbookCards(),
+        normalizedRequest
+      );
+      this.cancelAnimations('replaced');
+      if (this.prefersReducedMotion()) {
+        batch.plans.forEach((plan, index) => {
+          const entry = this.cardEntries[index];
+          if (sequence === 'intro') {
+            entry.settledRotationZ =
+              plan.effectivePreset.rotation.finalRollDeg *
+              Math.PI / 180;
+            this.settleEntry(entry);
+          } else {
+            const finalPose = sampleLobbyMotionPlan(
+              plan,
+              plan.totalMs
+            );
+            this.applyCardMotionPose(entry, finalPose);
+            this.hideAnalyticShadow(entry);
+            entry.exited = true;
+            entry.phase = 'exited';
+            entry.visibleFace = this.visibleFaceForPose(finalPose);
+          }
+        });
+        this.lastPlaybookBatch = this.clonePlaybookBatch(
+          batch,
+          'skipped-reduced-motion',
+          0
+        );
+        this.render();
+        complete({
+          outcome: 'skipped-reduced-motion',
+          sequence,
+          batch: this.lastPlaybookBatch
+        });
+        return batch;
+      }
+      this.lastPlaybookBatch = this.clonePlaybookBatch(
+        batch,
+        'running',
+        0
+      );
+      this.startPlaybookBatch(
+        batch,
+        null,
+        0,
+        complete
+      );
+      return batch;
+    } catch (error) {
+      complete({
+        outcome: 'failed',
+        sequence,
+        error
+      });
+      return null;
+    }
+  }
+
+  resetPlaybookCards() {
+    if (this.disposed) {
+      return;
+    }
+    this.cancelAnimations('reset');
+    this.cardEntries.forEach((entry) => {
+      this.settleEntry(entry);
+    });
+    this.render();
+  }
+
+  startPlaybookBatch(
+    batch,
+    startedAtMs,
+    initialElapsedMs,
+    callback
+  ) {
+    let registered = false;
+    if (callback) {
+      this.activePlaybookCompletion = {
+        requestId: batch.requestId,
+        sequence: batch.sequence,
+        callback
+      };
+    }
+    batch.plans.forEach((plan, index) => {
+      const entry = this.cardEntries[index];
+      const initialPose = sampleLobbyMotionPlan(
+        plan,
+        initialElapsedMs
+      );
+      const token = ++this.activationSequence;
+      const transition = this.createPlaybookTransition(
+        entry,
+        batch,
+        plan
+      );
+      if (initialPose.complete) {
+        if (batch.sequence === 'intro') {
+          entry.settledRotationZ =
+            plan.effectivePreset.rotation.finalRollDeg *
+            Math.PI / 180;
+          this.settleEntry(entry);
+        } else {
+          this.applyCardMotionPose(entry, initialPose);
+          entry.exited = true;
+        }
+        transition.outcome = 'completed-before-ready';
+        transition.phases.push(
+          batch.sequence === 'intro' ? 'settled' : 'exited'
+        );
+        this.playbookTransitionHistory.push(transition);
+        return;
+      }
+      const animation = {
+        kind: 'playbook',
+        sequence: batch.sequence,
+        entry,
+        plan,
+        batch,
+        startTime: startedAtMs,
+        initialElapsedMs,
+        token,
+        reducedMotion: false,
+        transition
+      };
+      this.applyCardMotionPose(entry, initialPose);
+      entry.phase = initialPose.phase;
+      entry.visibleFace = this.visibleFaceForPose(initialPose);
+      const renderOrder = 200 + entry.card.index;
+      entry.bodyMesh.renderOrder = renderOrder;
+      entry.frontMesh.renderOrder = renderOrder;
+      entry.backMesh.renderOrder = renderOrder;
+      this.registerAnimation(animation);
+      registered = true;
+    });
+    if (!registered) {
+      this.finishPlaybookBatch(batch, 'completed-before-ready');
+      return false;
+    }
+    this.restoreInputCursor();
+    this.render();
+    this.scheduleAnimationFrame();
+    return true;
+  }
+
+  createPlaybookTransition(entry, batch, plan) {
+    return {
+      kind: 'playbook',
+      sequence: batch.sequence,
+      cardIndex: entry.card.index,
+      token: this.activationSequence,
+      requestId: batch.requestId,
+      trigger: batch.trigger,
+      seed: plan.seed,
+      outcome: 'running',
+      phases: [batch.sequence === 'intro'
+        ? 'intro-waiting'
+        : 'exit-waiting'],
+      nominalDurationMs: plan.totalMs,
+      deadlineMs: batch.deadlineMs,
+      endpoint: Object.assign({}, plan.endpoint),
+      anchor: Object.assign({}, plan.anchor)
+    };
+  }
+
+  clonePlaybookBatch(batch, outcome, elapsedBeforeReadyMs) {
+    return {
+      requestId: batch.requestId,
+      sequence: batch.sequence,
+      trigger: batch.trigger,
+      seed: batch.seed,
+      shared: batch.shared
+        ? Object.assign({}, batch.shared)
+        : null,
+      totalDurationMs: batch.totalDurationMs,
+      deadlineMs: batch.deadlineMs,
+      outcome,
+      elapsedBeforeReadyMs,
+      plans: batch.plans.map((plan) => ({
+        cardIndex: plan.cardIndex,
+        targetId: plan.targetId,
+        seed: plan.seed,
+        delayMs: plan.delayMs,
+        durationMs: plan.durationMs,
+        totalMs: plan.totalMs,
+        anchor: Object.assign({}, plan.anchor),
+        endpoint: Object.assign({}, plan.endpoint),
+        directionDeg:
+          plan.effectivePreset.path.directionDeg,
+        distancePx:
+          plan.effectivePreset.path.distancePx,
+        curvePx:
+          plan.effectivePreset.path.curvePx,
+        releaseHeight:
+          plan.effectivePreset.path.releaseHeight,
+        apexHeight:
+          plan.effectivePreset.path.apexHeight,
+        flightMs:
+          plan.effectivePreset.path.flightMs
+      }))
+    };
+  }
+
+  finishPlaybookBatch(batch, outcome) {
+    if (this.lastPlaybookBatch &&
+        this.lastPlaybookBatch.requestId === batch.requestId) {
+      this.lastPlaybookBatch.outcome = outcome || 'completed';
+    }
+    if (batch.sequence === 'intro') {
+      this.completedPlaybookIntroCount += 1;
+    } else {
+      this.completedPlaybookExitCount += 1;
+    }
+    const completion = this.activePlaybookCompletion;
+    if (completion &&
+        completion.requestId === batch.requestId) {
+      this.activePlaybookCompletion = null;
+      completion.callback({
+        outcome: outcome || 'completed',
+        sequence: batch.sequence,
+        batch: this.lastPlaybookBatch
+      });
+    }
   }
 
   preparePendingArrival() {
@@ -938,13 +1415,20 @@ class LobbyHandSurface {
       !this.suspended &&
       !this.disposed &&
       !this.contextLost &&
-      !this.hasActiveArrival();
+      !this.hasActiveArrival() &&
+      !this.hasActivePlaybook();
   }
 
   hasActiveArrival() {
     return Array.from(this.activeAnimations.values()).some((animation) => (
       animation.kind === 'arrival'
     ));
+  }
+
+  hasActivePlaybook() {
+    return Array.from(this.activeAnimations.values()).some(
+      (animation) => animation.kind === 'playbook'
+    );
   }
 
   pickCard(clientX, clientY) {
@@ -1124,6 +1608,16 @@ class LobbyHandSurface {
     const entry = animation.entry;
     if (animation.kind === 'arrival') {
       this.recordArrivalTransition(entry, animation.transition);
+    } else if (animation.kind === 'playbook') {
+      this.playbookTransitionHistory.push(animation.transition);
+      if (this.playbookTransitionHistory.length >
+          LOBBY_PLAYBOOK_HISTORY_LIMIT) {
+        this.playbookTransitionHistory.splice(
+          0,
+          this.playbookTransitionHistory.length -
+            LOBBY_PLAYBOOK_HISTORY_LIMIT
+        );
+      }
     } else {
       entry.lastTransition = animation.transition;
       this.lastTransition = animation.transition;
@@ -1143,7 +1637,7 @@ class LobbyHandSurface {
         this.peakConcurrentArrivalCount,
         activeKindCount
       );
-    } else {
+    } else if (animation.kind !== 'playbook') {
       this.peakConcurrentAnimationCount = Math.max(
         this.peakConcurrentAnimationCount,
         activeKindCount
@@ -1210,13 +1704,24 @@ class LobbyHandSurface {
         );
         const complete = animation.kind === 'arrival'
           ? this.updateArrivalAnimation(animation, boundedElapsed)
-          : this.updateAnimation(animation, boundedElapsed);
+          : (
+            animation.kind === 'playbook'
+              ? this.updatePlaybookAnimation(
+                animation,
+                boundedElapsed
+              )
+              : this.updateAnimation(animation, boundedElapsed)
+          );
         if (complete || deadlineElapsed) {
           completed.push({
             animation,
             outcome: animation.kind === 'arrival'
               ? 'completed-arrival'
-              : 'completed'
+              : (
+                animation.kind === 'playbook'
+                  ? `completed-${animation.sequence}`
+                  : 'completed'
+              )
           });
         }
       });
@@ -1273,6 +1778,22 @@ class LobbyHandSurface {
             pose.tableClearance
           );
     }
+    return pose.complete;
+  }
+
+  updatePlaybookAnimation(animation, elapsed) {
+    const pose = sampleLobbyMotionPlan(
+      animation.plan,
+      elapsed
+    );
+    const entry = animation.entry;
+    entry.phase = pose.phase;
+    entry.visibleFace = this.visibleFaceForPose(pose);
+    this.markTransitionPhase(
+      animation.transition,
+      pose.phase
+    );
+    this.applyCardMotionPose(entry, pose);
     return pose.complete;
   }
 
@@ -1396,6 +1917,137 @@ class LobbyHandSurface {
         evidence.frontAngleBeforeSettlement = -Math.PI * 2;
       }
     }
+  }
+
+  visibleFaceForPose(pose) {
+    const normalDepth =
+      Math.cos(pose.rotationX) *
+      Math.cos(pose.rotationY);
+    if (Math.abs(normalDepth) < 0.08) {
+      return 'edge';
+    }
+    return normalDepth >= 0 ? 'front' : 'back';
+  }
+
+  applyCardMotionPose(entry, pose) {
+    const authoredScale = Math.max(
+      0.01,
+      Number(pose.authoredScale) || 1
+    );
+    const depth = cardMotionDepthMetrics(
+      entry.card.width,
+      entry.card.height,
+      LOBBY_CARD_FACE_OFFSET,
+      pose.rotationX,
+      pose.rotationY,
+      pose.rotationZ,
+      authoredScale
+    );
+    const rotationClearance = Math.max(
+      0,
+      -depth.minimum - LOBBY_CARD_FACE_OFFSET
+    );
+    const liftDepth =
+      Math.max(0, pose.height) +
+      rotationClearance;
+    const perspectiveCompensation =
+      (LOBBY_CAMERA_DISTANCE - liftDepth) /
+      LOBBY_CAMERA_DISTANCE;
+    const worldScreenY =
+      LOBBY_LOGICAL_HEIGHT - pose.screenY;
+    entry.motionRoot.position.set(
+      LOBBY_CAMERA_CENTER_X +
+        (
+          (pose.screenX - LOBBY_CAMERA_CENTER_X) *
+          perspectiveCompensation
+        ),
+      LOBBY_CAMERA_CENTER_Y +
+        (
+          (worldScreenY - LOBBY_CAMERA_CENTER_Y) *
+          perspectiveCompensation
+        ),
+      entry.basePosition.z + liftDepth
+    );
+    entry.motionRoot.scale.set(
+      authoredScale,
+      authoredScale,
+      authoredScale
+    );
+    entry.tiltRoot.rotation.z = pose.rotationZ;
+    entry.pickupRoot.rotation.x = pose.rotationX;
+    entry.pickupRoot.rotation.y = pose.rotationY;
+    entry.flipRoot.rotation.x = 0;
+    entry.flipRoot.rotation.y = 0;
+    entry.currentMotion.screenLiftY =
+      worldScreenY - entry.basePosition.y;
+    entry.currentMotion.depth = liftDepth;
+    entry.currentMotion.airGap = Math.max(0, pose.height);
+    entry.currentMotion.tableClearance = rotationClearance;
+    entry.currentMotion.nearestVertexDepth =
+      entry.basePosition.z +
+      liftDepth +
+      depth.maximum;
+    entry.currentMotion.farthestVertexDepth =
+      entry.basePosition.z +
+      liftDepth +
+      depth.minimum;
+    entry.currentMotion.pickupTiltX = pose.rotationX;
+    entry.currentMotion.pickupTiltY = pose.rotationY;
+    entry.currentMotion.previousFlipRotationX = 0;
+    entry.currentMotion.screenX = pose.screenX;
+    entry.currentMotion.screenY = worldScreenY;
+    entry.currentMotion.authoredScale = authoredScale;
+    this.applyFlatTableProjection(
+      entry,
+      entry.currentMotion.screenLiftY,
+      pose.screenX,
+      worldScreenY
+    );
+    this.updateCardMotionShadow(
+      entry,
+      pose,
+      worldScreenY,
+      authoredScale
+    );
+  }
+
+  updateCardMotionShadow(
+    entry,
+    pose,
+    worldScreenY,
+    authoredScale
+  ) {
+    if (!entry.liftShadow || !entry.liftShadowMaterial) {
+      return;
+    }
+    if (pose.complete && pose.sequence === 'intro') {
+      this.hideAnalyticShadow(entry);
+      return;
+    }
+    const heightRatio = Math.max(
+      0,
+      Math.min(1, pose.height / 250)
+    );
+    const spread =
+      Math.max(0.5, pose.shadow.spread) *
+      authoredScale *
+      (0.9 + (0.25 * heightRatio));
+    entry.liftShadow.position.set(
+      pose.screenX + (6 + (14 * heightRatio)),
+      worldScreenY - (4 + (12 * heightRatio)),
+      LOBBY_ANALYTIC_SHADOW_Z
+    );
+    entry.liftShadow.rotation.z = pose.rotationZ * 0.45;
+    entry.liftShadow.scale.set(
+      spread,
+      spread * 0.92,
+      1
+    );
+    entry.liftShadowMaterial.opacity =
+      Math.max(0, Math.min(1, pose.shadow.strength)) *
+      (0.72 - (0.34 * heightRatio));
+    entry.liftShadow.visible =
+      entry.liftShadowMaterial.opacity > 0.002;
   }
 
   applyArrivalPose(entry, pose) {
@@ -1665,6 +2317,50 @@ class LobbyHandSurface {
       window.cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = null;
     }
+    if (animation.kind === 'playbook') {
+      const finalPose = sampleLobbyMotionPlan(
+        animation.plan,
+        animation.plan.totalMs
+      );
+      if (animation.sequence === 'intro') {
+        entry.settledRotationZ =
+          animation.plan.effectivePreset.rotation.finalRollDeg *
+          Math.PI / 180;
+        this.settleEntry(entry);
+        this.markTransitionPhase(
+          animation.transition,
+          'settled'
+        );
+      } else {
+        this.applyCardMotionPose(entry, finalPose);
+        this.hideAnalyticShadow(entry);
+        entry.exited = true;
+        entry.phase = 'exited';
+        entry.visibleFace = this.visibleFaceForPose(finalPose);
+        this.markTransitionPhase(
+          animation.transition,
+          'exited'
+        );
+      }
+      animation.transition.outcome =
+        outcome || `completed-${animation.sequence}`;
+      const batchStillActive = Array.from(
+        this.activeAnimations.values()
+      ).some((active) => (
+        active.kind === 'playbook' &&
+        active.batch.requestId === animation.batch.requestId
+      ));
+      if (!batchStillActive) {
+        this.finishPlaybookBatch(
+          animation.batch,
+          outcome || 'completed'
+        );
+      }
+      if (shouldRender !== false) {
+        this.render();
+      }
+      return;
+    }
     this.settleEntry(entry);
     if (animation.kind === 'arrival') {
       entry.completedArrivals += 1;
@@ -1700,6 +2396,9 @@ class LobbyHandSurface {
     }
 
     const animations = Array.from(this.activeAnimations.values());
+    const playbookBatch = animations.find(
+      (animation) => animation.kind === 'playbook'
+    );
     this.activeAnimations.clear();
     animations.forEach((animation) => {
       this.settleEntry(animation.entry);
@@ -1717,6 +2416,12 @@ class LobbyHandSurface {
         this.lastArrivalBatch) {
       this.lastArrivalBatch.outcome = outcome || 'cancelled';
     }
+    if (playbookBatch) {
+      this.finishPlaybookBatch(
+        playbookBatch.batch,
+        outcome || 'cancelled'
+      );
+    }
     if (shouldRender !== false) {
       this.render();
     }
@@ -1730,7 +2435,7 @@ class LobbyHandSurface {
       entry.basePosition.z
     );
     entry.motionRoot.scale.set(1, 1, 1);
-    entry.tiltRoot.rotation.z = 0;
+    entry.tiltRoot.rotation.z = entry.settledRotationZ || 0;
     entry.pickupRoot.rotation.x = 0;
     entry.pickupRoot.rotation.y = 0;
     entry.flipRoot.rotation.x = 0;
@@ -1750,10 +2455,12 @@ class LobbyHandSurface {
     entry.currentMotion.pickupTiltY = 0;
     entry.currentMotion.screenX = entry.basePosition.x;
     entry.currentMotion.screenY = entry.basePosition.y;
+    entry.currentMotion.authoredScale = 1;
     this.applyFlatTableProjection(entry, 0);
     entry.currentMotion.previousFlipRotationX = 0;
     entry.phase = 'idle';
     entry.visibleFace = 'front';
+    entry.exited = false;
   }
 
   markTransitionPhase(transition, phase) {
@@ -1874,6 +2581,7 @@ class LobbyHandSurface {
   cloneTransition(transition) {
     return transition ? {
       kind: transition.kind || 'flip',
+      sequence: transition.sequence || null,
       cardIndex: transition.cardIndex,
       userCardId: transition.userCardId,
       cardId: transition.cardId,
@@ -1887,6 +2595,12 @@ class LobbyHandSurface {
       flipAxis: transition.flipAxis || null,
       nominalDurationMs: transition.nominalDurationMs,
       deadlineMs: transition.deadlineMs,
+      endpoint: transition.endpoint
+        ? Object.assign({}, transition.endpoint)
+        : null,
+      anchor: transition.anchor
+        ? Object.assign({}, transition.anchor)
+        : null,
       plan: transition.plan ? {
         orderIndex: transition.plan.orderIndex,
         releaseIndex: transition.plan.releaseIndex,
@@ -1947,8 +2661,12 @@ class LobbyHandSurface {
     const activeArrivalAnimations = activeAnimations.filter((animation) => (
       animation.kind === 'arrival'
     ));
+    const activePlaybookAnimations = activeAnimations.filter(
+      (animation) => animation.kind === 'playbook'
+    );
     const activeFlipAnimations = activeAnimations.filter((animation) => (
-      animation.kind !== 'arrival'
+      animation.kind !== 'arrival' &&
+      animation.kind !== 'playbook'
     ));
     const activeCardIndices = activeAnimations
       .map((animation) => animation.entry.card.index)
@@ -2062,6 +2780,7 @@ class LobbyHandSurface {
       peakConcurrentAnimationCount: this.peakConcurrentAnimationCount,
       peakConcurrentArrivalCount: this.peakConcurrentArrivalCount,
       activeArrivalCount: activeArrivalAnimations.length,
+      activePlaybookCount: activePlaybookAnimations.length,
       activeFlipCount: activeFlipAnimations.length,
       lockHeld: activeAnimations.length > 0,
       activeCardIndex: activeAnimations.length === 1
@@ -2150,6 +2869,20 @@ class LobbyHandSurface {
       recentArrivalTransitions: this.arrivalTransitionHistory.map(
         (transition) => this.cloneTransition(transition)
       ),
+      pendingPlaybookRequest: this.pendingPlaybookRequest
+        ? Object.assign({}, this.pendingPlaybookRequest)
+        : null,
+      lastPlaybookBatch: this.lastPlaybookBatch
+        ? clonePlain(this.lastPlaybookBatch)
+        : null,
+      recentPlaybookTransitions:
+        this.playbookTransitionHistory.map(
+          (transition) => clonePlain(transition)
+        ),
+      completedPlaybookIntroCount:
+        this.completedPlaybookIntroCount,
+      completedPlaybookExitCount:
+        this.completedPlaybookExitCount,
       prefersReducedMotion: this.prefersReducedMotion(),
       cards: this.cards.map((card, index) => {
         const entry = this.cardEntries[index];
@@ -2181,6 +2914,16 @@ class LobbyHandSurface {
               this.activeAnimations.get(entry).kind === 'arrival'
             )
             : false,
+          playbookAnimating: entry
+            ? Boolean(
+              this.activeAnimations.get(entry) &&
+              this.activeAnimations.get(entry).kind === 'playbook'
+            )
+            : false,
+          exited: entry ? entry.exited === true : false,
+          settledRotationZ: entry
+            ? entry.settledRotationZ
+            : 0,
           analyticShadowVisible: Boolean(
             entry && entry.liftShadow && entry.liftShadow.visible
           ),
@@ -2265,6 +3008,51 @@ class LobbyHandSurface {
   }
 }
 
+const lobbyPlaybookApi = Object.freeze({
+  metadata: LOBBY_MOTION_PLAYBOOK_METADATA,
+  targets: LOBBY_MOTION_TARGETS,
+  windTargetId: LOBBY_WIND_EXIT_TARGET_ID,
+  windVariation: LOBBY_WIND_VARIATION,
+  defaults: DEFAULT_LOBBY_MOTION_PLAYBOOK,
+  normalize(playbook) {
+    return normalizeLobbyMotionPlaybook(playbook);
+  },
+  parse(json) {
+    return parseLobbyMotionPlaybook(json);
+  },
+  serialize(playbook) {
+    return serializeLobbyMotionPlaybook(playbook);
+  },
+  getTarget(playbook, targetId) {
+    return getLobbyMotionTarget(playbook, targetId);
+  },
+  getTargetDefinition(targetId) {
+    return getLobbyMotionTargetDefinition(targetId);
+  },
+  updateTarget(playbook, targetId, preset, delayMs) {
+    return updateLobbyMotionTarget(
+      playbook,
+      targetId,
+      preset,
+      delayMs
+    );
+  },
+  updateWindSeed(playbook, seed, locked) {
+    return updateLobbyWindSeed(playbook, seed, locked);
+  },
+  createBatch(playbook, sequence, cards, request) {
+    return createLobbyMotionBatch(
+      playbook,
+      sequence,
+      cards,
+      request
+    );
+  },
+  samplePlan(plan, elapsedMs) {
+    return sampleLobbyMotionPlan(plan, elapsedMs);
+  }
+});
+
 window.gh = window.gh || {};
 window.gh.modernGraphics = {
   packageVersion: __PURETT_THREE_PACKAGE_VERSION__,
@@ -2291,6 +3079,7 @@ window.gh.modernGraphics = {
       'casual-toss': CARD_MOTION_PRESETS.casualToss,
       'energetic-scatter': CARD_MOTION_PRESETS.energeticScatter
     }),
+    playbook: lobbyPlaybookApi,
     normalizePreset(preset) {
       return validateMotionStudioPreset(preset);
     },
@@ -2307,6 +3096,7 @@ window.gh.modernGraphics = {
       return parseCardMotionPreset(json);
     }
   }),
+  lobbyPlaybook: lobbyPlaybookApi,
   createSurface(host, options) {
     return new ModernGraphicsSurface(host, options);
   },

@@ -27,6 +27,9 @@ try {
   const modernSource = read('frontend/src/modern-graphics.js');
   const arrivalSource = read('frontend/src/card-arrival-animations.js');
   const cardMotionSource = read('frontend/src/card-motion.js');
+  const lobbyPlaybookSource = read(
+    'frontend/src/lobby-motion-playbook.js'
+  );
   const motionStudioSurfaceSource = read(
     'frontend/src/motion-studio-surface.js'
   );
@@ -53,7 +56,7 @@ try {
   assert(!/window\.THREE\s*=/.test(modernSource + modernBundle), 'modern bundle overwrites the legacy snow THREE global');
   assert(fs.existsSync(path.join(root, 'public/js/modern/THREE-LICENSE.txt')), 'distributed Three.js license is missing');
 
-  assert(coordinator.includes('/js/modern/purett-modern-graphics.min.js?v=0.185.1-motion-studio.1'), 'coordinator does not use the Motion Studio bundle cache revision');
+  assert(coordinator.includes('/js/modern/purett-modern-graphics.min.js?v=0.185.1-lobby-playbook.1'), 'coordinator does not use the lobby-playbook bundle cache revision');
   assert(!/https?:\/\//.test(coordinator), 'coordinator references a third-party graphics URL');
   assert(coordinator.includes("this.storageKey = 'purett.graphicsMode.v1'"), 'graphics preference does not have a stable storage key');
   assert(coordinator.includes("this.requestedMode = 'legacy'"), 'Legacy is not the safe default');
@@ -97,12 +100,51 @@ try {
   );
   assert(
     motionStudioController.includes('gh.motionstudio = function(options)') &&
-      motionStudioController.includes("this.storageKey = 'purett.motionStudio.v1'") &&
+      motionStudioController.includes("this.storageKey = 'purett.motionStudio.v2'") &&
       motionStudioController.includes('this.graphics.openMotionStudio(') &&
       motionStudioController.includes('this.graphics.closeMotionStudio()') &&
-      motionStudioController.includes('this.api.serializePreset(') &&
-      motionStudioController.includes('this.api.parsePreset('),
-    'the Motion Studio controller does not cover open, close, and versioned recipe exchange'
+      motionStudioController.includes('this.api.playbook.serialize(') &&
+      motionStudioController.includes('this.api.playbook.parse(') &&
+      motionStudioController.includes('applyAndPreview: function()') &&
+      motionStudioController.includes('this.graphics.previewLobbyPlaybook('),
+    'the Motion Studio controller does not cover open, close, application targets, whole-playbook exchange, and production preview'
+  );
+  const draftUpdateSection = motionStudioController.slice(
+    motionStudioController.indexOf(
+      'applyPresetToSurface: function('
+    ),
+    motionStudioController.indexOf(
+      'createPreviewBatch: function('
+    )
+  );
+  assert(
+    motionStudioController.includes('draftPlaybook: draftPlaybook') &&
+      motionStudioController.includes(
+        'this.api.playbook.parse(\n' +
+        '                            session.draftPlaybook'
+      ) &&
+      motionStudioController.includes(
+        'targetPresetNames: $.extend('
+      ) &&
+      !draftUpdateSection.includes('setLobbyPlaybook(') &&
+      (
+        motionStudioController.match(
+          /this\.graphics\.setLobbyPlaybook\(/g
+        ) || []
+      ).length === 2,
+    'Studio drafts are not isolated in session state until explicit Import or Apply & Preview'
+  );
+  assert(
+    motionStudioController.includes(
+      'text = this.api.playbook.serialize(this.playbook)'
+    ) &&
+      motionStudioController.includes(
+        'me.pendingPreviewToken !== previewToken'
+      ) &&
+      motionStudioController.includes(
+        'me.graphics.canRestoreMotionStudioPreview()'
+      ),
+    'whole-playbook export or stale-preview ownership guards are incomplete'
   );
   assert(
     coordinator.includes('openMotionStudio: function(host, options, callback)') &&
@@ -112,6 +154,21 @@ try {
       coordinator.includes('motionStudioOpen: this.studioOpen') &&
       coordinator.includes('motionStudio: this.studioSurface'),
     'the graphics coordinator does not own the Motion Studio surface lifecycle'
+  );
+  assert(
+    coordinator.includes('cancelLobbyPreview: function(outcome)') &&
+      coordinator.includes(
+        'canRestoreMotionStudioPreview: function()'
+      ) &&
+      coordinator.includes(
+        "this.cancelLobbyPreview('cancelled-lobby-command')"
+      ) &&
+      coordinator.includes(
+        "this.cancelLobbyPreview('cancelled-view-change')"
+      ) &&
+      coordinator.includes('this.previewAllowStudioRestore = false') &&
+      coordinator.includes('this.activePreviewFinish = finish'),
+    'production preview cannot yield safely to a newer command, view, or Graphics choice'
   );
   assert(
     cardMotionSource.includes('export const CARD_MOTION_SCHEMA_VERSION = 1') &&
@@ -145,6 +202,24 @@ try {
       modernSource.includes('parsePreset('),
     'the Modern graphics facade does not expose the Motion Studio factory and reusable recipe API'
   );
+  assert(
+    lobbyPlaybookSource.includes(
+      'export const LOBBY_MOTION_PLAYBOOK_SCHEMA_VERSION = 1'
+    ) &&
+      lobbyPlaybookSource.includes(
+        'export const LOBBY_MOTION_TARGETS'
+      ) &&
+      lobbyPlaybookSource.includes(
+        'export function createLobbyMotionBatch'
+      ) &&
+      lobbyPlaybookSource.includes(
+        'export function sampleLobbyMotionPlan'
+      ) &&
+      !/\b(?:window|document|HTMLElement|WebGLRenderer|from ['"]three['"])\b/.test(
+        lobbyPlaybookSource
+      ),
+    'the application-bound lobby playbook is not a DOM-free, versioned planning API'
+  );
 
   assert(application.includes('menu: me.menu'), 'application does not pass the lobby menu to the graphics coordinator');
   assert(coordinator.includes('this.menu = options.menu'), 'graphics coordinator does not retain the lobby menu bridge');
@@ -154,7 +229,7 @@ try {
   assert(
     lobbyMenu.includes('me.presentationSequence += 1') &&
       lobbyMenu.includes("trigger: 'command-bar-reveal'") &&
-      lobbyMenu.includes("profile: 'casual-drop-left'") &&
+      lobbyMenu.includes("sequence: 'intro'") &&
       lobbyMenu.includes('startedAtMs: window.performance.now()') &&
       lobbyMenu.includes('me.graphics.showLobbyHand(cards, me.activePresentation)'),
     'the lobby reveal does not create and pass one explicit Modern presentation token'
@@ -162,9 +237,9 @@ try {
   assert(
     coordinator.includes('showLobbyHand: function(cards, presentation)') &&
       coordinator.includes('this.lobbyPresentation = presentation ? {') &&
-      coordinator.includes('arrival: arrival') &&
-      coordinator.includes('this.lobbyPresentationDeliveredId = String(arrival.id)'),
-    'the graphics coordinator does not preserve the lobby arrival request'
+      coordinator.includes('playbookRequest: playbookRequest') &&
+      coordinator.includes('String(playbookRequest.id)'),
+    'the graphics coordinator does not preserve the lobby playbook request'
   );
 
   assert(lobbyMenu.includes('legacy-menu-hand-card'), 'lobby Raphael hand cards do not receive a hand-only gate class');
@@ -317,36 +392,32 @@ try {
       arrivalSource.includes("createPose(plan, 'flight'") &&
       arrivalSource.includes("createPose(plan, 'slap'") &&
       arrivalSource.includes("createPose(plan, 'slide'") &&
-      modernSource.includes('preparePendingArrival()') &&
-      modernSource.includes('applyArrivalPose(entry, pose)') &&
-      modernSource.includes('pose.screenX,') &&
-      modernSource.includes('pose.screenY') &&
-      modernSource.includes("projectionProfile: 'flat-table-neutralized-through-arrival'") &&
-      modernSource.includes("flightPolicy: 'analytic-ballistic-human-scatter'") &&
-      modernSource.includes("landingPolicy: 'edge-contact-and-continuous-friction'"),
-    'the casual-left arrival does not cover human release, ballistic flight, contact, and friction'
+      modernSource.includes('preparePendingPlaybook()') &&
+      modernSource.includes('applyCardMotionPose(entry, pose') &&
+      modernSource.includes('updatePlaybookAnimation(animation, elapsed)') &&
+      modernSource.includes('sampleLobbyMotionPlan('),
+    'the lobby surface does not consume the application playbook through the renderer-neutral motion sampler'
   );
   assert(
-    modernSource.includes('this.consumedArrivalRequestIds = new Set()') &&
-      modernSource.includes('this.rememberConsumedArrivalRequest(request.id)') &&
-      modernSource.includes('else if (cardKey !== this.cardKey)') &&
-      !modernSource.includes('consumedArrivalRequestIds.size >') &&
+    modernSource.includes('this.consumedPlaybookRequestIds = new Set()') &&
+      modernSource.includes(
+        'this.consumedPlaybookRequestIds.add(String(request.id))'
+      ) &&
       coordinator.includes('this.lobbyPresentationDeliveredId') &&
       modernSource.includes('elapsedBeforeReadyMs') &&
       modernSource.includes('this.prefersReducedMotion() || this.suspended') &&
       modernSource.includes("'skipped-reduced-motion'") &&
-      modernSource.includes('Math.pow(1 - pose.progress, 1.4)') &&
-      modernSource.includes("pose.phase === 'slide'") &&
-      modernSource.includes('entry.tiltRoot.rotation.z = 0'),
-    'arrival replay, reduced-motion, or exact-settlement guards are incomplete'
+      modernSource.includes('resetPlaybookCards()') &&
+      modernSource.includes('finishPlaybookBatch('),
+    'playbook replay, reduced-motion, exact-settlement, or completion guards are incomplete'
   );
   assert(
-    modernSource.includes("kind: 'arrival'") &&
+    modernSource.includes("kind: 'playbook'") &&
       modernSource.includes("kind: 'flip'") &&
-      modernSource.includes("animation.kind === 'arrival'") &&
+      modernSource.includes("animation.kind === 'playbook'") &&
       modernSource.includes('this.activeAnimations.set(entry, animation)') &&
       modernSource.includes('this.scheduleAnimationFrame()'),
-    'arrival and flip motion do not share the discriminated single scheduler'
+    'playbook and flip motion do not share the discriminated single scheduler'
   );
   assert(
     modernSource.includes('cardAnimations: Object.freeze({') &&

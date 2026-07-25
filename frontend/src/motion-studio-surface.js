@@ -115,9 +115,41 @@ function visibleFaceForDepth(normalDepth) {
     : 'Back';
 }
 
-function createStudioPlan(preset) {
+function normalizeStudioContext(context) {
+  const source = context && typeof context === 'object'
+    ? context
+    : {};
+  const destination = source.destination &&
+      typeof source.destination === 'object'
+    ? source.destination
+    : STUDIO_DESTINATION;
+  return {
+    direction: source.direction === 'exit' ? 'exit' : 'intro',
+    destination: {
+      x: Number.isFinite(Number(destination.x))
+        ? Number(destination.x)
+        : STUDIO_DESTINATION.x,
+      y: Number.isFinite(Number(destination.y))
+        ? Number(destination.y)
+        : STUDIO_DESTINATION.y,
+      z: Number.isFinite(Number(destination.z))
+        ? Number(destination.z)
+        : STUDIO_DESTINATION.z
+    },
+    delayMs: clamp(Number(source.delayMs) || 0, 0, 1500),
+    targetId: source.targetId == null
+      ? null
+      : String(source.targetId)
+  };
+}
+
+function createStudioPlan(preset, context) {
+  const normalizedContext = normalizeStudioContext(context);
   const plan = createCardMotionPlan(preset, {
-    destination: STUDIO_DESTINATION
+    destination: normalizedContext.destination,
+    delayMs: normalizedContext.direction === 'intro'
+      ? normalizedContext.delayMs
+      : 0
   });
   let index;
   let pose;
@@ -156,7 +188,7 @@ function createStudioPlan(preset) {
 
 export function validateMotionStudioPreset(preset) {
   const normalized = normalizeCardMotionAuthoringPreset(preset);
-  createStudioPlan(normalized);
+  createStudioPlan(normalized, null);
   return normalized;
 }
 
@@ -198,11 +230,15 @@ export class MotionStudioSurface {
     this.preset = validateMotionStudioPreset(
       CARD_MOTION_PRESETS.casualToss
     );
-    this.plan = createStudioPlan(this.preset);
+    this.motionContext = normalizeStudioContext(null);
+    this.plan = createStudioPlan(
+      this.preset,
+      this.motionContext
+    );
     this.planRevision = 1;
     this.debugPreset = freezePlain(clonePlain(this.preset));
     this.debugPlan = freezePlain(clonePlain(this.plan));
-    this.pose = sampleCardMotion(this.plan, 0);
+    this.pose = this.samplePose(0);
     this.perspectiveScale = 1;
     this.renderedScale = this.pose.authoredScale;
     this.visibleFace = 'Front';
@@ -426,7 +462,7 @@ export class MotionStudioSurface {
         this.commitCard(textures);
         this.status = 'ready';
         this.elapsedMs = 0;
-        this.pose = sampleCardMotion(this.plan, 0);
+        this.pose = this.samplePose(0);
         this.applyPose(this.pose);
         if (typeof this.options.onReady === 'function') {
           this.options.onReady();
@@ -523,14 +559,82 @@ export class MotionStudioSurface {
   }
 
   createPlan(preset) {
-    return createStudioPlan(preset);
+    return createStudioPlan(preset, this.motionContext);
+  }
+
+  getDuration() {
+    if (!this.plan) {
+      return 0;
+    }
+    return this.motionContext.direction === 'exit'
+      ? this.motionContext.delayMs + this.plan.timing.motionMs
+      : this.plan.timing.totalMs;
+  }
+
+  samplePose(elapsedMs) {
+    if (this.motionContext.direction !== 'exit') {
+      return sampleCardMotion(this.plan, elapsedMs);
+    }
+    const elapsed = clamp(
+      Number(elapsedMs) || 0,
+      0,
+      this.getDuration()
+    );
+    const localElapsed = elapsed - this.motionContext.delayMs;
+    if (localElapsed <= 0) {
+      const waitingPose = sampleCardMotion(
+        this.plan,
+        this.plan.timing.motionMs
+      );
+      return Object.assign({}, waitingPose, {
+        phase: 'exit-waiting',
+        complete: false,
+        elapsedMs: elapsed,
+        localElapsedMs: localElapsed
+      });
+    }
+    const reverseElapsed = Math.max(
+      0,
+      this.plan.timing.motionMs - localElapsed
+    );
+    const pose = sampleCardMotion(this.plan, reverseElapsed);
+    const complete = localElapsed >= this.plan.timing.motionMs;
+    return Object.assign({}, pose, {
+      phase: complete ? 'exited' : `exit-${pose.phase}`,
+      complete,
+      elapsedMs: elapsed,
+      localElapsedMs: localElapsed,
+      progress: clamp(
+        localElapsed / this.plan.timing.motionMs,
+        0,
+        1
+      )
+    });
+  }
+
+  setMotionContext(context) {
+    if (this.disposed) {
+      return;
+    }
+    const oldDuration = this.getDuration();
+    const progress = oldDuration > 0
+      ? clamp(this.elapsedMs / oldDuration, 0, 1)
+      : 0;
+    this.motionContext = normalizeStudioContext(context);
+    this.plan = this.createPlan(this.preset);
+    this.planRevision += 1;
+    this.debugPlan = freezePlain(clonePlain(this.plan));
+    this.elapsedMs = this.getDuration() * progress;
+    this.pose = this.samplePose(this.elapsedMs);
+    this.lastFrameTimestamp = null;
+    this.applyPose(this.pose);
   }
 
   setPreset(preset) {
     if (this.disposed) {
       return;
     }
-    const oldDuration = this.plan ? this.plan.timing.totalMs : 0;
+    const oldDuration = this.getDuration();
     const progress = oldDuration > 0
       ? clamp(this.elapsedMs / oldDuration, 0, 1)
       : 0;
@@ -539,8 +643,8 @@ export class MotionStudioSurface {
     this.planRevision += 1;
     this.debugPreset = freezePlain(clonePlain(this.preset));
     this.debugPlan = freezePlain(clonePlain(this.plan));
-    this.elapsedMs = this.plan.timing.totalMs * progress;
-    this.pose = sampleCardMotion(this.plan, this.elapsedMs);
+    this.elapsedMs = this.getDuration() * progress;
+    this.pose = this.samplePose(this.elapsedMs);
     this.lastFrameTimestamp = null;
     this.applyPose(this.pose);
   }
@@ -563,9 +667,9 @@ export class MotionStudioSurface {
     if (this.disposed || this.contextLost || this.status !== 'ready') {
       return;
     }
-    if (this.elapsedMs >= this.plan.timing.totalMs) {
+    if (this.elapsedMs >= this.getDuration()) {
       this.elapsedMs = 0;
-      this.pose = sampleCardMotion(this.plan, 0);
+      this.pose = this.samplePose(0);
       this.applyPose(this.pose);
     }
     if (this.playing) {
@@ -584,7 +688,7 @@ export class MotionStudioSurface {
     }
     this.cancelFrame();
     this.elapsedMs = 0;
-    this.pose = sampleCardMotion(this.plan, 0);
+    this.pose = this.samplePose(0);
     this.applyPose(this.pose);
     if (this.status === 'ready') {
       this.playing = true;
@@ -614,9 +718,9 @@ export class MotionStudioSurface {
     this.elapsedMs = clamp(
       Number(elapsedMs) || 0,
       0,
-      this.plan.timing.totalMs
+      this.getDuration()
     );
-    this.pose = sampleCardMotion(this.plan, this.elapsedMs);
+    this.pose = this.samplePose(this.elapsedMs);
     this.applyPose(this.pose);
   }
 
@@ -647,18 +751,19 @@ export class MotionStudioSurface {
     const delta = Math.max(0, timestamp - this.lastFrameTimestamp);
     this.lastFrameTimestamp = timestamp;
     this.elapsedMs += delta * this.playbackRate;
-    if (this.elapsedMs >= this.plan.timing.totalMs) {
-      if (this.loop && this.plan.timing.totalMs > 0) {
-        this.elapsedMs %= this.plan.timing.totalMs;
+    const duration = this.getDuration();
+    if (this.elapsedMs >= duration) {
+      if (this.loop && duration > 0) {
+        this.elapsedMs %= duration;
         this.lastFrameTimestamp = timestamp;
       } else {
-        this.elapsedMs = this.plan.timing.totalMs;
+        this.elapsedMs = duration;
         this.playing = false;
         this.lastFrameTimestamp = null;
       }
     }
 
-    this.pose = sampleCardMotion(this.plan, this.elapsedMs);
+    this.pose = this.samplePose(this.elapsedMs);
     this.applyPose(this.pose);
     if (this.playing) {
       this.scheduleFrame();
@@ -839,7 +944,8 @@ export class MotionStudioSurface {
       loop: this.loop,
       playbackRate: this.playbackRate,
       elapsedMs: this.elapsedMs,
-      durationMs: this.plan ? this.plan.timing.totalMs : 0,
+      durationMs: this.getDuration(),
+      motionContext: clonePlain(this.motionContext),
       planRevision: this.planRevision,
       frameCount: this.frameCount,
       renderCount: this.renderCount,

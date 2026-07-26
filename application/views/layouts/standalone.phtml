@@ -3,6 +3,30 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=755, initial-scale=1" />
+    <script>
+        /*
+         * Restore a saved Modern request before the document can paint.  The
+         * normal coordinator still validates and applies the preference; this
+         * marker only prevents its retained Raphael hand from flashing while
+         * the lazy Three.js surface prepares its first complete frame.
+         */
+        (function() {
+            var storedMode = null;
+            try {
+                storedMode = window.localStorage.getItem(
+                    'purett.graphicsMode.v1'
+                );
+            } catch (error) {
+                storedMode = null;
+            }
+            if (storedMode === 'modern') {
+                document.documentElement.setAttribute(
+                    'data-graphics-startup-mode',
+                    'modern'
+                );
+            }
+        }());
+    </script>
     <title>Pure Triple Triad</title>
     <script src="/js/jquery-1.7.1.min.js"></script>
     <script src="/js/jquery-ui-1.8.16.custom.min.js"></script>

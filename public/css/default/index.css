@@ -158,6 +158,10 @@ body::before {
     opacity: 0 !important;
     pointer-events: none !important;
 }
+html[data-graphics-startup-mode="modern"] #menu .legacy-menu-hand-card {
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
 
 /* Three.js single-card authoring workbench. */
 #motionstudio {

@@ -67,10 +67,44 @@ try {
   assert(layout.includes('/js/plugins/gh.graphics.js'), 'standalone layout does not load the graphics coordinator');
   assert(layout.indexOf('/js/plugins/gh.graphics.js') < layout.indexOf('/js/plugins/gh.game.js'), 'graphics coordinator loads after the game plugin');
   assert(!layout.includes('/js/modern/purett-modern-graphics.min.js'), 'modern bundle is eagerly loaded in Legacy mode');
+  assert(
+    layout.includes(
+      "window.localStorage.getItem(\n" +
+      "                    'purett.graphicsMode.v1'"
+    ) &&
+      layout.includes("'data-graphics-startup-mode'") &&
+      layout.indexOf("'data-graphics-startup-mode'") <
+        layout.indexOf('/js/jquery-1.7.1.min.js'),
+    'the saved Modern preference is not translated into an early first-paint marker'
+  );
   assert(game.includes('id="modernGraphics"'), 'game surface does not include a Modern host');
   assert(game.includes('setGraphicsMode: function(mode)'), 'game surface has no runtime graphics gate');
   assert(boardCss.includes('#board.graphics-modern #svgBoard *'), 'Modern mode does not block descendant Raphael hit targets');
   assert(boardCss.includes('pointer-events: none !important'), 'Raphael pointer blocking is not authoritative');
+  assert(
+    boardCss.includes(
+      'html[data-graphics-startup-mode="modern"] #menu .legacy-menu-hand-card'
+    ) &&
+      coordinator.includes(
+        'isStartupModernPending: function()'
+      ) &&
+      coordinator.includes(
+        'releaseStartupModernGate: function()'
+      ) &&
+      coordinator.includes(
+        'startStartupModernGateWatchdog: function()'
+      ) &&
+      coordinator.includes(
+        "this.startupModernGateTimeoutMs = 6000"
+      ) &&
+      lobbyMenu.includes(
+        'var suppressLegacyHand = useModernHand'
+      ) &&
+      lobbyMenu.includes(
+        "suppressLegacyHand ? 'true' : 'false'"
+      ),
+    'restored Modern startup does not mask and accessibly gate only the retained Legacy hand'
+  );
   assert(contextMenu.includes('data-graphics-mode="legacy"') && contextMenu.includes('data-graphics-mode="modern"'), 'graphics menu choices are incomplete');
   assert(
     contextMenu.includes('class="motion-studio enabled"') &&

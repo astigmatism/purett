@@ -206,9 +206,15 @@ gh.menu.prototype = {
             var cardInfo = me.describeHandCard(this, index);
             var card = me.canvas.image(cardInfo.textureUrl, x, y, me.cW, me.cH).attr({'opacity' : 0, scale: 2});
             var existingClass = card.node.getAttribute('class') || '';
+            var suppressLegacyHand = me.graphics &&
+                me.graphics.isStartupModernPending &&
+                me.graphics.isStartupModernPending();
             card.node.setAttribute('class', (existingClass + ' legacy-menu-hand-card').replace(/^\s+|\s+$/g, ''));
             card.node.setAttribute('data-menu-hand-index', index);
-            card.node.setAttribute('aria-hidden', 'false');
+            card.node.setAttribute(
+                'aria-hidden',
+                suppressLegacyHand ? 'true' : 'false'
+            );
             // Center the hand between the fixed control bar and career ribbon.
             var angle = (Math.random() * 5) - 2.5;
             card.animate({ rotation: 720 - angle, translation: [ me.pos[index] - x, 203 - y], opacity: 1, scale: 1}, 1000, '>');
@@ -265,12 +271,19 @@ gh.menu.prototype = {
     },
     setModernHandReady: function(ready) {
         var useModernHand = ready === true && this.graphicsMode === 'modern' && this.visible;
+        var suppressLegacyHand = useModernHand ||
+            (this.graphics &&
+                this.graphics.isStartupModernPending &&
+                this.graphics.isStartupModernPending());
         this.modernHandReady = useModernHand;
         $('#menu').toggleClass('graphics-modern-hand', useModernHand);
         $('#modernLobbyHand').attr('aria-hidden', useModernHand ? 'false' : 'true');
         $.each(this.hand, function() {
             if (this.node) {
-                this.node.setAttribute('aria-hidden', useModernHand ? 'true' : 'false');
+                this.node.setAttribute(
+                    'aria-hidden',
+                    suppressLegacyHand ? 'true' : 'false'
+                );
             }
         });
     },

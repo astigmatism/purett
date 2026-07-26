@@ -46,6 +46,13 @@ gh.graphics.prototype = {
         this.previewWatchdog = null;
         this.activePreviewFinish = null;
         this.previewAllowStudioRestore = true;
+        this.startupModernGatePending =
+            document.documentElement.getAttribute(
+                'data-graphics-startup-mode'
+            ) === 'modern';
+        this.startupModernGateWatchdog = null;
+        this.startupModernGateTimedOut = false;
+        this.startupModernGateTimeoutMs = 6000;
 
         var storedMode = null;
         var storedPlaybook = null;
@@ -96,6 +103,9 @@ gh.graphics.prototype = {
         if (!this.isValidMode(mode)) {
             mode = 'legacy';
         }
+        if (persist && mode === 'modern') {
+            this.startupModernGateTimedOut = false;
+        }
 
         this.requestedMode = mode;
         if (persist && this.previewRestoreMode !== null) {
@@ -129,6 +139,9 @@ gh.graphics.prototype = {
         this.setStatus('Loading Three.js ' + this.threePackageVersion + '\u2026');
         this.loadModernGraphics(function(error, modernGraphics) {
             if (me.requestedMode !== 'modern') {
+                return;
+            }
+            if (me.startupModernGateTimedOut) {
                 return;
             }
             if (!me.modernEnabled) {
@@ -255,6 +268,7 @@ gh.graphics.prototype = {
         this.updateModernStatus();
     },
     activateLegacy: function(error, reason) {
+        this.releaseStartupModernGate();
         this.effectiveMode = 'legacy';
         this.game.setGraphicsMode('legacy');
         if (this.menu && this.menu.setGraphicsMode) {
@@ -397,6 +411,7 @@ gh.graphics.prototype = {
     showLobbyHand: function(cards, presentation) {
         this.lobbyVisible = true;
         this.lobbyCards = (cards || []).slice(0);
+        this.startStartupModernGateWatchdog();
         this.lobbyPresentation = presentation ? {
             id: presentation.id,
             trigger: presentation.trigger || 'command-bar-reveal',
@@ -423,6 +438,7 @@ gh.graphics.prototype = {
         }
     },
     hideLobbyHand: function() {
+        this.releaseStartupModernGate();
         this.lobbyVisible = false;
         this.lobbyCards = [];
         this.lobbyPresentation = null;
@@ -470,6 +486,7 @@ gh.graphics.prototype = {
                         me.menu &&
                         me.menu.setModernHandReady) {
                         me.menu.setModernHandReady(true);
+                        me.releaseStartupModernGate();
                         me.updateModernStatus();
                     }
                 },
@@ -546,6 +563,46 @@ gh.graphics.prototype = {
                 this.surfaceDisposing = false;
             }
         }
+    },
+    isStartupModernPending: function() {
+        return this.startupModernGatePending === true;
+    },
+    startStartupModernGateWatchdog: function() {
+        var me = this;
+        if (!this.startupModernGatePending ||
+                this.startupModernGateWatchdog !== null) {
+            return;
+        }
+        this.startupModernGateWatchdog = window.setTimeout(
+            function() {
+                if (!me.startupModernGatePending) {
+                    return;
+                }
+                me.startupModernGateTimedOut = true;
+                me.activateLegacy(
+                    new Error(
+                        'Modern graphics startup timed out.'
+                    ),
+                    'startup-timeout'
+                );
+            },
+            this.startupModernGateTimeoutMs
+        );
+    },
+    releaseStartupModernGate: function() {
+        if (this.startupModernGateWatchdog !== null) {
+            window.clearTimeout(
+                this.startupModernGateWatchdog
+            );
+            this.startupModernGateWatchdog = null;
+        }
+        if (!this.startupModernGatePending) {
+            return;
+        }
+        this.startupModernGatePending = false;
+        document.documentElement.removeAttribute(
+            'data-graphics-startup-mode'
+        );
     },
     openMotionStudio: function(host, options, callback) {
         var me = this;
@@ -1024,6 +1081,10 @@ gh.graphics.prototype = {
             modernEnabled: this.modernEnabled,
             fallbackReason: this.fallbackReason,
             loadState: this.loadState,
+            startupModernGatePending:
+                this.startupModernGatePending,
+            startupModernGateTimedOut:
+                this.startupModernGateTimedOut,
             packageVersion: gh.modernGraphics ? gh.modernGraphics.packageVersion : null,
             revision: gh.modernGraphics ? String(gh.modernGraphics.revision) : null,
             surfaceKind: this.surfaceKind,

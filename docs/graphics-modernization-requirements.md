@@ -2,13 +2,13 @@
 
 | Field | Value |
 |---|---|
-| Status | Phase 0.9 application-bound lobby motion playbook and full-board authoring refinement implemented, acceptance verification in progress; Phase 0.7 visual baseline rejected |
-| Version | 1.5 |
-| Last updated | 2026-07-24 |
+| Status | Phase 0.9 application-bound lobby motion playbook, full-board authoring refinement, and restored-Modern first-paint handoff implemented; acceptance verification in progress; Phase 0.7 visual baseline rejected |
+| Version | 1.6 |
+| Last updated | 2026-07-25 |
 | Scope | Active-match graphics roadmap plus Modern lobby-hand rendering, an application-bound lobby intro/exit playbook, Motion Studio authoring, renderer-neutral motion recipes, and bounded decorative card experiments |
 | Modern renderer | Three.js `0.185.1` (`r185`) with `WebGLRenderer`, selected for Phase 0 and provisional for the playable renderer |
 
-> **Implementation status — 2026-07-24:** Phase 0 established the runtime Graphics switch, safe Legacy fallback, and inert active-match Modern surface. Phase 0.5 rendered only the five lobby-hand cards beneath the Play, Shop, and Tutorials bar. Phase 0.6 added the calibrated flat-table Three.js card model and independent decorative double flips. Phase 0.7 deployed a deterministic `casual-drop-left` implementation with a pure planner, bounded lifecycle, table-clearance safeguards, and exact settlement. Its current visible motion does **not** convincingly resemble cards being dropped or scattered by a player: it reads primarily as flat cards sliding in from the left. It therefore failed the human visual acceptance requirement in `AC-P07-003` and is **not an approved visual baseline**. Its parameter values, named gestures, cadence, scale policy, and apparent motion must not be copied into the lobby, shop, active match, or another surface as an accepted design. Phase 0.8 introduced the isolated one-card Motion Studio and deterministic renderer-neutral recipes. Phase 0.9 now binds that authoring loop to a browser-local application playbook: five independently editable lobby-card intro targets land on runtime-owned fixed anchors, and one shared Gentle Wind exit compiles into five deterministic seeded variants with distinct lower-left offscreen endpoints. Its authoring refinement presents the entire 755 by 562 lobby board at true logical size, visually inherits the selected application scale, keeps every HTML control outside that stage, and can copy one intro card's shared motion character to selected or all other intro cards while preserving each destination's delay and travel placement. `Apply & Preview in Lobby` exercises the same production path used by normal lobby presentation and command exit while preserving the stored Legacy/Modern preference. Modern lobby commands wait for the exit or a fail-open watchdog; Tutorials Back replays the intro. The active-match Modern renderer remains intentionally blank and follows the renderer-neutral roadmap later in this document.
+> **Implementation status — 2026-07-25:** Phase 0 established the runtime Graphics switch, safe Legacy fallback, and inert active-match Modern surface. Phase 0.5 rendered only the five lobby-hand cards beneath the Play, Shop, and Tutorials bar. Phase 0.6 added the calibrated flat-table Three.js card model and independent decorative double flips. Phase 0.7 deployed a deterministic `casual-drop-left` implementation with a pure planner, bounded lifecycle, table-clearance safeguards, and exact settlement. Its current visible motion does **not** convincingly resemble cards being dropped or scattered by a player: it reads primarily as flat cards sliding in from the left. It therefore failed the human visual acceptance requirement in `AC-P07-003` and is **not an approved visual baseline**. Its parameter values, named gestures, cadence, scale policy, and apparent motion must not be copied into the lobby, shop, active match, or another surface as an accepted design. Phase 0.8 introduced the isolated one-card Motion Studio and deterministic renderer-neutral recipes. Phase 0.9 now binds that authoring loop to a browser-local application playbook: five independently editable lobby-card intro targets land on runtime-owned fixed anchors, and one shared Gentle Wind exit compiles into five deterministic seeded variants with distinct lower-left offscreen endpoints. Its authoring refinement presents the entire 755 by 562 lobby board at true logical size, visually inherits the selected application scale, keeps every HTML control outside that stage, and can copy one intro card's shared motion character to selected or all other intro cards while preserving each destination's delay and travel placement. `Apply & Preview in Lobby` exercises the same production path used by normal lobby presentation and command exit while preserving the stored Legacy/Modern preference. Modern lobby commands wait for the exit or a fail-open watchdog; Tutorials Back replays the intro. A valid saved Modern choice is now read in the document head and masks only the retained Raphael lobby-card elements before first paint; the normal ready gate takes ownership after the first complete Three.js hand frame, while every failure path removes the startup mask and reveals Legacy. The active-match Modern renderer remains intentionally blank and follows the renderer-neutral roadmap later in this document.
 
 ## Contents
 
@@ -279,7 +279,7 @@ These decisions are part of the baseline requirements.
 | DEC-020 | Phase 0.5 renders only the five non-interactive lobby/main-menu hand cards with Three.js. It does not render an in-match player hand and does not convert the lobby command bar or navigation. |
 | DEC-021 | The Phase 0.5 Modern lobby-hand baseline used a dedicated 755 by 562 orthographic surface, existing same-origin card-face assets, the established five card positions, and no picking or interaction handlers. This remains the historical Phase 0.5 record rather than the Phase 0.6 camera or material decision. |
 | DEC-022 | Each Legacy lobby card receives a hand-specific presentation class. The Modern-ready gate may hide only those card elements; it must never hide the shared `gh.menu` Raphael paper, its bar, or the DOM command controls. |
-| DEC-023 | The lobby hand remains Legacy-visible until all required Modern card textures have loaded and the first complete frame is ready. Any initialization, texture, or context failure restores effective Legacy without altering game or account data. |
+| DEC-023 | During an explicit same-page switch, the lobby hand remains Legacy-visible until all required Modern card textures have loaded and the first complete frame is ready. A restored valid Modern preference is the narrow startup exception: a pre-paint marker masks only the retained Raphael hand until the normal Modern-ready gate takes ownership. Any initialization, texture, or context failure removes either gate and restores effective Legacy without altering game or account data. |
 | DEC-024 | Phase 0.6 supersedes DEC-021 only for the ready Modern lobby-hand surface. It uses five canonically flat settled cards, a constrained perspective camera calibrated to preserve the established pixel-space layout with 450/900 clip planes, a flat-table position-neutral projection, unlit sRGB face art with mipmapped anisotropic filtering, a side-only lit slab separated from each face by 0.2 logical units, independently controllable lift-only analytic contact shadows with shared geometry and texture and hardware shadow mapping disabled, and one decorative same-direction local-X turn from zero to `-2π` after each accepted primary card click. It does not authorize drag, selection, keyboard gameplay, match input, or interaction elsewhere in the application. |
 | DEC-025 | The Phase 0.6 back is the existing canonical same-origin asset `/images/cards/cardBack.png`, shared by every lobby card. It has no user-color, opponent-color, ownership, or purchased-card variant. |
 | DEC-026 | Each Modern lobby card owns an independent re-entry lock while its bounded animation is active. A repeated activation of that same card is ignored and cannot queue work until its exact settlement; any other settled card remains eligible, so up to five cards may animate concurrently. |
@@ -303,6 +303,7 @@ These decisions are part of the baseline requirements.
 | DEC-044 | `Apply & Preview in Lobby` persists the complete validated playbook, closes the Studio, and runs the selected intro or exit through the production lobby renderer. If Legacy is selected, the preview may activate Modern temporarily without writing or replacing the stored requested Graphics preference; afterward it restores the prior mode and reopens the Studio. |
 | DEC-045 | The complete playbook uses guarded versioned `localStorage` and supports canonical whole-playbook import/export. Studio view state may remain session-local. Malformed, unsafe, or future-version playbooks fall back or fail atomically without affecting Graphics preference or application startup. |
 | DEC-046 | Phase 0.9 intro and exit choreography is Modern-only. Legacy commands and Legacy lobby presentation retain their existing behavior and must never wait for, render, or depend on the Three.js playbook. |
+| DEC-047 | A valid persisted Modern request is resolved in the document head before first paint. It does not skip Raphael construction, hide the shared menu paper, or claim Modern is effective early; it only prevents the five retained Legacy lobby cards from being visually or accessibly exposed during lazy Modern startup. The startup marker survives early active-surface initialization until the first complete lobby-hand frame and fails open synchronously through the existing Legacy fallback path. Once the lobby hand is presented, a six-second coordinator watchdog also fails open if a bundle or required texture request stalls without producing a load or error event; a late completion from that timed-out attempt cannot reactivate Modern without a newer explicit selection. |
 
 ## 7. Goals
 
@@ -507,7 +508,7 @@ Requirements become mandatory according to this table:
 
 **FR-MODE-004** — The application must distinguish the requested mode from the effective mode.
 
-**FR-MODE-005** — In Phase 0, selecting `Legacy` or `Modern` must apply on the current page without reload. Selecting Modern must not hide or pointer-block Legacy until the Modern bundle and WebGL surface have initialized successfully. Selecting Legacy must reveal the current live Raphael state immediately without reconstructing the match or its papers. In Phase 0.5 the same readiness rule applies independently to the five lobby card elements; it never gates the shared menu paper.
+**FR-MODE-005** — In Phase 0, selecting `Legacy` or `Modern` must apply on the current page without reload. During an explicit same-page selection, Modern must not hide or pointer-block Legacy until the Modern bundle and WebGL surface have initialized successfully. Selecting Legacy must reveal the current live Raphael state immediately without reconstructing the match or its papers. In Phase 0.5 the same runtime readiness rule applies independently to the five lobby card elements; it never gates the shared menu paper. A valid persisted Modern request follows the pre-paint startup exception in `FR-LIFE-011`.
 
 **FR-MODE-006** — When requested and effective modes differ, the UI must explain the actual reason:
 
@@ -554,6 +555,8 @@ Requirements become mandatory according to this table:
 **FR-LIFE-009** — Both renderers must coexist with the existing 755 by 562 CSS board frame and HTML dialog overlay.
 
 **FR-LIFE-010** — A renderer must be able to reconstruct its complete settled visual state from a snapshot without reading objects created by the other renderer.
+
+**FR-LIFE-011** — Before first paint, the standalone document must perform one guarded read of the versioned Graphics preference. Only the exact persisted value `modern` may establish a temporary startup marker. That marker may opacity-hide, pointer-block, and mark inaccessible only the five retained Legacy lobby-hand card elements; it must not suppress the shared menu paper, command bar, navigation, statistics, or board frame. Raphael must still be constructed and animated normally behind the marker. The marker must remain until the first complete Modern lobby-hand frame takes ownership or until explicit Legacy selection, leaving the initial lobby, configuration disablement, bundle failure, surface failure, required-texture failure, context loss, or a six-second watchdog measured from lobby-hand presentation removes it and reveals Legacy. A completion from a timed-out attempt must not reactivate Modern unless the user explicitly requests Modern again.
 
 ### 11.3 Legacy renderer
 
@@ -780,7 +783,7 @@ Before beta, this flow requires automated accessible-tree and keyboard assertion
 
 **FR-LOBBY-006** — The original Raphael lobby cards must remain mounted. Each must carry a hand-specific marker that can be gated independently from the shared Raphael paper. The bar and all surrounding menu presentation must remain visible throughout Modern initialization and use.
 
-**FR-LOBBY-007** — The legacy lobby cards may become visually hidden and `aria-hidden` only after all required Modern card textures load and a complete Modern frame is ready. Until then, Legacy remains presented to prevent a blank hand region.
+**FR-LOBBY-007** — During a same-page Modern selection, the legacy lobby cards may become visually hidden and `aria-hidden` only after all required Modern card textures load and a complete Modern frame is ready. Until then, Legacy remains presented to prevent a blank hand region. On a new page with a valid persisted Modern request, `FR-LIFE-011` instead masks only those retained card elements before first paint so they never flash ahead of the requested renderer.
 
 **FR-LOBBY-008** — Selecting Legacy must synchronously reveal the existing Raphael lobby cards and hide the Modern lobby host. It must not recreate hand data, reload the page, navigate, start a match, or issue a server request.
 
@@ -1057,7 +1060,7 @@ Selecting a Graphics preference by itself:
 - must not issue `/index/me`;
 - must not alter the current match ID or authoritative game state.
 
-If requested Modern is restored from storage on a new page, Legacy may initialize normally behind the gate while Modern loads. Effective mode remains Legacy until Modern initialization succeeds. If a visible startup transition is later considered undesirable, it may be masked by existing loading presentation; it must not be solved by skipping Legacy construction in Phase 0.
+If requested Modern is restored from storage on a new page, Legacy initializes normally behind the pre-paint hand-only startup gate while Modern loads. Effective mode remains Legacy until Modern initialization succeeds, and the shared menu paper, command bar, and surrounding lobby presentation remain visible. The startup marker transfers ownership to the normal Modern-ready gate only after the first complete lobby-hand frame. Any initialization failure removes the marker and reveals the intact Legacy hand. This masks the visible renderer transition without skipping Legacy construction in Phase 0.
 
 The hidden Legacy controller may continue normal server-authoritative work that would have occurred without a graphics switch. The blank Modern host itself must never originate a move or add a second controller path.
 
@@ -1100,6 +1103,8 @@ Given Legacy is effective, when the user selects Modern:
 - the control exposes requested and effective state accurately throughout loading;
 - Modern remains requested after reload;
 - Modern also remains requested in a new tab and after a browser restart using the same stored browser profile.
+- on reload, no rendered frame visually or accessibly exposes a Legacy lobby card before the restored Modern hand is ready;
+- Raphael still constructs all five lobby cards behind the startup mask, and an initialization failure reveals those same live elements.
 
 #### AC-P0-003 — Modern dependency and surface
 
@@ -1340,7 +1345,7 @@ The renderer may cap the effective device-pixel ratio for resource control, but 
 
 #### 12.8.4 Failure and fallback
 
-The legacy hand must remain visible while Modern textures are pending. A required texture failure, renderer creation failure, invalid card description, or WebGL context loss must:
+During an explicit same-page Modern selection, the legacy hand must remain visible while Modern textures are pending. During restored-Modern startup, the pre-paint marker may keep only those card elements hidden while textures are pending. A required texture failure, renderer creation failure, invalid card description, or WebGL context loss must:
 
 - prevent or remove the hand-only Modern-ready gate;
 - dispose every resource owned by the partial lobby surface;
@@ -1388,7 +1393,8 @@ Given the Modern lobby frame is ready:
 
 Given one or more card textures are delayed:
 
-- the original Raphael cards remain visible until every required texture is ready;
+- after an explicit same-page Modern selection, the original Raphael cards remain visible until every required texture is ready;
+- after a reload with Modern already persisted, the original Raphael cards remain mounted but never appear in a rendered frame before the complete Modern hand is ready;
 - repeated lobby-show or card-update notifications cannot commit an older texture generation;
 - selecting Legacy before texture completion prevents the delayed completion from reapplying the Modern-ready gate;
 - no partially populated hand is presented as a successful Modern frame.
@@ -1430,6 +1436,18 @@ Given a fresh Legacy-only page:
 - the lobby uses its existing Raphael cards and animation;
 - no Modern lobby canvas or WebGL context is created;
 - the main-menu visual and navigation regression suite remains unchanged.
+
+**AC-P05-009 — Restored-Modern first paint and fail-open**
+
+Given a valid persisted Modern preference before navigation:
+
+- the document establishes the Modern startup marker before any application script can construct the menu;
+- a deliberately delayed Modern bundle or texture set produces zero rendered frames with a visible Legacy lobby card;
+- all five Raphael card elements still exist and are `aria-hidden` while the startup marker owns the hand;
+- a complete first Modern frame applies the normal `graphics-modern-hand` gate before removing the startup marker;
+- a forced bundle, renderer, texture, or context failure removes the startup marker, reports effective Legacy, and reveals the intact Raphael cards;
+- a bundle or required texture request that emits neither success nor failure reaches the same fail-open outcome within six seconds of lobby-hand presentation, and its late completion cannot reverse that outcome;
+- a persisted Legacy preference establishes no startup mask and requests no Modern bundle.
 
 #### 12.8.6 Definition of done
 

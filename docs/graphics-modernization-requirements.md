@@ -2,13 +2,13 @@
 
 | Field | Value |
 |---|---|
-| Status | Phase 0.10 passive active-match hand projection implemented; Phase 0.9 lobby playbook verification remains in progress; Phase 0.7 visual baseline rejected |
-| Version | 1.7 |
+| Status | Phase 0.11 renderer-local active-match pickup/follow motion study authorized; Phase 0.10 passive hand projection implemented; Phase 0.9 lobby playbook verification remains in progress; Phase 0.7 visual baseline rejected |
+| Version | 1.8 |
 | Last updated | 2026-07-27 |
-| Scope | Active-match graphics roadmap plus passive Modern match-hand rendering, Modern lobby-hand rendering, an application-bound lobby intro/exit playbook, Motion Studio authoring, renderer-neutral motion recipes, and bounded decorative card experiments |
+| Scope | Active-match graphics roadmap plus a renderer-local Modern player-card pickup/follow study, Modern match-hand rendering, Modern lobby-hand rendering, an application-bound lobby intro/exit playbook, Motion Studio authoring, renderer-neutral motion recipes, and bounded decorative card experiments |
 | Modern renderer | Three.js `0.185.1` (`r185`) with `WebGLRenderer`, selected for Phase 0 and provisional for the playable renderer |
 
-> **Implementation status — 2026-07-27:** Phase 0 established the runtime Graphics switch, safe Legacy fallback, and inert active-match Modern surface. Phase 0.5 rendered only the five lobby-hand cards beneath the Play, Shop, and Tutorials bar. Phase 0.6 added the calibrated flat-table Three.js card model and independent decorative double flips. Phase 0.7 deployed a deterministic `casual-drop-left` implementation with a pure planner, bounded lifecycle, table-clearance safeguards, and exact settlement. Its current visible motion does **not** convincingly resemble cards being dropped or scattered by a player: it reads primarily as flat cards sliding in from the left. It therefore failed the human visual acceptance requirement in `AC-P07-003` and is **not an approved visual baseline**. Its parameter values, named gestures, cadence, scale policy, and apparent motion must not be copied into the lobby, shop, active match, or another surface as an accepted design. Phase 0.8 introduced the isolated one-card Motion Studio and deterministic renderer-neutral recipes. Phase 0.9 binds that authoring loop to a browser-local application playbook: five independently editable lobby-card intro targets land on runtime-owned fixed anchors, and one shared Gentle Wind exit compiles into five deterministic seeded variants with distinct lower-left offscreen endpoints. Its authoring refinement presents the entire 755 by 562 lobby board at true logical size, visually inherits the selected application scale, keeps every HTML control outside that stage, and can copy one intro card's shared motion character to selected or all other intro cards while preserving each destination's delay and travel placement. `Apply & Preview in Lobby` exercises the same production path used by normal lobby presentation and command exit while preserving the stored Legacy/Modern preference. Modern lobby commands wait for the exit or a fail-open watchdog; Tutorials Back replays the intro. A valid saved Modern choice is read in the document head and masks only the retained Raphael lobby-card elements before first paint; the normal ready gate takes ownership after the first complete Three.js hand frame, while every failure path removes the startup mask and reveals Legacy. Phase 0.10 is the first active-match card projection: while Modern is effective, the current player and opponent hands are rendered as passive, flat, portrait Three.js cards at the exact Legacy stack coordinates. The bridge contains only plain visible presentation data, preserves Closed-hand secrecy, has no match input or animation loop, and falls back to the intact live Legacy surface on required texture or context failure. Board cards, slots, scores, turn state, rules, and effects remain intentionally unrendered.
+> **Implementation status — 2026-07-27:** Phase 0 established the runtime Graphics switch, safe Legacy fallback, and inert active-match Modern surface. Phase 0.5 rendered only the five lobby-hand cards beneath the Play, Shop, and Tutorials bar. Phase 0.6 added the calibrated flat-table Three.js card model and independent decorative double flips. Phase 0.7 deployed a deterministic `casual-drop-left` implementation with a pure planner, bounded lifecycle, table-clearance safeguards, and exact settlement. Its current visible motion does **not** convincingly resemble cards being dropped or scattered by a player: it reads primarily as flat cards sliding in from the left. It therefore failed the human visual acceptance requirement in `AC-P07-003` and is **not an approved visual baseline**. Its parameter values, named gestures, cadence, scale policy, and apparent motion must not be copied into the lobby, shop, active match, or another surface as an accepted design. Phase 0.8 introduced the isolated one-card Motion Studio and deterministic renderer-neutral recipes. Phase 0.9 binds that authoring loop to a browser-local application playbook: five independently editable lobby-card intro targets land on runtime-owned fixed anchors, and one shared Gentle Wind exit compiles into five deterministic seeded variants with distinct lower-left offscreen endpoints. Its authoring refinement presents the entire 755 by 562 lobby board at true logical size, visually inherits the selected application scale, keeps every HTML control outside that stage, and can copy one intro card's shared motion character to selected or all other intro cards while preserving each destination's delay and travel placement. `Apply & Preview in Lobby` exercises the same production path used by normal lobby presentation and command exit while preserving the stored Legacy/Modern preference. Modern lobby commands wait for the exit or a fail-open watchdog; Tutorials Back replays the intro. A valid saved Modern choice is read in the document head and masks only the retained Raphael lobby-card elements before first paint; the normal ready gate takes ownership after the first complete Three.js hand frame, while every failure path removes the startup mask and reveals Legacy. Phase 0.10 is the first active-match card projection: while Modern is effective, the current player and opponent hands are rendered as passive, flat, portrait Three.js cards at the exact Legacy stack coordinates. The bridge contains only plain visible presentation data, preserves Closed-hand secrecy, has no match input or animation loop, and falls back to the intact live Legacy surface on required texture or context failure. Phase 0.11 advances only the player hand into a renderer-local pickup/follow motion study. A primary click on the visually topmost eligible player card lifts that one card to the Legacy-equivalent `1.075` projected scale, keeps the original grab offset while it follows the pointer through the scaled 693 by 500 host, and applies bounded velocity-driven local-X/local-Y tilt that trails movement and damps back to a stable lifted pose. A calibrated perspective camera preserves an unskewed flat-table rest for every card. The study owns no click-to-drop behavior, drop zones, invalid-return path, gameplay intent, controller selection, turn rule, game-state mutation, or network request; lifecycle cancellation discards the transient renderer state and the intact live Legacy match remains immediately available. Board cards, slots, scores, turn state, rules, and effects remain intentionally unrendered.
 
 ## Contents
 
@@ -30,6 +30,7 @@
   - [12.11 Phase 0.8: one-card Motion Studio authoring workbench](#1211-phase-08-one-card-motion-studio-authoring-workbench)
   - [12.12 Phase 0.9: application-bound lobby motion playbook](#1212-phase-09-application-bound-lobby-motion-playbook)
   - [12.13 Phase 0.10: passive active-match hand projection](#1213-phase-010-passive-active-match-hand-projection)
+  - [12.14 Phase 0.11: renderer-local active-match pickup/follow study](#1214-phase-011-renderer-local-active-match-pickupfollow-study)
 - [13. Target renderer contract](#13-target-renderer-contract)
 - [14. Renderer-neutral view state](#14-renderer-neutral-view-state)
 - [15. Three.js implementation constraints](#15-threejs-implementation-constraints)
@@ -47,7 +48,7 @@
 
 ## 1. Purpose of this document
 
-This document defines the intended outcome, constraints, phased delivery plan, and acceptance criteria for modernizing the active-match graphics in Pure Triple Triad. It also defines the deliberately narrow Phase 0.5 lobby-hand preview, Phase 0.6 lobby-card double-flip spike, Phase 0.7 entrance experiment, Phase 0.8 one-card Motion Studio, Phase 0.9 application-bound lobby intro/exit playbook, and Phase 0.10 passive match-hand projection used to establish renderer seams before any playable match surface is converted.
+This document defines the intended outcome, constraints, phased delivery plan, and acceptance criteria for modernizing the active-match graphics in Pure Triple Triad. It also defines the deliberately narrow Phase 0.5 lobby-hand preview, Phase 0.6 lobby-card double-flip spike, Phase 0.7 entrance experiment, Phase 0.8 one-card Motion Studio, Phase 0.9 application-bound lobby intro/exit playbook, Phase 0.10 passive match-hand projection, and Phase 0.11 renderer-local pickup/follow motion study used to establish renderer seams and physical card language before any playable match surface is converted.
 
 It is deliberately more detailed than an implementation ticket. The modernization will cross a legacy rendering implementation, animation-driven control flow, input handling, tests, build and dependency delivery, accessibility, and failure recovery. Once reviewed and accepted, this document is intended to be the stable product and engineering reference for that work.
 
@@ -91,9 +92,9 @@ Server-approved match state and events
 
 After renderer extraction, exactly one active-match renderer must own the active-match mount, animation, and input at a time.
 
-The first implementation increment did **not** add functional Three.js card rendering. It added a persisted graphics-mode preference and immediate runtime selection, preserved fully functional Legacy behavior, and supplied an intentionally inert Modern preview. Phase 0.10 now adds only passive active-match hand projection; it still does not add playable Three.js match rendering. The Modern bundle remains isolated, pinned, self-hosted, and loaded only when Modern is requested.
+The first implementation increment did **not** add functional Three.js card rendering. It added a persisted graphics-mode preference and immediate runtime selection, preserved fully functional Legacy behavior, and supplied an intentionally inert Modern preview. Phase 0.10 added passive active-match hand projection. Phase 0.11 adds one deliberately non-authoritative player-card pickup/follow study, but still does not add playable Three.js match rendering. The Modern bundle remains isolated, pinned, self-hosted, and loaded only when Modern is requested.
 
-Phase 0 uses a presentation/input gate rather than a renderer reconstruction boundary. The active-match Raphael papers remain mounted, live, and synchronized while Modern is effective, but they are opacity-hidden, marked `aria-hidden`, and blocked from pointer input. Phase 0.10 evolves the initially blank, non-interactive Three.js surface to project only the two current hands. Selecting Legacy removes the gate and reveals the identical current Raphael state immediately, without a reload or renderer rebuild. This temporary coexistence must not be mistaken for the final architecture.
+Phase 0 uses a presentation/input gate rather than a renderer reconstruction boundary. The active-match Raphael papers remain mounted, live, and synchronized while Modern is effective, but they are opacity-hidden, marked `aria-hidden`, and blocked from pointer input. Phase 0.10 evolves the initially blank, non-interactive Three.js surface to project only the two current hands. Phase 0.11 permits that Modern surface to own only card-bounded player-hand picking and pointer-follow presentation, with all resulting hold state confined to the renderer. Selecting Legacy removes the gate and reveals the identical current Raphael state immediately, without a reload or renderer rebuild. This temporary coexistence must not be mistaken for the final architecture or a semantic gameplay-input boundary.
 
 Phase 0.5 is the first real-card rendering slice. When the main menu is visible and Modern is effective, a dedicated transparent Three.js surface renders up to five current `gh.data.hand` card faces at the established 755 by 562 lobby coordinates. The corresponding Raphael card images remain alive until the Modern texture set has rendered successfully, then only those five card elements are visually and accessibly gated. Switching to Legacy immediately reveals the original Raphael card images. The main-menu bar and commands are never hidden, replaced, or made pointer-inert by this hand-only gate.
 
@@ -108,6 +109,8 @@ Phase 0.8 paused further guess-and-deploy tuning of the five-card entrance and p
 Phase 0.9 is the separately approved integration change anticipated by that boundary. The Studio selects a concrete application target instead of producing only an unbound recipe. The five left-to-right lobby intro slots own independent recipes while the application retains their exact runtime landing anchors. One shared Gentle Wind exit recipe is compiled for the current five cards using one explicit run seed, a shared gust, stable per-slot derivation, bounded variation, and five distinct fully offscreen lower-left endpoints. Applying a playbook persists it locally and previews the selected intro or exit through the actual lobby renderer. The same generic exit runs before Play, Shop, Tutorials, Replay, and Deck in Modern mode. These additions do not make lobby cards game-authoritative, do not change the stored Graphics preference, and do not convert the active-match surface.
 
 Phase 0.10 is the first active-match presentation slice. A temporary plain-data bridge describes the current player and opponent hand membership, resolved visible art, order, and exact Legacy coordinates without exposing Raphael handles. The active-match Three.js surface renders those cards only, using a head-on orthographic one-to-one mapping for this static parity step. It owns no match input, motion, raycasting, selection, drop zones, requests, or continuous frame loop. This provisional camera does not resolve the final active-match camera decision in `OQ-004`, and the compatibility bridge remains assigned to Phase 1 extraction.
+
+Phase 0.11 is the first active-match physical-motion study. It replaces the Phase 0.10 orthographic camera only on the ready Modern active-match surface with a calibrated head-on perspective camera whose settled flat-table projection preserves the established hand anchors, dimensions, and position-neutral silhouette. A primary click may pick up only the visually topmost player-hand card. The renderer immediately owns one transient hold, raises that card in depth and ordering until its projected size is `1.075` of rest, preserves the click offset while following the pointer, and derives restrained local-X/local-Y tilt from logical pointer velocity so the card appears to resist travel. This hold never becomes `gh.game.dragging`, a controller selection, a legal-target computation, or a semantic action. No second click drops the card, no slot is pickable, no invalid return is animated, and no request can be emitted. Phase 0.11 therefore supplies motion and coordinate evidence without claiming the playable vertical slice assigned to later phases.
 
 Legacy remains the default until the Modern renderer reaches the documented playability, parity, reliability, and fallback gates.
 
@@ -226,7 +229,7 @@ The following existing contracts remain authoritative unless a later requirement
 | **Board frame** | The existing 755 by 562 CSS-backed `#board` element and its static background artwork. |
 | **Legacy renderer** | The current active-match implementation backed by the two Raphael papers. |
 | **Modern renderer** | The future active-match implementation backed by Three.js. |
-| **Modern preview** | The intentionally inert Phase 0 Modern mode. It proves lazy Three.js delivery, WebGL mounting, runtime selection, and presentation/input gating but does not render playable cards. |
+| **Modern preview** | The non-playable Phase 0 Modern mode. It began as an inert delivery and gating proof, gained passive active-match hands in Phase 0.10, and gains only renderer-local player-card pickup/follow presentation in Phase 0.11. It still cannot place a card, emit a gameplay intent, or submit a move. |
 | **Lobby/main-menu viewport** | The first application screen containing the Play, Shop, and Tutorials command bar, statistics/rules content, and the five-card hand preview. It is not an active match or game state. |
 | **Lobby-hand preview** | The five current-hand card faces displayed below the main command bar. Phase 0.5 renders them as a non-interactive Three.js preview; Phase 0.6 adds a decorative click-to-double-flip spike; Phase 0.7 records the rejected seeded entrance; Phase 0.9 supplies application-bound intro and exit sequences while all surrounding menu UI remains unchanged. |
 | **Lobby-hand host** | The dedicated, transparent 755 by 562 DOM mount used only for the Modern lobby-hand preview. It is pointer-inert in Phase 0.5; Phase 0.6 may accept pointer activation only over a settled Modern card without blocking the surrounding menu. |
@@ -241,6 +244,9 @@ The following existing contracts remain authoritative unless a later requirement
 | **Runtime-owned anchor** | The current renderer-supplied center and table position for one of the five lobby slots. Anchors are resolved from the live card layout when a sequence is compiled and are never serialized into the playbook. |
 | **Gentle Wind exit** | One shared outbound lobby sequence compiled into five deterministic per-slot variants. A shared gust keeps the cards coherent while bounded per-card variation gives each a distinct path, cadence, lift, rotation, speed, and fully offscreen lower-left endpoint. |
 | **Lobby command continuation** | The exactly-once callback held while a Modern Gentle Wind exit runs before Play, Shop, Tutorials, Replay, or Deck. Additional command clicks are ignored until it completes or fails open through its watchdog. |
+| **Active-match pickup/follow study** | The Phase 0.11 Modern-only presentation experiment in which one eligible player-hand card can be lifted and moved with the pointer. Its hold, grab offset, velocity, and pose are renderer-local and cannot become controller selection, game state, a legal-target decision, or a network action. |
+| **Renderer-local hold** | The single transient Phase 0.11 record owned entirely by the active-match Three.js surface. It identifies the picked player card, original anchor, grab offset, current logical pointer, filtered velocity, lift phase, and rendered pose. It is discarded rather than reconciled whenever the owning surface or hand revision becomes invalid. |
+| **Flat-table perspective calibration** | A constrained head-on perspective projection whose settled cards retain the established screen rectangles and centered, position-neutral silhouette. Outer cards must not fan, lean, shear, or appear to rest on a curved surface merely because they are away from camera center. |
 | **Approved visual baseline** | A named recipe and reference capture that passed real-time review at the actual application size in addition to deterministic, lifecycle, and geometry checks. Structural test success alone does not confer this status. |
 | **Requested mode** | The value selected and persisted by the user. |
 | **Effective mode** | The mode currently presented to the user and permitted to own active-match pointer input. During the temporary Phase 0 bridge, the hidden Legacy implementation may remain mounted and synchronized even while Modern is effective. |
@@ -307,6 +313,13 @@ These decisions are part of the baseline requirements.
 | DEC-045 | The complete playbook uses guarded versioned `localStorage` and supports canonical whole-playbook import/export. Studio view state may remain session-local. Malformed, unsafe, or future-version playbooks fall back or fail atomically without affecting Graphics preference or application startup. |
 | DEC-046 | Phase 0.9 intro and exit choreography is Modern-only. Legacy commands and Legacy lobby presentation retain their existing behavior and must never wait for, render, or depend on the Three.js playbook. |
 | DEC-047 | A valid persisted Modern request is resolved in the document head before first paint. It does not skip Raphael construction, hide the shared menu paper, or claim Modern is effective early; it only prevents the five retained Legacy lobby cards from being visually or accessibly exposed during lazy Modern startup. The startup marker survives early active-surface initialization until the first complete lobby-hand frame and fails open synchronously through the existing Legacy fallback path. Once the lobby hand is presented, a six-second coordinator watchdog also fails open if a bundle or required texture request stalls without producing a load or error event; a late completion from that timed-out attempt cannot reactivate Modern without a newer explicit selection. |
+| DEC-048 | Phase 0.11 supersedes Phase 0.10's active-match pointer-passive clause only for a card-bounded renderer-local pickup/follow study on the player hand. The hidden Legacy surface remains pointer-blocked, opponent cards and empty board space cannot be picked up, and Modern still emits no semantic match action. |
+| DEC-049 | The Phase 0.11 active-match study uses a calibrated constrained perspective camera and flat-table projection. Every settled hand card must preserve its Phase 0.10 anchor, projected 117 by 146 dimensions, centered silhouette, zero local-X/local-Y/local-Z rotation, and deterministic overlap without a position-dependent fan or curved-surface appearance. This is motion-study evidence and does not settle the final playable-camera decision before Phase 2. |
+| DEC-050 | One accepted primary click establishes at most one renderer-local hold. The card is brought to the front and raised until its settled-orientation projected scale is `1.075` relative to rest, matching the Legacy pickup enlargement. The original grab offset is preserved while the pointer moves; the card must not snap its center to the pointer. |
+| DEC-051 | Phase 0.11 movement tilt is derived from logical pointer velocity, not absolute board position or random per-frame values. Horizontal and vertical travel produce bounded trailing local-Y and local-X tilt respectively, filtered motion cannot expose the card back, and both axes damp back to zero while the pointer is stationary. No idle card, hand anchor, or camera may inherit the held card's transient tilt. |
+| DEC-052 | Phase 0.11 deliberately implements no click-to-drop, drop-zone picking, legal-target highlight, return-to-hand path, controller selection, `gh.game.dragging` mutation, turn gating, move request, or network authority. While one card is held, every further card or background activation is ignored and never queued. Lifecycle cancellation discards the transient pose and restores or disposes the renderer projection without a gameplay consequence. |
+| DEC-053 | Reduced motion preserves the renderer-local study without inertial choreography: pickup becomes immediate, pointer-follow remains available, and velocity-driven tilt is suppressed. Mode change, match/lobby transition, hand revision, selected-card removal, visibility suspension, context loss, surface replacement, and disposal must clear the hold, listener ownership, and pending frame atomically. |
+| DEC-054 | The Phase 0.11 generated Modern artifact retains Three.js `0.185.1` (`r185`) and uses the cache identity `0.185.1-match-pickup.1`. Source, generated bundle, loader URL, DOM dataset, diagnostics, and static contract must agree on that identity. |
 
 ## 7. Goals
 
@@ -316,6 +329,7 @@ These decisions are part of the baseline requirements.
 - Preserve the present game as a reliable escape hatch and historical experience.
 - Provide an early, low-risk visual proof by rendering the familiar five-card lobby hand and exercising one bounded decorative 3D turn without treating it as match state.
 - Make the Modern experience materially more expressive through controlled 3D card motion.
+- Establish a convincing active-match card pickup and pointer-follow language before adding placement, return, or rule authority.
 - Give the user direct, repeatable control over one-card motion authoring before another five-card lobby entrance is promoted.
 - Let the user bind authored motion to visible lobby intro and exit consumers, evaluate it in finished application context, and retain the complete playbook locally.
 - Make visual approval an explicit gate rather than inferring it from deterministic or collision-safety tests.
@@ -332,6 +346,7 @@ These decisions are part of the baseline requirements.
 - Represent authored card motion as versioned renderer-neutral data that can be sampled independently of Three.js and the authoring UI.
 - Compile application-owned lobby anchors and seeded five-card variance outside the stored recipes so layout and data remain authoritative.
 - Centralize coordinate conversion and hit testing.
+- Validate that one player card can preserve its grab point through every supported application scale while depth lift and velocity-driven tilt remain renderer-local.
 - Ensure only one renderer and one set of input handlers is active.
 - Provide renderer-neutral diagnostics and test snapshots.
 - Add Modern code without requiring a broad rewrite of the legacy application.
@@ -364,6 +379,8 @@ The following are outside this initiative unless separately approved:
 - adding physics simulation;
 - treating the current Phase 0.7 lobby scatter, its five gesture constants, or its 1.09 perspective limit as an approved visual baseline;
 - applying a Motion Studio draft beyond the explicitly approved Phase 0.9 lobby intro and Gentle Wind exit targets, including the shop or active match, without another approval and integration phase;
+- treating the Phase 0.11 renderer-local hold as card selection, drag state, a legal move, or reusable game authority;
+- adding click-to-drop, board-slot hit testing, legal-target highlighting, invalid-drop return, card placement, or move submission to Phase 0.11;
 - storing Studio drafts in account, server, database, game, deck, shop, replay, analytics, or economy state;
 - allowing the Studio to rewrite the user's persisted Legacy/Modern Graphics preference;
 - building a freely navigable 3D room;
@@ -404,9 +421,15 @@ From the existing application menu, the user opens Motion Studio without changin
 
 With Modern effective, the player selects Play, Shop, Tutorials, Replay, or Deck. The five cards lift and drift toward five distinct lower-left offscreen endpoints as one coherent Gentle Wind gesture. The selected command waits for the sequence, ignores additional command clicks while pending, and then continues exactly once; a renderer failure or bounded watchdog cannot trap navigation. Returning from the Tutorials submenu through Back replays the five current intro entries into their fixed lobby slots. With Legacy effective, these routes behave exactly as before and do not wait for the Modern playbook.
 
+### 9.2.5 Player trying the active-match pickup/follow study
+
+With Modern effective in an active match and both hands ready, the player primary-clicks the exposed portion of one player-hand card. The visually topmost eligible card comes forward, rises from the flat table until it appears `1.075` times its resting size, and retains the exact point beneath the pointer where it was clicked. Thereafter the card follows pointer movement without requiring the mouse button to remain pressed. It tilts slightly opposite its direction of travel, then returns to a stable level lifted pose when movement stops. The other nine hand cards retain their exact settled flat-table projections.
+
+The study intentionally ends there. Clicking a slot, empty board space, the held card, another player card, or an opponent card neither drops nor replaces the held card. No target is highlighted, no card returns along an invalid path, no turn or selection state changes, and no request is issued. Selecting Legacy or leaving/replacing the active surface clears the transient Modern hold and immediately reveals the unchanged live Raphael match.
+
 ### 9.3 Player returning from the Phase 0 preview
 
-During the original Phase 0, the player selected Modern during an active match and saw a blank inert preview. Phase 0.10 replaces that blank frame with passive projections of the current player and opponent hands, but Modern remains non-playable: there is no selection, dragging, board projection, or move submission. The context menu and main-menu route remain usable. The player selects Legacy and immediately sees the same current Raphael match state that continued to synchronize while hidden. No reload, match resume, or renderer rebuild is required.
+During the original Phase 0, the player selected Modern during an active match and saw a blank inert preview. Phase 0.10 replaces that blank frame with passive projections of the current player and opponent hands. Phase 0.11 permits only the renderer-local player-card pickup/follow study described above; there is still no controller selection, drop-zone interaction, placement, board projection, return path, or move submission. The context menu and main-menu route remain usable. The player selects Legacy and immediately sees the same current Raphael match state that continued to synchronize while hidden. No reload, match resume, or renderer rebuild is required.
 
 ### 9.4 Unsupported or failed Modern environment
 
@@ -430,7 +453,7 @@ The following invariants apply across every phase after the relevant seam exists
 4. New controller or model structures must not store Raphael elements.
 5. Final card zone, position, ownership color, face state, score, turn state, and rule state come from the current snapshot or server result.
 6. Visible animation order cannot alter rule resolution.
-7. At most one renderer owns active-match pointer input. While the Phase 0 through Phase 0.10 non-playable Modern preview is effective, neither surface owns gameplay pointer input; the Phase 0.10 hand meshes are display-only.
+7. At most one renderer owns active-match pointer input. While the Phase 0 through Phase 0.10 non-playable Modern preview is effective, neither surface owns gameplay pointer input; the Phase 0.10 hand meshes are display-only. In Phase 0.11, Modern alone may observe card-bounded player-hand clicks and pointer movement for its renderer-local study, but neither surface owns semantic gameplay input.
 8. Exactly one renderer is effective for a match build.
 9. Every started transition settles once, including when shortened, superseded, cancelled, disposed, or affected by reduced-motion settings.
 10. A renderer failure cannot cause a duplicate move request.
@@ -457,12 +480,15 @@ The following invariants apply across every phase after the relevant seam exists
 31. One Gentle Wind run may contain bounded per-card variation, but its five endpoints must be distinct and its shared gust must remain coherent. No random value may be sampled during frame rendering.
 32. A pending Modern lobby command owns one exactly-once continuation. Additional command clicks cannot replace, queue, or duplicate it, and its fail-open watchdog must eventually release navigation.
 33. Applying or previewing the lobby playbook may temporarily present Modern but cannot write or permanently change the stored requested Graphics preference.
+34. Phase 0.11 may own at most one renderer-local held player card. The hold cannot escape the Modern surface, mutate authoritative or Legacy state, emit a semantic action, or survive a lifecycle/revision boundary.
+35. Every settled Phase 0.11 hand card uses the same flat-table perspective calibration and exact Phase 0.10 anchor. Only the held card may depart from that canonical pose.
+36. Phase 0.11 pointer follow preserves the accepted grab offset in logical board coordinates at every supported application scale. Velocity tilt is bounded, deterministic from the observed pointer history, and converges to zero without an idle frame loop.
 
 ### 10.1 Phased applicability
 
 The invariants above describe the target architecture. Phase 0 is intentionally smaller and may retain the existing `gh.game` coupling behind the unchanged Legacy route.
 
-Phase 0.10 adds a deliberately shallow compatibility description and passive two-hand projection to that temporary bridge. It does not expand the playable boundary, authorize Modern gameplay input, or satisfy the complete renderer-neutral snapshot and renderer-extraction requirements deferred to Phase 1 and later.
+Phase 0.10 adds a deliberately shallow compatibility description and passive two-hand projection to that temporary bridge. Phase 0.11 adds one renderer-local pickup/follow study over the same plain presentation data. Neither phase expands the playable boundary, authorizes Modern semantic gameplay input, or satisfies the complete renderer-neutral snapshot and renderer-extraction requirements deferred to Phase 1 and later.
 
 In particular, Phase 0 does **not** require:
 
@@ -473,7 +499,7 @@ In particular, Phase 0 does **not** require:
 - renderer-neutral replay or Sudden Death reconstruction;
 - replacement of existing renderer-specific tests.
 
-Phase 0 may use a shallow runtime presentation/input gate around the unchanged Legacy path and the inert Modern preview. Phase 0.5 may add a dedicated lobby-hand projection and a hand-element-only presentation gate without expanding the playable renderer boundary. Phase 0.6 may add only the documented decorative lobby-card click and bounded animation. Phase 0.7 may add only the documented seeded menu-presentation arrival. Phase 0.8 may add only the isolated one-card authoring workbench and renderer-neutral recipe facility. Phase 0.9 may bind those recipes only to the five Modern lobby intro slots and one shared Modern Gentle Wind exit, including the bounded command-continuation wait and Tutorials Back replay. None of these decorative or authoring slices expands the playable active-match renderer boundary. Each phase must meet every requirement and acceptance criterion explicitly assigned to it.
+Phase 0 may use a shallow runtime presentation/input gate around the unchanged Legacy path and the inert Modern preview. Phase 0.5 may add a dedicated lobby-hand projection and a hand-element-only presentation gate without expanding the playable renderer boundary. Phase 0.6 may add only the documented decorative lobby-card click and bounded animation. Phase 0.7 may add only the documented seeded menu-presentation arrival. Phase 0.8 may add only the isolated one-card authoring workbench and renderer-neutral recipe facility. Phase 0.9 may bind those recipes only to the five Modern lobby intro slots and one shared Modern Gentle Wind exit, including the bounded command-continuation wait and Tutorials Back replay. Phase 0.10 may project the two current match hands. Phase 0.11 may add only the documented player-card pickup/follow motion study and may not treat its renderer-local hold as game input. None of these decorative, authoring, presentation, or motion-study slices expands the playable active-match renderer boundary. Each phase must meet every requirement and acceptance criterion explicitly assigned to it.
 
 Requirements become mandatory according to this table:
 
@@ -500,6 +526,7 @@ Requirements become mandatory according to this table:
 | `FR-LOBBY-ARRIVAL-*` | Phase 0.7 |
 | `FR-MOTION-STUDIO-*` | Phase 0.8 |
 | `FR-LOBBY-PLAYBOOK-*` | Phase 0.9 |
+| `FR-MATCH-PICKUP-*` | Phase 0.11 |
 
 ## 11. Functional requirements
 
@@ -946,6 +973,48 @@ Before beta, this flow requires automated accessible-tree and keyboard assertion
 
 **FR-LOBBY-PLAYBOOK-021** — The rejected Phase 0.7 `casual-drop-left` constants and gesture names must not be silently promoted into Phase 0.9 defaults. Phase 0.7 remains negative visual evidence. Phase 0.9 recipes and captures require their own normal-speed review even when deterministic, lifecycle, and geometry tests pass.
 
+### 11.16 Phase 0.11 renderer-local active-match pickup/follow study
+
+**FR-MATCH-PICKUP-001** — Phase 0.11 may accept a primary pointer activation only on a currently rendered player-hand card while the Modern active-match surface is ready. Opponent cards, empty board space, the board frame, status copy, and retained hidden Legacy objects are ineligible.
+
+**FR-MATCH-PICKUP-002** — Card picking must resolve the visually topmost eligible player card under the pointer according to deterministic depth and render ordering. Overlapped portions of a lower card must not win through a card visibly above them.
+
+**FR-MATCH-PICKUP-003** — One accepted activation must establish exactly one renderer-local hold identified by plain player-card identity and current hand index. The hold must not store or expose a Raphael object, DOM node, Three.js object through the bridge, jQuery object, controller callback, or network primitive.
+
+**FR-MATCH-PICKUP-004** — The renderer-local hold must not set or mirror Legacy `dragging`, `isDroppable`, grab-point, card-node pointer attributes, controller selection, turn ownership, legal targets, timers, or any other game state. It must emit no semantic select, move, drag, drop, or cancel intent and must issue no HTTP, navigation, analytics, or other application request.
+
+**FR-MATCH-PICKUP-005** — The ready Phase 0.11 surface must use one constrained head-on perspective camera calibrated to the 693 by 500 logical active-match region. Before pickup, all ten possible hand cards must retain the exact Phase 0.10 logical screen rectangles, centered silhouettes, zero local-X/local-Y/local-Z rotation, deterministic overlap, and a shared visually flat table plane. Left, center, and right cards must not acquire opposite shear, radial fan, or curved-surface lean from camera position.
+
+**FR-MATCH-PICKUP-006** — Pickup must bring the accepted card above every settled hand card in both depth and explicit render order. Its lift transition should use the Legacy nominal 300-millisecond pickup interval and must finish with the card's settled-orientation projected width and height equal to `1.075` times its resting projection. Perspective depth and authored scale must be calibrated as one result; they must not compound into a larger unintended enlargement.
+
+**FR-MATCH-PICKUP-007** — The accepted logical grab point within the card rectangle, or an equivalent center-relative offset, must define the follow target throughout lift and movement. Pickup must not reinterpret that point as a center grab or snap the card center to the pointer. Client coordinates must be mapped through the actual active-host bounding rectangle into the 693 by 500 logical plane, so application scale `1`, `1.5`, `2`, and `3`, browser zoom, and device-pixel ratio do not alter the logical target.
+
+**FR-MATCH-PICKUP-008** — After the first click, the card must follow pointer movement within the active-match host without requiring a mouse button to remain pressed. Pointer follow may lag through a bounded, frame-rate-independent smoothing response for physical character, but steady or stationary input must converge so the accepted local card point is within one logical pixel of its mapped target. Pointer departure from the host must stop accumulating travel velocity and level the card without creating a drop or cancellation.
+
+**FR-MATCH-PICKUP-009** — Transient three-dimensional resistance must derive from filtered logical pointer velocity. Horizontal travel must produce a bounded trailing side tilt and vertical travel a bounded trailing pitch; each axis must oppose the apparent direction of travel, remain within `10` degrees of the calibrated flat pose, remain finite under irregular or zero-duration event intervals, and never turn far enough to expose or require a card back.
+
+**FR-MATCH-PICKUP-010** — When pointer velocity approaches zero, transient pitch and side tilt must damp monotonically toward zero without oscillation, overshoot, random jitter, or residual rotation. The held card remains lifted and front-facing after tilt settles. Idle cards and the camera remain unchanged.
+
+**FR-MATCH-PICKUP-011** — Phase 0.11 must not implement a second-click drop. An activation on the held card, another player card, an opponent card, a future board slot, or empty space while a hold exists must be ignored and not queued. It must not replace the held card or cause a return animation.
+
+**FR-MATCH-PICKUP-012** — Phase 0.11 must create no board-slot pick mesh, legal or illegal target state, hover highlight, click-to-place path, invalid-drop result, return-to-hand trajectory, request token, or server move payload. The established hand origin remains available only as the renderer's cancellation reset pose.
+
+**FR-MATCH-PICKUP-013** — Legacy selection, active-match deactivation, lobby presentation, selected-card removal, any hand-description revision, surface-kind replacement, explicit suspension, page visibility loss, WebGL context loss, initialization fallback, and disposal must invalidate the hold generation, detach its input ownership, cancel its pending frame, and restore or discard the transient card pose atomically. A late pointer event or animation callback from the invalid generation cannot affect the next surface.
+
+**FR-MATCH-PICKUP-014** — With `prefers-reduced-motion: reduce`, an accepted pickup must enter its stable held pose immediately, preserve grab-offset pointer follow, suppress velocity-driven pitch and side tilt, and render only on accepted pointer updates or lifecycle changes. Reduced motion cannot convert the study into a drop, change authority, or prevent immediate Legacy restoration.
+
+**FR-MATCH-PICKUP-015** — Normal motion must use at most one pending `requestAnimationFrame` callback for the active-match surface. A frame may be requested while lift, positional follow, or tilt damping has not converged. A stationary converged held card and every unheld settled hand must own zero pending frame; no unconditional idle loop is permitted.
+
+**FR-MATCH-PICKUP-016** — Plain cloned diagnostics must expose camera calibration, settled flat-table policy, interaction label `pickup-only`, handler attachment, held-card identity limited to already permitted player data, phase, original anchor, logical grab offset, current pointer/target, filtered velocity, projected scale, lift, pitch, side tilt, render order, accepted/ignored activation counts, pending-frame state, reduced-motion state, and zero semantic-action/request counts. Diagnostics must not expose renderer objects or concealed opponent information.
+
+**FR-MATCH-PICKUP-017** — User-facing Graphics status must continue to identify Modern as incomplete. It may say that pickup/follow is a motion study, but must not claim that card selection, board placement, score, turn state, rules, effects, or playable Modern behavior is implemented.
+
+**FR-MATCH-PICKUP-018** — A failure before or during this renderer-local study must not attempt to reconcile a hold into Legacy. It must clear Modern input and animation ownership, dispose or hide the failed surface, reveal the intact live Legacy state once, preserve the requested/effective mode distinction and local diagnostic reason, and issue no gameplay request.
+
+**FR-MATCH-PICKUP-019** — The Phase 0.11 source and generated bundle must continue to use Three.js `0.185.1` (`r185`) and must share the cache identity `0.185.1-match-pickup.1`. The loader URL, bundle registration, DOM metadata, diagnostics, static contract, and deployment artifact must not disagree.
+
+**FR-MATCH-PICKUP-020** — This pointer-only motion study does not satisfy the semantic DOM, keyboard selection, cancellation, slot discovery, or placement obligations of `KB-PLAY-01`. It must not be advertised as accessible playable input, and it must not weaken the requirement that a future playable action flow use the shared semantic dispatcher.
+
 ## 12. Phase 0: graphics preference and inert Modern preview
 
 ### 12.1 Objective
@@ -976,7 +1045,7 @@ Phase 0 must deliver:
 
 ### 12.3 Exact Phase 0 runtime bridge
 
-The Phase 0 bridge deliberately maintains both implementations in the DOM after Modern first initializes. Only one is presented as effective and neither the Modern presentation surface nor a hidden Legacy surface may submit gameplay input. Beginning in Phase 0.10, that Modern surface may project the two passive current hands, but it remains input-inert.
+The Phase 0 bridge deliberately maintains both implementations in the DOM after Modern first initializes. Only one is presented as effective and neither the Modern presentation surface nor a hidden Legacy surface may submit gameplay input. Beginning in Phase 0.10, that Modern surface may project the two current hands. Through Phase 0.10 it remains pointer-inert; beginning in Phase 0.11 it may own only the renderer-local player-card pickup/follow study and still cannot emit semantic gameplay input.
 
 When Legacy is effective:
 
@@ -1004,11 +1073,11 @@ When Modern preview is effective:
 - Hidden Legacy slot targets or delegated handlers cannot receive a pointer initiated over the active-match region.
 - A Modern host occupies the same 693 by 500 logical bounds, inset 30 pixels from the top and left of the board frame.
 - The Modern host contains one real Three.js WebGL canvas and may contain a renderer-neutral explanatory DOM message.
-- In the Phase 0.10 active-match exception, the Three.js scene renders only the current player and opponent hand cards; it renders no board cards, slots, scores, turn marker, rules, elements, bonuses, or gameplay effects.
-- The Modern cards and canvas are non-interactive, the host shields the blocked retained surface, and neither can submit a human move.
+- In the Phase 0.10 and Phase 0.11 active-match exception, the Three.js scene renders only the current player and opponent hand cards; it renders no board cards, slots, scores, turn marker, rules, elements, bonuses, or gameplay effects.
+- Through Phase 0.10 the Modern cards and canvas are non-interactive. In Phase 0.11 the host may accept only card-bounded player pickup and pointer-follow presentation while continuing to shield the blocked retained surface; neither surface can submit a human move.
 - The CSS board background and HTML dialog overlay retain their existing stacking roles.
 - The title, context menu, and route back to the main menu remain usable.
-- The Modern surface requests frames only when initialized or resized and has no unconditional animation loop.
+- The Modern surface requests frames only when initialized, resized, updated, or advancing bounded Phase 0.11 lift/follow settling and has no unconditional animation loop.
 - At most one active-match WebGL context is owned by the application.
 
 When Legacy becomes effective again:
@@ -1026,6 +1095,10 @@ This bridge is an implementation tactic for Phase 0 only. Phase 1 and later must
 Before match-hand data is ready, the partial board can look like a defect. Phase 0.10 should show a renderer-neutral DOM message such as:
 
 > Modern match hands are preparing. Cards are display-only; select Legacy graphics to play.
+
+After Phase 0.11 readiness, status may instead say:
+
+> Modern pickup/follow motion study active. Placement and game state are not implemented; select Legacy graphics to play.
 
 The exact copy may change, but it must:
 
@@ -2441,9 +2514,190 @@ Phase 0.10 requires:
 
 Phase 0.10 is complete only when those requirements pass and the implementation remains within the passive two-hand boundary. It does not authorize board rendering, card interaction, reuse of rejected lobby arrival motion, or promotion of Modern as a playable mode.
 
+### 12.14 Phase 0.11: renderer-local active-match pickup/follow study
+
+#### 12.14.1 Intent, supersession, and boundary
+
+Phase 0.11 answers one narrow physical-interaction question before board state, scoring, turn state, legal targets, and move authority are migrated: can one Modern player-hand card feel convincingly lifted from a flat table and carried around the existing game region?
+
+This phase supersedes only three Phase 0.10 implementation clauses on the ready Modern active-match surface:
+
+- the head-on orthographic camera becomes a calibrated head-on perspective camera;
+- the player-hand meshes become card-bounded pointer-picking targets;
+- the surface may own one bounded pickup/follow scheduler and one renderer-local held-card record.
+
+Every other Phase 0.10 boundary remains in force. The opponent hand remains display-only. The board, nine slots, scores, turn marker, rules, elements, bonuses, effects, requests, and move result remain unrendered or unowned. Raphael remains mounted, live, synchronized, and immediately recoverable. The temporary compatibility description remains presentation-only and the study does not satisfy the renderer-neutral controller extraction required by Phase 1 or the playable vertical slice required later.
+
+#### 12.14.2 Calibrated perspective and canonical flat-table rest
+
+The active-match scene continues to occupy the exact 693 by 500 logical host. It must use one constrained perspective camera facing the table head-on. Camera distance, field of view, and the shared resting plane must be calibrated together so a settled 117 by 146 card at every Phase 0.10 hand anchor projects to the same logical screen rectangle established in Section 12.13.3.
+
+Canonical resting state means:
+
+- every card center resolves from its application-owned top-left hand rectangle rather than a camera-relative fan;
+- every card has zero local-X, local-Y, and local-Z rotation;
+- all settled cards share one table-depth convention except for the small deterministic overlap depth needed to prevent z-fighting;
+- outer-left, center, and outer-right card corner silhouettes remain rectangular, centered, parallel, and equal in scale;
+- no slot-dependent neutralizer introduces a visible lean, bow, lateral shear, or curved-surface appearance;
+- later hand indexes remain visibly above earlier indexes without changing their resting size or orientation.
+
+The perspective calibration is part of the Phase 0.11 study and must be queryable in diagnostics and reproducible in tests. It is evidence for `OQ-004`, not a final Phase 2 camera decision.
+
+#### 12.14.3 Picking and the renderer-local hold
+
+The surface may listen for primary pointer activation and pointer movement only while it is the current ready Modern active-match surface. Picking must use the rendered card geometry or an exactly coincident card-bounded target. It may consider only current player-hand cards and must resolve overlap to the visibly topmost eligible card. Opponent cards, empty host space, future board areas, the outer board frame, and hidden Raphael objects are never eligible.
+
+An accepted click immediately creates one hold generation containing plain renderer-internal values:
+
+- stable already-permitted player-card identity and current hand index;
+- the canonical original hand anchor and settled pose;
+- the clicked local card point or equivalent logical grab offset;
+- the latest logical pointer and follow target;
+- filtered logical pointer velocity;
+- lift and tilt phase;
+- the current renderer pose and frame-scheduling state.
+
+The renderer may associate that record with its private mesh, but no mesh or event object may cross the surface boundary. No second hold can exist. While a hold exists, every later activation is ignored and never queued, regardless of whether it lands on the held card, another player card, an opponent card, a future slot, or empty space.
+
+#### 12.14.4 Pickup, follow, and resistant-motion treatment
+
+The accepted card must be promoted above both hands immediately through deterministic depth and render order. Its nominal lift uses the Legacy pickup's 300-millisecond interval. The card moves toward the camera until its front-facing, zero-tilt projected silhouette is exactly `1.075` times its settled width and height. If perspective depth alone produces that result, no additional `1.075` object scale may be compounded; if an authored scale participates, the combined projection must still equal the single `1.075` target.
+
+The local point accepted by the click defines the follow target during lift and movement. The rendered card may approach that target through the bounded response in `FR-MATCH-PICKUP-008`; it must not replace it with a card-center target. The mapping is:
+
+```text
+client pointer
+  → current Modern-host bounding rectangle
+  → 693 × 500 logical screen point
+  → calibrated held-card plane
+  → held-card center preserving the accepted local point
+```
+
+Application scale and device-pixel ratio may change backing resolution but never this logical mapping. After the first click, pointer motion carries the card without a pressed mouse button. Movement is confined to presentation; it does not need a controller drag token.
+
+The physical resistance treatment uses only local-X and local-Y card tilt derived from filtered logical pointer velocity. The tilt must visually trail motion: the card leans against horizontal and vertical travel rather than leading or turning toward it. Each tilt axis is clamped within 8 degrees of flat, remains front-facing, and is insensitive to absolute screen position. No randomness is sampled during pointer events or frames. When travel slows or stops, the tilt approaches zero through a non-oscillating damped response. Once position and tilt converge, the card remains lifted and stable without a pending animation frame.
+
+No pointer movement may rotate, scale, or move an idle card or the camera. The study may omit a physical shadow, slab, or back; if any optional lift cue is added, it must be renderer-local, artifact-free, resource-bounded, invisible at canonical rest, and subject to the same cancellation and reduced-motion rules.
+
+#### 12.14.5 Explicit absence of placement and game authority
+
+Phase 0.11 stops with one held card. It has no command for setting the card down. Specifically:
+
+- a second click does not drop, cancel, replace, or return the hold;
+- there are no board-slot meshes or DOM targets owned by Modern;
+- no legal or illegal target is calculated, highlighted, or announced;
+- no `gh.game.dragging`, `isDroppable`, grab point, card origin, turn, review, dialog, or board state is changed;
+- no semantic selection, drag, move, drop, cancellation, or placement action is emitted;
+- no Legacy card is moved or brought to front behind the gate;
+- no invalid-return or valid-placement animation begins;
+- no request payload, request token, callback continuation, or server call is created.
+
+The visible held pose is disposable renderer state. It is never evidence that the card left the player's hand and cannot be consulted by rules, tests of game outcome, replay, review, Sudden Death, or fallback.
+
+#### 12.14.6 Lifecycle, failure, and reduced motion
+
+Every hold and frame belongs to the current surface and hand generation. The generation is invalidated by:
+
+- explicit Legacy selection or automatic Legacy fallback;
+- active-match deactivation, early exit, game over, or lobby presentation;
+- any replacement of the current hand description, including a reflow that still contains the same card;
+- selected-card removal;
+- surface-kind replacement, suspension, disposal, or reconstruction;
+- page visibility loss;
+- initialization, required-texture, renderer, or WebGL context failure.
+
+Cancellation clears input handlers or their active ownership, releases the held record, cancels the sole pending frame, and restores the Modern mesh to its canonical anchor before reuse or discards it during disposal. It is an atomic reset, not the deferred invalid-drop return animation. The coordinator reveals the unchanged Legacy match once when fallback is required. Late events and animation callbacks from the invalidated generation are inert.
+
+Under `prefers-reduced-motion: reduce`, pickup immediately commits the stable `1.075` held projection without a lift transition. Pointer-follow remains usable because it is the subject of the study, but velocity-driven local-X/local-Y tilt is suppressed. Each accepted pointer update may render once; stationary observation owns no frame.
+
+#### 12.14.7 Diagnostics, delivery identity, and communication
+
+The active-match debug snapshot must remain plain cloned data and must identify:
+
+- surface and Three.js identity;
+- `interaction: "pickup-only"`;
+- calibrated perspective camera and flat-table policy;
+- player/opponent card rectangles and deterministic order;
+- whether input handlers are attached and eligible;
+- whether one renderer-local hold exists;
+- held player-card identity, hand index, phase, original anchor, logical grab offset, pointer and follow target;
+- filtered velocity, lift, projected scale, local-X/local-Y/local-Z rotation, and promoted render order;
+- accepted, ignored, opponent, and empty activation counts;
+- scheduler state and pending frame count;
+- reduced-motion state;
+- zero semantic action, game mutation, and request counts.
+
+Diagnostics must not expose a Three.js object, pointer event, Raphael handle, hidden opponent value, or value not already permitted by Phase 0.10 secrecy requirements.
+
+The served Modern script remains the pinned Three.js `0.185.1` (`r185`) bundle and must use the cache identity:
+
+```text
+0.185.1-match-pickup.1
+```
+
+The source registration, generated artifact, coordinator URL, DOM dataset, runtime diagnostic, and static contract must agree. Phase 0.10's `0.185.1-match-hands.1` remains its historical delivery identity and must not be described as the current Phase 0.11 artifact.
+
+The Graphics status must identify pickup/follow as a motion study and state that placement remains unavailable. It must continue to offer immediate Legacy use for the actual game and must not call Modern playable.
+
+#### 12.14.8 Acceptance criteria
+
+**AC-P011-001 — Exact calibrated flat-table rest**
+
+A deterministic five-plus-five fixture produces the same player and opponent screen rectangles and overlap order as `AC-P010-001` under the perspective camera. Corner-projection evidence for outer-left, center, and outer-right cards shows equal settled size, parallel edges, zero local rotation, and no position-dependent fan, shear, or curved-surface appearance.
+
+**AC-P011-002 — Eligible topmost pickup**
+
+A primary click on each exposed player-card region picks the expected visually topmost card exactly once. Clicks on overlapped hidden portions resolve to the visible upper card. Opponent-card and empty-space clicks create no hold. Diagnostics distinguish accepted, opponent, empty, and ignored activations without exposing opponent secrets.
+
+**AC-P011-003 — Legacy-equivalent lift**
+
+Under a controlled clock, accepted pickup promotes only that card, preserves its selected local point under the pointer, and reaches a front-facing zero-tilt projected width and height of `1.075 ± 0.002` times rest at the nominal 300-millisecond lift endpoint. No second scale factor is compounded and all unheld card poses remain bit-for-bit or tolerance-equivalent to their canonical rest.
+
+**AC-P011-004 — Scale-correct pointer follow**
+
+At application scales 1, 1.5, 2, and 3, deterministic pointer traces to the center, edges, and corners of the 693 by 500 host produce the same logical held-card target and preserve the accepted local point within one logical pixel after convergence. Follow requires no pressed mouse button, and pointer departure creates neither a drop nor continuing velocity.
+
+**AC-P011-005 — Bounded resistant tilt and settlement**
+
+Controlled right, left, up, down, and diagonal pointer traces produce finite trailing local-X/local-Y tilt with the expected directional sign, no axis exceeding 8 degrees, no card-back exposure, and no local-Z or camera motion. Stopping the trace causes non-oscillating convergence to zero tilt. The scheduler returns to zero pending frames while the card remains stably lifted.
+
+**AC-P011-006 — Single hold and absent drop**
+
+After one accepted pickup, clicks on every other player card, opponent card, held card, empty board region, and representative future slot coordinates neither replace nor clear the hold and never queue work. There are no Modern slot pick objects, target highlights, placement results, or return animations.
+
+**AC-P011-007 — Zero gameplay and network authority**
+
+Before, during, and after pickup/follow, player and opponent hand arrays, Legacy Raphael object identity and attributes, `dragging`, `isDroppable`, turn state, score, board state, dialog/review state, game identifiers, request count, and request payloads remain unchanged. No semantic match action is emitted.
+
+**AC-P011-008 — Atomic lifecycle reset and Legacy restoration**
+
+Each lifecycle cause in Section 12.14.6, exercised during lift and during follow, clears the held generation and pending frame exactly once. Legacy selection reveals the same live Raphael nodes and match state without a snap, duplicate input owner, delayed callback, renderer reconstruction, or request. Late events from the cancelled generation cannot move a replacement card.
+
+**AC-P011-009 — Reduced-motion behavior**
+
+With reduced motion active, pickup immediately establishes the stable `1.075` held projection, pointer updates preserve the grab point without velocity tilt or smoothing, and stationary observation owns no frame. Game and network isolation remains identical to normal motion.
+
+**AC-P011-010 — Diagnostics, failure, and cache identity**
+
+Diagnostics expose every plain field required by Section 12.14.7, report no renderer object or concealed opponent data, and show zero semantic action/request counts. Forced initialization, required-texture, and context failure restore Legacy under the Phase 0.10 fail-open policy. The only current active-match Modern loader identity is `0.185.1-match-pickup.1`, and the generated bundle matches its reviewed source.
+
+#### 12.14.9 Required evidence and definition of done
+
+Phase 0.11 requires:
+
+- a static source and generated-bundle contract covering the perspective camera, canonical anchors, card-bounded player picking, one-hold lock, projected-scale target, pointer mapping, velocity tilt bounds, no-drop/no-request boundary, lifecycle generation guard, reduced-motion policy, diagnostics, and cache identity;
+- controlled-clock unit evidence for lift interpolation, logical pointer mapping, filtered-velocity direction, 8-degree clamps, damped zero-tilt convergence, and zero idle frame activity;
+- browser or controlled-harness evidence at every application scale for exact settled geometry, topmost player-only picking, grab-offset preservation, mouse-button-free follow, one-hold behavior, opponent/empty rejection, absent slots/drop/return, and unchanged Legacy/controller/request state;
+- lifecycle evidence during both lift and follow for mode switch, hand revision, selected-card removal, view transition, visibility loss, context loss, replacement, and disposal;
+- normal and reduced-motion visual captures at actual application size, including outer and center cards, horizontal, vertical, and diagonal travel;
+- current Graphics persistence, Phase 0.10 secrecy/fallback, lobby, Motion Studio, and applicable Legacy regression results;
+- a generated Modern artifact matching reviewed source and pinned Three.js `0.185.1` with cache identity `0.185.1-match-pickup.1`.
+
+Phase 0.11 is complete only when all `AC-P011-*` criteria and required evidence pass and a normal-speed review accepts that the selected card reads as lifted from a flat surface and resisting pointer travel. Completion does not authorize click-to-drop, drop zones, invalid return, placement, controller selection, game-state authority, network requests, board rendering, scores, turns, rules, or promotion of Modern as playable.
+
 ## 13. Target renderer contract
 
-This is a target-state contract beginning in Phase 1. It is not a Phase 0 deliverable; the first increment may use the documented shallow runtime presentation/input gate and inert Modern host.
+This is a target-state contract beginning in Phase 1. It is not a Phase 0 deliverable; the first increment may use the documented shallow runtime presentation/input gate, Phase 0.10 hand description, and Phase 0.11 renderer-local pickup/follow exception without claiming this semantic contract.
 
 The exact syntax may change to match the legacy JavaScript environment, but the responsibility boundary should be semantic and comparable to:
 
@@ -2551,7 +2805,7 @@ The permanent contract must not imitate Raphael's `image`, `rect`, `attr`, `anim
 
 ## 14. Renderer-neutral view state
 
-The complete renderer-neutral snapshot becomes mandatory in Phase 1 and expands as later parity work exposes additional state. Phase 0.10 adds one deliberately shallow compatibility description containing only current hand presentation data. It does not satisfy the complete snapshot contract below.
+The complete renderer-neutral snapshot becomes mandatory in Phase 1 and expands as later parity work exposes additional state. Phase 0.10 adds one deliberately shallow compatibility description containing only current hand presentation data. Phase 0.11 consumes that same description and adds no hold, pointer, selection, or motion field to it; all pickup/follow state remains disposable inside the Modern surface. Neither phase satisfies the complete snapshot contract below.
 
 A renderer-neutral snapshot should be plain data and should contain enough information to rebuild a settled scene:
 
@@ -2627,7 +2881,7 @@ This is illustrative rather than a mandated field-for-field schema. The implemen
 - Modern code must be lazy-loaded or otherwise excluded from the forced-Legacy startup path.
 - A fresh page load with Legacy forced must issue no Modern resource request, import, or preload and must evaluate zero Modern bytes. Switching back to Legacy after Modern was explicitly loaded on that page may retain the idle cached surface.
 - Phase 0 originally rendered one blank transparent frame with the pinned Three.js `WebGLRenderer`, without card geometry, texture assets, picking targets, or a continuous animation loop.
-- Phase 0.5 adds the first pre-Phase-2 exception to that blank-frame rule: the dedicated lobby-hand factory may create shared 117 by 146 card geometry, up to five card objects, and only the current lobby hand's same-origin face textures. Phase 0.6 additionally permits the shared canonical card-back texture, a side-only lit shared card slab, unlit mipmapped/anisotropic face materials, a calibrated perspective lobby camera, shared analytic-shadow geometry/texture with one independently controlled mesh/material per lobby card, hardware shadow mapping disabled, card-bounded hit testing, and one re-entry lock per active card. Phase 0.7 permits the same bounded shared animation-frame scheduler while at least one entrance or double flip is active, plus the pure seeded destination-driven arrival planner and sampler; its current entrance is implemented but not visually approved. Phase 0.8 permits a separate one-card study factory, deterministic renderer-neutral recipe planner/sampler, and one isolated demand-driven Studio scheduler. Phase 0.9 permits a pure application playbook compiler, five destination-locked intro entries, one origin-locked Gentle Wind exit compiled into five deterministic variants, and reuse of the lobby surface's existing sole scheduler. Phase 0.10 permits the active-match factory to create one shared plane geometry, zero to ten passive current-hand meshes, current visible same-origin hand textures, and a demand-rendered orthographic projection. It permits no active-match picking target, input listener, motion scheduler, or unconditional animation loop.
+- Phase 0.5 adds the first pre-Phase-2 exception to that blank-frame rule: the dedicated lobby-hand factory may create shared 117 by 146 card geometry, up to five card objects, and only the current lobby hand's same-origin face textures. Phase 0.6 additionally permits the shared canonical card-back texture, a side-only lit shared card slab, unlit mipmapped/anisotropic face materials, a calibrated perspective lobby camera, shared analytic-shadow geometry/texture with one independently controlled mesh/material per lobby card, hardware shadow mapping disabled, card-bounded hit testing, and one re-entry lock per active card. Phase 0.7 permits the same bounded shared animation-frame scheduler while at least one entrance or double flip is active, plus the pure seeded destination-driven arrival planner and sampler; its current entrance is implemented but not visually approved. Phase 0.8 permits a separate one-card study factory, deterministic renderer-neutral recipe planner/sampler, and one isolated demand-driven Studio scheduler. Phase 0.9 permits a pure application playbook compiler, five destination-locked intro entries, one origin-locked Gentle Wind exit compiled into five deterministic variants, and reuse of the lobby surface's existing sole scheduler. Phase 0.10 permits the active-match factory to create one shared plane geometry, zero to ten passive current-hand meshes, current visible same-origin hand textures, and a demand-rendered orthographic projection, with no active-match picking target, input listener, or motion scheduler. Phase 0.11 supersedes that last camera/input clause only: it permits a calibrated active-match perspective camera, player-card-bounded picking, one renderer-local hold, pointer-follow state, and one demand-driven frame request while lift/follow settling is active. It still permits no opponent picking, slot target, card back, semantic action, gameplay request, or unconditional animation loop.
 - Lazy-load failure before input ownership must follow the initialization-fallback policy.
 - Source-map publication, generated-file review, and third-party license-notice policy must be explicit.
 - A lockfile, upgrade procedure, and license record must accompany the dependency.
@@ -2668,7 +2922,9 @@ The Phase 2 spike must record decisions and visual fixtures for:
 
 Instancing, atlases, complex post-processing, particles, physics, and advanced shadows should be added only after profiling demonstrates a need or a product requirement justifies them.
 
-The Phase 0.5 lobby-hand scene intentionally used an orthographic camera and unlit planes so its screen-space result approximated the established two-dimensional menu layout. Phase 0.6 supersedes that historical lobby baseline with five canonically flat cards; a head-on constrained perspective camera calibrated to preserve the settled layout with 450/900 clip planes; a face-anchored flat-table projection neutralizer that gives every slot the centered perspective silhouette without auxiliary pickup tilt or position-dependent fan; unlit sRGB face materials; mipmapped, anisotropic card textures; side-only lit slabs with 0.2 logical units of face clearance; and independently controllable lift-only analytic contact shadows whose geometry and texture are shared while hardware shadow mapping remains disabled. Phase 0.7 temporarily uses the same transform hierarchy for bounded seeded arrival pitch, yaw, and roll, then restores the exact Phase 0.6 canonical transform before input. Phase 0.8 reproduces that card/camera convention on an isolated one-card study surface so authored motion is evaluated against the production projection rather than an unrelated mock camera. Phase 0.9 compiles the same recipes against the live production anchors and camera for actual lobby intro and exit; it does not serialize or replace those renderer-owned anchors. These lobby decisions remain bounded visual experiments and do not select the later active-match camera, card geometry, lighting, texture-filtering, shadow, or choreography treatment.
+The Phase 0.5 lobby-hand scene intentionally used an orthographic camera and unlit planes so its screen-space result approximated the established two-dimensional menu layout. Phase 0.6 supersedes that historical lobby baseline with five canonically flat cards; a head-on constrained perspective camera calibrated to preserve the settled layout with 450/900 clip planes; a face-anchored flat-table projection neutralizer that gives every slot the centered perspective silhouette without auxiliary pickup tilt or position-dependent fan; unlit sRGB face materials; mipmapped, anisotropic card textures; side-only lit slabs with 0.2 logical units of face clearance; and independently controllable lift-only analytic contact shadows whose geometry and texture are shared while hardware shadow mapping remains disabled. Phase 0.7 temporarily uses the same transform hierarchy for bounded seeded arrival pitch, yaw, and roll, then restores the exact Phase 0.6 canonical transform before input. Phase 0.8 reproduces that card/camera convention on an isolated one-card study surface so authored motion is evaluated against the production projection rather than an unrelated mock camera. Phase 0.9 compiles the same recipes against the live production anchors and camera for actual lobby intro and exit; it does not serialize or replace those renderer-owned anchors. These lobby decisions remain bounded visual experiments.
+
+Phase 0.11 separately calibrates a constrained perspective camera for the 693 by 500 active-match host. It must reproduce the Phase 0.10 settled hand rectangles on one flat table plane, then use camera-relative lift and bounded local-X/local-Y resistance tilt for one held card only. It must not copy the rejected Phase 0.7 choreography, create slot-dependent resting tilt, move the camera during follow, or silently resolve the final playable camera, card thickness, lighting, shadow, texture, or full choreography decisions assigned to Phase 2.
 
 ### 15.4 Texture policy
 
@@ -2705,6 +2961,8 @@ The mapping must be tested at:
 - pointer positions at all four edges and all nine slots;
 - overlapping hand cards;
 - a lifted card above the board plane.
+
+For Phase 0.11, the same matrix must additionally test at least one exposed point on every player-hand card, one overlapped topmost-card boundary, the accepted local grab point, the lifted-card plane, pointer departure and re-entry, and stationary convergence. Device-pixel ratio and drawing-buffer scale must not be applied a second time to logical pointer coordinates.
 
 The logical coordinate space remains 693 by 500 regardless of CSS application scale. `#content-wrapper` remains the owner of the application scale.
 
@@ -2757,6 +3015,8 @@ Performance evidence must use two named deterministic fixtures:
 
 **NFR-PERF-016** — A Phase 0.9 intro or exit batch must plan its shared and per-card seeded values once, advance every active card through the lobby surface's one pending animation-frame request, and return to zero frame and shadow activity after its terminal state. A command exit must not extend navigation beyond the lesser of its validated batch deadline plus cleanup margin and the configured fail-open cap. Studio production preview may add only its documented bounded observation hold.
 
+**NFR-PERF-017** — Phase 0.11 may own at most one active-match animation-frame request while pickup, positional follow, or tilt damping is unconverged. Pointer input must not allocate card geometry, material, texture, raycaster, listener, or another frame scheduler per event. A converged held pose must return to zero pending frames, and the 95th-percentile pointer-event-to-presented-response measurement should remain within `NFR-PERF-003`.
+
 ### 16.2 Reliability and cleanup
 
 **NFR-REL-001** — No renderer exception may terminate the match controller without a controlled error or fallback path.
@@ -2782,6 +3042,8 @@ Performance evidence must use two named deterministic fixtures:
 **NFR-REL-011** — Fifty Phase 0.8 Studio cycles spanning open, parameter editing, drag, scrub, play, loop, reset, valid import, invalid import, session restore, context loss, and close must return Studio DOM, listeners, animation frames, playback tokens, renderer references, WebGL contexts, textures, materials, and geometry to their baseline counts. The same evidence must show unchanged Graphics local storage, requested/effective mode, live lobby resource identity, application request count, and authoritative state.
 
 **NFR-REL-012** — Fifty Phase 0.9 cycles spanning intro, Gentle Wind exit, locked and unlocked seeds, every participating command, repeated ignored clicks, Tutorials Back, Apply & Preview from Legacy and Modern, valid and invalid whole-playbook import, reduced motion, cancellation, context loss, and forced watchdog expiry must return pending-command tokens, continuations, watchdog timers, preview restoration state, animation frames, card locks, shadows, listeners, renderer resources, and WebGL contexts to baseline. Every accepted command continuation must be observed exactly once and the stored Graphics preference must remain unchanged by preview.
+
+**NFR-REL-013** — Fifty Phase 0.11 cycles spanning every player-card index, overlapping hits, empty/opponent rejection, ordinary and reduced motion, all supported application scales, stationary holds, repeated ignored clicks, pointer departure, hand revision, selected-card removal, visibility loss, Legacy toggles, context loss, surface replacement, and disposal must return held records, generation tokens, input handlers, raycasting targets, pending frames, transient transforms, canvases, textures, materials, geometry, and WebGL-context ownership to baseline. The same evidence must show zero gameplay intents and requests and unchanged Legacy/card/controller identity.
 
 ### 16.3 Security and privacy
 
@@ -2827,14 +3089,14 @@ Performance evidence must use two named deterministic fixtures:
 
 ## 17. Behavior and parity matrix
 
-In the Phase 0 through Phase 0.10 column, “not rendered” or “disabled” means not rendered or operable by Three.js on the active-match surface. The corresponding Legacy match objects remain live and synchronized behind the opacity and pointer gate so they can be revealed immediately. Lobby motion remains decorative rather than playable input. Phase 0.10 adds only passive current-hand projection to the active match; it does not add selection, board state, or move submission.
+In the Phase 0 through Phase 0.11 column, “not rendered” or “disabled” means not rendered or operable by Three.js on the active-match surface except for the explicitly identified Phase 0.11 renderer-local pickup/follow study. The corresponding Legacy match objects remain live and synchronized behind the opacity and pointer gate so they can be revealed immediately. Lobby motion remains decorative rather than playable input. Phase 0.10 adds passive current-hand projection; Phase 0.11 adds only player-card pickup/follow presentation and no controller selection, board state, drop, return, or move submission.
 
-| Capability | Legacy requirement | Phase 0 through 0.10 Modern preview | Playable Modern requirement |
+| Capability | Legacy requirement | Phase 0 through 0.11 Modern preview | Playable Modern requirement |
 |---|---|---|---|
 | Lobby/main-menu hand | Five non-interactive Raphael card faces beneath the command bar; commands remain immediate | Phase 0.5 renders up to five Three.js card faces; Phase 0.6 permits per-card lift/back/front/settle effects; Phase 0.7's entrance remains rejected; Phase 0.9 provides five fixed-anchor intros, one seeded five-instance Gentle Wind exit, command waits with fail-open continuation, and Tutorials Back intro replay | Remains a separate decorative menu projection |
 | Motion Studio | Not present; Legacy state remains unchanged beneath it | Phase 0.8 provides one isolated, non-authoritative card authoring surface; Phase 0.9 binds it to a local six-target lobby playbook and production preview without changing stored Graphics preference | May remain an internal authoring tool; it is not match input |
 | Board frame | Unchanged | Visible | Preserved or deliberately redesigned later |
-| Player hand | Fully functional | Phase 0.10 renders the current zero-to-five-card hand at exact Legacy coordinates; display-only | Rendered and interactive |
+| Player hand | Fully functional | Phase 0.10 renders the current zero-to-five-card hand at exact Legacy coordinates; Phase 0.11 permits one renderer-local player card to lift and follow the pointer | Rendered and interactive |
 | Opponent hand | Fully functional | Phase 0.10 renders the current zero-to-five-card hand at exact Legacy coordinates and preserves the server-resolved Open/Closed art; display-only | Correct open/closed state |
 | Existing board cards | Fully functional | Not rendered | Rendered from snapshot |
 | Nine board slots | Fully functional | Three.js renders none; hidden Legacy targets are pointer-blocked | Correct layout and hit testing |
@@ -2842,8 +3104,8 @@ In the Phase 0 through Phase 0.10 column, “not rendered” or “disabled” m
 | Turn marker | Fully functional | Not rendered | Clear active-player state |
 | Rule banner | Fully functional | Not rendered | Equivalent information and sequencing |
 | Element icons/bonus | Fully functional | Not rendered | Equivalent state and readable feedback |
-| Card selection | Fully functional | Disabled | Semantic input and lift |
-| Movement | Fully functional | Disabled | Scale-correct world mapping |
+| Card selection | Fully functional | No semantic selection; Phase 0.11 has one disposable renderer-local hold only | Semantic input and lift |
+| Movement | Fully functional | Phase 0.11 supports grab-offset pointer follow, `1.075` projected lift, and bounded transient local-X/local-Y resistance tilt for the held player card only | Scale-correct world mapping |
 | Valid drop | Fully functional | Disabled | One request and correct placement |
 | Invalid drop | Fully functional | Disabled | No request and deterministic return |
 | Basic capture | Fully functional | Disabled | Correct result presentation |
@@ -2856,7 +3118,7 @@ In the Phase 0 through Phase 0.10 column, “not rendered” or “disabled” m
 | Tutorials | Fully functional | Modern is non-playable; hidden Legacy state may continue synchronizing | Same selection and parity contract |
 | Dialog dimming | Fully functional | Remains DOM-owned | Remains DOM-owned |
 | Application scaling | Fully functional | Host remains aligned | Full interaction and visual parity |
-| Reduced motion | No new regression | Phase 0.6 uses a bounded back/front proof with no lift or continuous rotation; Phase 0.7 commits arrivals directly at their destinations; Phase 0.8 opens paused and requires explicit full-motion preview; Phase 0.9 commits intro/exit terminal states and releases command flow exactly once | Required before default |
+| Reduced motion | No new regression | Phase 0.6 uses a bounded back/front proof with no lift or continuous rotation; Phase 0.7 commits arrivals directly at their destinations; Phase 0.8 opens paused and requires explicit full-motion preview; Phase 0.9 commits intro/exit terminal states and releases command flow exactly once; Phase 0.11 immediately enters the held pose and follows without velocity tilt | Required before default |
 | Context loss | Not applicable | Restore effective Legacy and explain the reason | Recover or fall back |
 | Main-menu escape | Fully functional | Must remain available | Must remain available |
 
@@ -2973,6 +3235,24 @@ Exit gate:
 - Repeated runtime toggles reveal the same Legacy objects and create no duplicate Modern canvas or resources.
 - Board cards, slots, scores, turn marker, rules, elements, bonuses, effects, and gameplay interaction remain unimplemented and clearly communicated.
 - Static, browser or controlled-harness, generated-bundle, Graphics persistence, lobby, and applicable Legacy regressions pass.
+
+### Phase 0.11 — Renderer-local active-match pickup/follow study
+
+Deliver the exact scope and acceptance criteria in Section 12.14.
+
+Exit gate:
+
+- The active-match perspective camera reproduces every Phase 0.10 settled hand rectangle on one visually flat, position-neutral table plane.
+- A primary click picks only the visually topmost eligible player card and establishes exactly one renderer-local hold.
+- Pickup brings that card above both hands and reaches the single Legacy-equivalent `1.075` projected scale without compounded enlargement.
+- Pointer follow preserves the accepted local grab point at application scales 1, 1.5, 2, and 3 without requiring a pressed mouse button.
+- Filtered logical pointer velocity produces finite, trailing local-X/local-Y tilt within 8 degrees and damps to zero without jitter, overshoot, residual rotation, or an idle frame.
+- Opponent, empty, held-card, other-card, and future-slot clicks cannot replace or drop the held card and never queue work.
+- Modern creates no drop zones, legal-target state, return path, semantic action, game mutation, Legacy mutation, or network request.
+- Reduced motion immediately establishes the stable held pose and preserves direct pointer follow without velocity tilt.
+- Every lifecycle, revision, visibility, failure, switch, and disposal boundary clears the hold and pending frame atomically and restores the intact live Legacy route where applicable.
+- Diagnostics expose only permitted plain study state, show zero gameplay/request authority, and agree with the generated bundle and loader cache identity `0.185.1-match-pickup.1`.
+- Static, controlled-clock, browser or controlled-harness, actual-size visual, lifecycle, generated-bundle, Phase 0.10 secrecy/fallback, Graphics persistence, lobby, and applicable Legacy regressions pass.
 
 ### Phase 1 — Characterization and Legacy renderer boundary
 
@@ -3160,6 +3440,7 @@ Ongoing gate:
 | Motion Studio | open from Legacy and Modern, every built-in preset, control endpoints, synchronized drag/numeric edits, play/pause/rate/loop/frame-step/scrub, Auto Replay, valid/invalid import, export round trip, session restore, reduced-motion entry, close and context loss |
 | Motion recipe | fixed seed and canonical times, irregular frame cadence, every supported schema version, prohibited renderer objects, invalid/non-finite values, deterministic export/import equality |
 | Match state | initial hand, resumed match, occupied board, Open, Closed, Elemental, final turn |
+| Match pickup study | every player-card index, exposed and overlapped hit, opponent/empty rejection, lift midpoint/endpoint, horizontal/vertical/diagonal follow, stationary convergence, repeated ignored click, pointer departure/re-entry, hand revision, selected-card removal |
 | Capture | Basic, Same, Same Wall, Plus, Combo, multiple simultaneous captures |
 | Flow | normal play, invalid drop, request pending, dialog, endgame, Sudden Death, review, replay, tutorial |
 | Scale | 1, 1.5, 2, 3 |
@@ -3199,12 +3480,13 @@ SVG node order and Three.js mesh identity may be inspected in renderer-specific 
 - reduced-motion and keyboard checklist;
 - exported candidate motion recipe, seed, actual-size 1× capture, slowed diagnostic capture, and explicit visual approval or rejection record;
 - canonical lobby playbook export plus deterministic intro/exit batch evidence, command-continuation/watchdog traces, and Graphics-preference restoration evidence;
+- Phase 0.11 calibrated-camera snapshot, controlled pickup/follow traces, actual-size normal/reduced-motion captures, zero-authority/request evidence, lifecycle cleanup report, and `0.185.1-match-pickup.1` source/bundle/cache-identity proof;
 - tested Modern-default environment matrix;
 - current known limitations.
 
 ### 19.4 Requirements-to-phase traceability
 
-Phase 0 through Phase 0.10 requirements and acceptance criteria are the authorized engineering baseline as of 2026-07-27. Phase 0.7's deployed implementation has not passed its visual acceptance gate and is not an approved motion baseline. Phase 0.8 established the authoring workbench; Phase 0.9 established the authorized application-bound lobby integration; Phase 0.10 is the current authorized passive active-match hand projection. Later requirements describe the intended target and gates; each later phase must begin with a short entry review that resolves its open questions, confirms its fixtures, and converts any remaining provisional numerical budget into an accepted measurement contract.
+Phase 0 through Phase 0.11 requirements and acceptance criteria are the authorized engineering baseline as of 2026-07-27. Phase 0.7's deployed implementation has not passed its visual acceptance gate and is not an approved motion baseline. Phase 0.8 established the authoring workbench; Phase 0.9 established the authorized application-bound lobby integration; Phase 0.10 established passive active-match hand projection; Phase 0.11 is the current authorized renderer-local player-card pickup/follow study. Later requirements describe the intended target and gates; each later phase must begin with a short entry review that resolves its open questions, confirms its fixtures, and converts any remaining provisional numerical budget into an accepted measurement contract.
 
 | Requirement family | First owning phase | Primary owner | Required evidence | Blocks Modern default |
 |---|---|---|---|---|
@@ -3224,6 +3506,7 @@ Phase 0 through Phase 0.10 requirements and acceptance criteria are the authoriz
 | `FR-MOTION-STUDIO-*` | Phase 0.8 | Motion Studio UI and renderer-neutral card-motion module | Mode-isolation, control synchronization, deterministic pose, playback/scrub, session persistence, import/export, accessibility, lifecycle/resource, no-side-effect, and visual-review evidence | Evidence enabler |
 | `FR-LOBBY-PLAYBOOK-*` | Phase 0.9 | Playbook module, Motion Studio, Modern lobby surface, graphics coordinator, and menu command bridge | Fixed-anchor and seed determinism contracts, distinct endpoint evidence, whole-playbook persistence/import/export, production-preview parity, all-command exact-once/fail-open traces, Tutorials Back replay, reduced-motion/lifecycle cleanup, Legacy regression, and normal-speed review | Yes |
 | `AC-P010-*` / Section 12.13 | Phase 0.10 | Modern active-match surface, graphics coordinator, and temporary game compatibility bridge | Exact two-hand geometry and order, Closed-art secrecy, passive-input diagnostics, demand rendering, texture/context fallback, runtime toggle, generated-bundle, and applicable Legacy regression evidence | Yes |
+| `FR-MATCH-PICKUP-*` / `AC-P011-*` | Phase 0.11 | Modern active-match surface and graphics coordinator; temporary game bridge remains presentation-only | Calibrated perspective flat-table geometry, topmost player-only picking, one renderer-local hold, `1.075` projected lift, scale-correct grab-offset follow, bounded velocity tilt and zero-idle settlement, absent drop/game/network authority, reduced motion, lifecycle reset, Legacy identity, diagnostics, visual review, and `0.185.1-match-pickup.1` bundle evidence | Yes |
 | `NFR-PERF-*` | Phase 2 | Modern build and renderer | GM-P100/GM-P200 performance and bundle report | Yes |
 | `NFR-REL-*` | Phase 1/5 | Both renderers and controller | Repeated lifecycle, heap/resource, stale-revision, and severity report | Yes |
 | `NFR-SEC-*` | Phase 2 | Build/deployment boundary | CSP, same-origin, dependency, and network audit | Yes |
@@ -3312,7 +3595,7 @@ The preference should survive browser restarts. It is intentionally browser/orig
 | Animation callbacks currently advance control flow | A missing callback can stall or corrupt a match | Revisioned renderer-application contract that settles exactly once, plus fast-forward/cancel tests |
 | Visual state is read as model state | Modern cannot reproduce or recover correctly | Explicit snapshot fields for face, zone, position, ownership, lock, and order |
 | Z-order is functional | Wrong card is selected or capture/hand overlap is incorrect | Canonical semantic depth and deterministic raycast sorting |
-| Phase 0 suppresses the complete Legacy match presentation | Scores, rules, targets, and turn state are intentionally not visible in the blank preview | Keep Raphael live and synchronized behind a complete opacity, accessibility, and pointer gate; label Modern non-playable and provide immediate Legacy return |
+| Phase 0 suppresses the complete Legacy match presentation | Scores, rules, targets, and turn state remain intentionally absent even after hands and the pickup study appear | Keep Raphael live and synchronized behind a complete opacity, accessibility, and pointer gate; label Modern non-playable and provide immediate Legacy return |
 | Two renderers remain supported | Behavior can drift and maintenance cost can grow | One conformance suite, one snapshot/action contract, documented ownership |
 | CSS application scaling conflicts with camera picking | Pointer and cards diverge | One tested client-to-world coordinate pipeline |
 | Texture orientation, color, or minification is wrong | Mirrored backs, darkened art, seams, or motion shimmer | Use unlit sRGB faces, mipmaps, trilinear minification, bounded anisotropy, and both same-direction edge-on tests |
@@ -3325,7 +3608,7 @@ The preference should survive browser restarts. It is intentionally browser/orig
 | Excessive motion | Discomfort and reduced clarity | Restrained effects and `prefers-reduced-motion` behavior |
 | Replay and Sudden Death reuse render handles | Highest-risk parity paths | Snapshot-based reconstruction and dedicated fixtures |
 | Empty preview appears broken | User confusion | Clear Preview label and DOM explanation |
-| Phase 0 runtime gate accidentally becomes a renderer hot swap | Lost input, duplicate request, stale scene, or hidden targets accepting input | Do not dispose, rebuild, or transfer state in Phase 0; keep one live Legacy controller, gate both surfaces atomically, make Modern pointer-inert, and test node/state identity across toggles |
+| Phase 0 runtime gate accidentally becomes a renderer hot swap | Lost input, duplicate request, stale scene, or hidden targets accepting input | Do not dispose, rebuild, or transfer controller/game state in Phase 0; keep one live Legacy controller, gate both surfaces atomically, confine Phase 0.11 input to a disposable renderer-local study, and test node/state identity across toggles |
 | Lobby hand is mistaken for the in-match hand | Scope expands into game state, input, and rule sequencing before the renderer boundary exists | Keep a dedicated `lobby-hand` factory, host, card description, diagnostics identity, and acceptance suite |
 | Lobby gate hides the shared Raphael menu paper | Play, Shop, Tutorials, or the command bar disappears with the cards | Mark and gate only individual Legacy lobby-hand card elements; reject broad SVG or paper selectors |
 | A stale lobby texture load completes after navigation or Legacy selection | Old cards reappear, Legacy cards remain hidden, or an extra context survives | Generation-guard texture work, confirm current surface/mode/readiness before gating, and dispose on surface-kind transitions |
@@ -3345,6 +3628,12 @@ The preference should survive browser restarts. It is intentionally browser/orig
 | Exit animation failure traps navigation | A renderer or callback fault makes Play, Shop, Tutorials, Replay, or Deck unusable | Derive a bounded watchdog from the batch deadline, cap it, and invoke the original continuation exactly once on every failure or timeout |
 | Studio production preview overwrites Legacy preference | A temporary visual review silently opts the user into Modern | Use a non-persisting temporary Modern path, preserve the restoration target, honor a newer explicit user choice, and assert the Graphics key before and after every preview outcome |
 | Browser-local playbook becomes confused with repository or account defaults | One browser's experiment is treated as a shipped design or appears on another account unexpectedly | Label persistence as local, export the complete versioned document for review, issue no network request, and require separate source-control promotion for global defaults |
+| Perspective calibration makes outer active-match cards look fanned or curved | The study repeats the rejected curved-surface appearance and pickup movement cannot be judged against a credible flat table | Calibrate every settled anchor on one constant-depth plane, assert equal projected corner silhouettes at left/center/right positions, keep local rotation zero at rest, and prohibit camera or slot-dependent tilt |
+| Pointer coordinates are scaled twice or projected onto the wrong depth plane | The card drifts away from the pointer at application scale, browser zoom, or during lift | Convert through the current host rectangle into 693 by 500 logical space once, preserve the accepted local card point on the held plane, and test scales 1, 1.5, 2, and 3 plus DPR/zoom cases |
+| Velocity tilt becomes jittery, inverted, or permanent | The card appears unstable, leads rather than resists motion, or leaves residual skew | Filter logical velocity with finite-delta guards, clamp both tilt axes to 8 degrees, test directional sign, use non-oscillating damping, and stop the scheduler after zero-tilt convergence |
+| Renderer-local hold leaks into game authority | A visual study changes `dragging`, turn state, target state, requests, replay, or fallback identity | Keep the hold inside the Modern surface, expose diagnostics only as cloned data, omit semantic dispatch and slot objects, and assert controller/Legacy/request identity before and after every trace |
+| A held card survives mode, hand, view, or context replacement | A stale event moves the wrong card, a hidden scheduler leaks, or Legacy appears to inherit a Modern drag | Generation-token every hold and frame; cancel on every documented lifecycle/revision boundary; detach ownership before reveal/disposal; prove late events inert |
+| A second click silently becomes a partial drop implementation | Scope expands into invalid return, target legality, or move authority before the controller seam exists | Ignore and never queue every activation while one card is held; create no slot pick target; assert zero drop/return/request paths in source, diagnostics, and browser traces |
 | Remote dependency delivery violates self-contained design | Startup, CSP, and archival failure | Pin, bundle, and serve all Modern code locally |
 
 ## 22. Open design questions
@@ -3356,7 +3645,7 @@ These questions do not block Phase 0 unless noted, but each must be resolved in 
 | OQ-001 | Exact user-facing control copy | Resolved: `Graphics` with `Legacy` and `Modern`; adjacent status identifies the non-playable Preview | Phase 0 |
 | OQ-002 | Blank preview or explanatory message | Require the explanatory DOM message | Phase 0 |
 | OQ-003 | Runtime application after mode selection | Resolved: apply immediately through the Phase 0 presentation/input gate; never require or force a reload | Phase 0 |
-| OQ-004 | Perspective or orthographic primary active-match camera | Phase 0.10 uses a provisional head-on orthographic camera only to prove exact static hand parity without skew. Phase 0.6's calibrated constrained perspective lobby camera remains useful motion evidence. Neither choice resolves the primary playable active-match camera; decide it in Phase 2. | Phase 2 |
+| OQ-004 | Perspective or orthographic primary active-match camera | Phase 0.10 used a provisional head-on orthographic camera for exact static hand parity. Phase 0.11 deliberately replaces it on the Modern study surface with a calibrated head-on perspective camera that preserves the same settled rectangles and flat-table silhouette while enabling depth lift and local-X/local-Y tilt. Treat its geometry, interaction, and visual results as Phase 2 evidence; it does not by itself select the final playable camera. | Phase 2 |
 | OQ-005 | Thin box or paired planes for an active-match card | Phase 0.6 resolves only the lobby experiment as a three-unit side-only lit slab, hidden slab caps, distinct unlit face planes, and 0.2 units of clearance. Decide the active-match representation through edge, orientation, depth-stability, and draw-cost measurements. | Phase 2 |
 | OQ-006 | Per-card textures or atlas | Phase 0.5 uses per-card current-lobby-hand textures; begin the active match with cached current-match textures and add an atlas only if profiling justifies it | Phase 2 |
 | OQ-007 | Exact active-match shadows and lighting | Phase 0.6 lights only the lobby slab sides, keeps face art unlit, disables hardware shadow maps, and uses one independently controlled lift-only analytic contact shadow per card over shared geometry/texture. Treat that artifact-free concurrent result as evidence; select the active-match treatment in Phase 2. | Phase 2 |
@@ -3403,6 +3692,8 @@ Changes to any of the following require an explicit update to this document or a
 - expanding the initiative to application Raphael surfaces beyond the explicitly approved lobby-hand exception;
 - promoting a Motion Studio draft or playbook beyond the five Phase 0.9 lobby intro targets and shared Gentle Wind exit, including into the shop or active match;
 - changing the Motion Studio recipe or lobby-playbook schema, changing the six-target registry, serializing application anchors, or moving persistence from browser-local state to account/server state;
+- expanding Phase 0.11 beyond one renderer-local player-card hold, including opponent pickup, click-to-drop, slot picking, legal-target state, invalid return, semantic action dispatch, controller/game-state mutation, or a network request;
+- changing the Phase 0.11 projected lift target, velocity-tilt bound, perspective flat-table calibration, reduced-motion contract, or cache identity without corresponding visual, coordinate, lifecycle, and bundle evidence;
 
 Each revision should record:
 

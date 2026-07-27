@@ -68,6 +68,33 @@ const LOBBY_LOGICAL_WIDTH = 755;
 const LOBBY_LOGICAL_HEIGHT = 562;
 const MAX_PIXEL_RATIO = 3;
 const MATCH_HAND_TEXTURE_TIMEOUT_MS = 6000;
+const MATCH_CAMERA_FOV = 40;
+const MATCH_CAMERA_CENTER_X = LOGICAL_WIDTH / 2;
+const MATCH_CAMERA_CENTER_Y = LOGICAL_HEIGHT / 2;
+const MATCH_CAMERA_DISTANCE =
+  (LOGICAL_HEIGHT / 2) / Math.tan((MATCH_CAMERA_FOV * Math.PI / 180) / 2);
+const MATCH_CARD_WIDTH = 117;
+const MATCH_CARD_HEIGHT = 146;
+const MATCH_CARD_THICKNESS = 3;
+const MATCH_CARD_FACE_BODY_CLEARANCE = 0.2;
+const MATCH_CARD_FACE_OFFSET =
+  (MATCH_CARD_THICKNESS / 2) + MATCH_CARD_FACE_BODY_CLEARANCE;
+const MATCH_PICKUP_LIFT_Z = 48;
+const MATCH_PICKUP_DURATION_MS = 300;
+const MATCH_PICKUP_POSITION_RESPONSE = 24;
+const MATCH_PICKUP_VELOCITY_RESPONSE = 14;
+const MATCH_PICKUP_STALE_VELOCITY_MS = 32;
+const MATCH_PICKUP_VELOCITY_DECAY = 18;
+const MATCH_PICKUP_MAX_SPEED = 1200;
+const MATCH_PICKUP_TILT_SPEED = 850;
+const MATCH_PICKUP_TILT_RESPONSE = 12;
+const MATCH_PICKUP_MAX_TILT =
+  8 * (Math.PI / 180);
+const MATCH_PICKUP_POSITION_EPSILON = 0.05;
+const MATCH_PICKUP_VELOCITY_EPSILON = 0.5;
+const MATCH_PICKUP_TILT_EPSILON =
+  0.02 * (Math.PI / 180);
+const MATCH_PICKUP_SHADOW_Z = -0.5;
 const LOBBY_CARD_BACK_URL = '/images/cards/cardBack.png';
 const LOBBY_CAMERA_FOV = 40;
 const LOBBY_CAMERA_CENTER_X = LOBBY_LOGICAL_WIDTH / 2;
@@ -146,6 +173,8 @@ class ModernGraphicsSurface {
     this.options = options || {};
     this.disposed = false;
     this.contextLost = false;
+    this.suspended = false;
+    this.visibilitySuspended = document.hidden === true;
     this.renderer = null;
     this.canvas = null;
     this.status = 'empty';
@@ -156,8 +185,24 @@ class ModernGraphicsSurface {
     };
     this.handsKey = null;
     this.cardEntries = [];
+    this.playerPickMeshes = [];
+    this.opponentPickMeshes = [];
     this.textures = new Map();
     this.pendingTextureLoads = new Set();
+    this.raycaster = new Raycaster();
+    this.pointerNdc = new Vector2();
+    this.heldCard = null;
+    this.animationFrameId = null;
+    this.pendingFrameCount = 0;
+    this.peakPendingFrameCount = 0;
+    this.frameCount = 0;
+    this.inputHandlersAttached = false;
+    this.acceptedPickups = 0;
+    this.ignoredWhileHeld = 0;
+    this.emptyClicks = 0;
+    this.opponentClicks = 0;
+    this.lastPick = null;
+    this.lastCancellation = null;
     this.textureLoadTimeoutMs =
       Number.isFinite(Number(this.options.textureLoadTimeoutMs)) &&
       Number(this.options.textureLoadTimeoutMs) > 0
@@ -166,18 +211,54 @@ class ModernGraphicsSurface {
 
     try {
       this.scene = new Scene();
-      this.camera = new OrthographicCamera(
-        0,
-        LOGICAL_WIDTH,
-        LOGICAL_HEIGHT,
-        0,
+      this.camera = new PerspectiveCamera(
+        MATCH_CAMERA_FOV,
+        LOGICAL_WIDTH / LOGICAL_HEIGHT,
         0.1,
-        1000
+        2000
       );
-      this.camera.position.z = 100;
+      this.camera.position.set(
+        MATCH_CAMERA_CENTER_X,
+        MATCH_CAMERA_CENTER_Y,
+        MATCH_CAMERA_DISTANCE
+      );
+      this.camera.lookAt(
+        MATCH_CAMERA_CENTER_X,
+        MATCH_CAMERA_CENTER_Y,
+        0
+      );
       this.cardGroup = new Group();
       this.scene.add(this.cardGroup);
-      this.cardGeometry = new PlaneGeometry(117, 146);
+      this.cardGeometry = new PlaneGeometry(
+        MATCH_CARD_WIDTH,
+        MATCH_CARD_HEIGHT
+      );
+      this.cardBodyGeometry = new BoxGeometry(
+        MATCH_CARD_WIDTH - 1.5,
+        MATCH_CARD_HEIGHT - 1.5,
+        MATCH_CARD_THICKNESS
+      );
+      this.matchShadowGeometry = new PlaneGeometry(
+        MATCH_CARD_WIDTH + 22,
+        MATCH_CARD_HEIGHT + 24
+      );
+      this.cardBodyMaterial = new MeshBasicMaterial({
+        color: 0xd4cfc2,
+        depthTest: false,
+        depthWrite: false,
+        toneMapped: false
+      });
+      this.matchShadowTexture =
+        this.createAnalyticShadowTexture();
+      this.matchShadowMaterial = new MeshBasicMaterial({
+        map: this.matchShadowTexture,
+        color: 0x000000,
+        transparent: true,
+        opacity: 0,
+        depthTest: false,
+        depthWrite: false,
+        toneMapped: false
+      });
       this.textureLoader = new TextureLoader();
       this.renderer = new WebGLRenderer({
         alpha: true,
@@ -201,12 +282,54 @@ class ModernGraphicsSurface {
       this.handleContextLost = (event) => {
         event.preventDefault();
         this.contextLost = true;
+        this.cancelPickup('context-lost', false);
+        this.detachInputHandlers();
         if (typeof this.options.onContextLost === 'function') {
           this.options.onContextLost(new Error('The WebGL context was lost.'));
         }
       };
+      this.handleClick = (event) => {
+        if (event.button !== 0 || this.suspended) {
+          return;
+        }
+        event.preventDefault();
+        this.pickUpAt(event.clientX, event.clientY);
+      };
+      this.handlePointerMove = (event) => {
+        if (
+          !this.heldCard ||
+          this.suspended ||
+          this.visibilitySuspended
+        ) {
+          return;
+        }
+        this.moveHeldCard(
+          event.clientX,
+          event.clientY,
+          performance.now()
+        );
+      };
+      this.handleVisibilityChange = () => {
+        this.visibilitySuspended =
+          document.hidden === true;
+        if (this.visibilitySuspended) {
+          this.cancelPickup(
+            'visibility-hidden',
+            false
+          );
+          this.detachInputHandlers();
+          return;
+        }
+        this.attachInputHandlers();
+        this.render();
+      };
 
       this.canvas.addEventListener('webglcontextlost', this.handleContextLost, false);
+      document.addEventListener(
+        'visibilitychange',
+        this.handleVisibilityChange,
+        false
+      );
       this.host.appendChild(this.canvas);
       this.setContentScale(this.options.contentScale || 1);
     } catch (error) {
@@ -217,6 +340,796 @@ class ModernGraphicsSurface {
       }
       throw error;
     }
+  }
+
+  createAnalyticShadowTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 256;
+    const context = canvas.getContext('2d');
+    const gradient = context.createRadialGradient(
+      128,
+      128,
+      8,
+      128,
+      128,
+      122
+    );
+
+    gradient.addColorStop(0, 'rgba(0, 0, 0, 0.58)');
+    gradient.addColorStop(0.48, 'rgba(0, 0, 0, 0.31)');
+    gradient.addColorStop(0.78, 'rgba(0, 0, 0, 0.09)');
+    gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, 256, 256);
+
+    const texture = new CanvasTexture(canvas);
+    texture.minFilter = LinearFilter;
+    texture.magFilter = LinearFilter;
+    texture.generateMipmaps = false;
+    texture.needsUpdate = true;
+    return texture;
+  }
+
+  prefersReducedMotion() {
+    if (typeof this.options.reducedMotion === 'boolean') {
+      return this.options.reducedMotion;
+    }
+    return typeof window.matchMedia === 'function' &&
+      window.matchMedia(
+        '(prefers-reduced-motion: reduce)'
+      ).matches;
+  }
+
+  attachInputHandlers() {
+    if (
+      this.inputHandlersAttached ||
+      this.disposed ||
+      this.contextLost ||
+      this.suspended ||
+      this.visibilitySuspended ||
+      this.status !== 'ready'
+    ) {
+      return;
+    }
+
+    this.host.addEventListener('click', this.handleClick, false);
+    this.host.addEventListener(
+      'pointermove',
+      this.handlePointerMove,
+      false
+    );
+    this.inputHandlersAttached = true;
+  }
+
+  detachInputHandlers() {
+    if (!this.inputHandlersAttached) {
+      return;
+    }
+
+    this.host.removeEventListener('click', this.handleClick, false);
+    this.host.removeEventListener(
+      'pointermove',
+      this.handlePointerMove,
+      false
+    );
+    this.inputHandlersAttached = false;
+  }
+
+  clientPoint(clientX, clientY) {
+    const bounds = this.canvas.getBoundingClientRect();
+    if (bounds.width <= 0 || bounds.height <= 0) {
+      return null;
+    }
+
+    const normalizedX = (clientX - bounds.left) / bounds.width;
+    const normalizedY = (clientY - bounds.top) / bounds.height;
+    return {
+      logical: {
+        x: normalizedX * LOGICAL_WIDTH,
+        y: normalizedY * LOGICAL_HEIGHT
+      },
+      ndc: {
+        x: (normalizedX * 2) - 1,
+        y: 1 - (normalizedY * 2)
+      }
+    };
+  }
+
+  screenCenterToWorld(screenX, screenY, depth) {
+    const planeScale =
+      (MATCH_CAMERA_DISTANCE - depth) /
+      MATCH_CAMERA_DISTANCE;
+    const screenWorldY = LOGICAL_HEIGHT - screenY;
+    return {
+      x:
+        MATCH_CAMERA_CENTER_X +
+        ((screenX - MATCH_CAMERA_CENTER_X) * planeScale),
+      y:
+        MATCH_CAMERA_CENTER_Y +
+        ((screenWorldY - MATCH_CAMERA_CENTER_Y) * planeScale)
+    };
+  }
+
+  worldPointToScreen(worldX, worldY, worldZ) {
+    const perspectiveScale =
+      MATCH_CAMERA_DISTANCE /
+      (MATCH_CAMERA_DISTANCE - worldZ);
+    return {
+      x:
+        MATCH_CAMERA_CENTER_X +
+        ((worldX - MATCH_CAMERA_CENTER_X) *
+          perspectiveScale),
+      y:
+        LOGICAL_HEIGHT -
+        (
+          MATCH_CAMERA_CENTER_Y +
+          ((worldY - MATCH_CAMERA_CENTER_Y) *
+            perspectiveScale)
+        )
+    };
+  }
+
+  entryRelativePoint(entry, localPoint) {
+    const relative = new Vector3(
+      localPoint.x,
+      localPoint.y,
+      MATCH_CARD_FACE_OFFSET
+    );
+    relative.applyEuler(entry.tilt.rotation);
+    relative.x *= entry.root.scale.x;
+    relative.y *= entry.root.scale.y;
+    relative.z *= entry.root.scale.z;
+    return relative;
+  }
+
+  settledCenterForGrab(entry, pointer, localGrab, depth) {
+    const perspectiveScale =
+      MATCH_CAMERA_DISTANCE /
+      (MATCH_CAMERA_DISTANCE - depth);
+    return {
+      x:
+        pointer.x -
+        (
+          localGrab.x *
+          entry.root.scale.x *
+          perspectiveScale
+        ),
+      y:
+        pointer.y +
+        (
+          localGrab.y *
+          entry.root.scale.y *
+          perspectiveScale
+        ),
+      z: depth
+    };
+  }
+
+  setEntryRenderOrder(entry, held) {
+    if (held) {
+      entry.shadowMesh.renderOrder = 1000;
+      entry.bodyMesh.renderOrder = 1001;
+      entry.mesh.renderOrder = 1002;
+      return;
+    }
+
+    entry.shadowMesh.renderOrder = entry.baseRenderOrder;
+    entry.bodyMesh.renderOrder = entry.baseRenderOrder + 1;
+    entry.mesh.renderOrder = entry.baseRenderOrder + 2;
+  }
+
+  applyEntryPose(
+    entry,
+    screenX,
+    screenY,
+    depth,
+    tiltX,
+    tiltY,
+    grabPose
+  ) {
+    entry.tilt.rotation.set(tiltX, tiltY, 0);
+    const rootZ =
+      depth - MATCH_CARD_FACE_OFFSET;
+    let projectedCenterX = screenX;
+    let projectedCenterY = screenY;
+
+    if (grabPose && grabPose.local && grabPose.screen) {
+      const relativeGrab = this.entryRelativePoint(
+        entry,
+        grabPose.local
+      );
+      const grabWorldZ =
+        rootZ + relativeGrab.z;
+      const desiredGrabWorld =
+        this.screenCenterToWorld(
+          grabPose.screen.x,
+          grabPose.screen.y,
+          grabWorldZ
+        );
+      entry.root.position.set(
+        desiredGrabWorld.x - relativeGrab.x,
+        desiredGrabWorld.y - relativeGrab.y,
+        rootZ
+      );
+
+      const relativeCenter = this.entryRelativePoint(
+        entry,
+        {x: 0, y: 0}
+      );
+      const projectedCenter =
+        this.worldPointToScreen(
+          entry.root.position.x +
+            relativeCenter.x,
+          entry.root.position.y +
+            relativeCenter.y,
+          entry.root.position.z +
+            relativeCenter.z
+        );
+      projectedCenterX = projectedCenter.x;
+      projectedCenterY = projectedCenter.y;
+    } else {
+      const world = this.screenCenterToWorld(
+        screenX,
+        screenY,
+        depth
+      );
+      entry.root.position.set(
+        world.x,
+        world.y,
+        rootZ
+      );
+    }
+
+    entry.currentPosition.x = projectedCenterX;
+    entry.currentPosition.y = projectedCenterY;
+    entry.currentPosition.z = depth;
+    entry.rotationRadians.x = tiltX;
+    entry.rotationRadians.y = tiltY;
+    entry.rotationRadians.z = 0;
+
+    if (entry.held && depth > 0.1) {
+      const liftRatio = Math.min(
+        Math.max(depth / MATCH_PICKUP_LIFT_Z, 0),
+        1
+      );
+      const shadowScreenX =
+        projectedCenterX + (5 * liftRatio);
+      const shadowScreenY =
+        projectedCenterY + (7 * liftRatio);
+      entry.shadowMesh.position.set(
+        shadowScreenX,
+        LOGICAL_HEIGHT - shadowScreenY,
+        MATCH_PICKUP_SHADOW_Z
+      );
+      entry.shadowMesh.scale.setScalar(
+        0.93 + (0.12 * liftRatio)
+      );
+      this.matchShadowMaterial.opacity =
+        0.05 + (0.19 * liftRatio);
+      entry.shadowMesh.visible = true;
+    } else {
+      entry.shadowMesh.visible = false;
+    }
+  }
+
+  resetEntryPose(entry) {
+    entry.held = false;
+    this.setEntryRenderOrder(entry, false);
+    this.applyEntryPose(
+      entry,
+      entry.basePosition.x,
+      entry.basePosition.y,
+      0,
+      0,
+      0
+    );
+    entry.shadowMesh.visible = false;
+  }
+
+  selectTopIntersection(intersections) {
+    return intersections
+      .filter((intersection) =>
+        Boolean(
+          intersection.object.userData
+            .purettCardEntry
+        )
+      )
+      .sort((left, right) =>
+        right.object.userData
+          .purettCardEntry.baseRenderOrder -
+        left.object.userData
+          .purettCardEntry.baseRenderOrder
+      )[0] || null;
+  }
+
+  pickUpAt(clientX, clientY) {
+    if (
+      this.disposed ||
+      this.contextLost ||
+      this.suspended ||
+      this.visibilitySuspended ||
+      this.status !== 'ready'
+    ) {
+      return false;
+    }
+    if (this.heldCard) {
+      this.ignoredWhileHeld += 1;
+      return false;
+    }
+
+    const point = this.clientPoint(clientX, clientY);
+    if (!point) {
+      this.emptyClicks += 1;
+      return false;
+    }
+
+    this.pointerNdc.set(point.ndc.x, point.ndc.y);
+    this.scene.updateMatrixWorld(true);
+    this.camera.updateMatrixWorld(true);
+    this.raycaster.setFromCamera(
+      this.pointerNdc,
+      this.camera
+    );
+    const playerIntersection =
+      this.selectTopIntersection(
+      this.raycaster.intersectObjects(
+        this.playerPickMeshes,
+        false
+      )
+    );
+    const entry = playerIntersection
+      ? playerIntersection.object.userData
+        .purettCardEntry
+      : null;
+
+    if (!entry) {
+      const opponentIntersection =
+        this.selectTopIntersection(
+        this.raycaster.intersectObjects(
+          this.opponentPickMeshes,
+          false
+        )
+      );
+      const opponentEntry = opponentIntersection
+        ? opponentIntersection.object.userData
+          .purettCardEntry
+        : null;
+      if (opponentEntry) {
+        this.opponentClicks += 1;
+        this.lastPick = {
+          outcome: 'opponent-inert',
+          gameCardId: opponentEntry.card.gameCardId,
+          handIndex: opponentEntry.card.handIndex
+        };
+      } else {
+        this.emptyClicks += 1;
+        this.lastPick = {
+          outcome: 'empty'
+        };
+      }
+      return false;
+    }
+
+    const localGrabPoint =
+      entry.mesh.worldToLocal(
+        playerIntersection.point.clone()
+      );
+    const now = performance.now();
+    const reducedMotion =
+      this.prefersReducedMotion();
+    entry.held = true;
+    this.setEntryRenderOrder(entry, true);
+    this.heldCard = {
+      entry,
+      phase: reducedMotion
+        ? 'held'
+        : 'lifting',
+      reducedMotion,
+      base: {
+        x: entry.basePosition.x,
+        y: entry.basePosition.y,
+        z: 0
+      },
+      currentPointer: {
+        x: point.logical.x,
+        y: point.logical.y
+      },
+      targetPointer: {
+        x: point.logical.x,
+        y: point.logical.y
+      },
+      depth: 0,
+      localGrab: {
+        x: localGrabPoint.x,
+        y: localGrabPoint.y
+      },
+      grabOffset: {
+        x: point.logical.x - entry.currentPosition.x,
+        y: point.logical.y - entry.currentPosition.y
+      },
+      velocity: {
+        x: 0,
+        y: 0
+      },
+      targetVelocity: {
+        x: 0,
+        y: 0
+      },
+      tiltX: 0,
+      tiltY: 0,
+      liftStartedAt: now,
+      lastFrameAt: null,
+      lastPointerAt: now,
+      lastPointerTarget: {
+        x: point.logical.x,
+        y: point.logical.y
+      }
+    };
+    this.acceptedPickups += 1;
+    this.lastPick = {
+      outcome: 'player-held',
+      gameCardId: entry.card.gameCardId,
+      handIndex: entry.card.handIndex,
+      grabOffset: {
+        x: this.heldCard.grabOffset.x,
+        y: this.heldCard.grabOffset.y
+      }
+    };
+    this.host.style.cursor = 'grabbing';
+
+    if (this.heldCard.reducedMotion) {
+      this.heldCard.depth = MATCH_PICKUP_LIFT_Z;
+      this.applyEntryPose(
+        entry,
+        entry.currentPosition.x,
+        entry.currentPosition.y,
+        MATCH_PICKUP_LIFT_Z,
+        0,
+        0,
+        {
+          local: this.heldCard.localGrab,
+          screen:
+            this.heldCard.currentPointer
+        }
+      );
+      this.render();
+      return true;
+    }
+
+    this.scheduleAnimationFrame();
+    return true;
+  }
+
+  moveHeldCard(clientX, clientY, now) {
+    const held = this.heldCard;
+    const point = this.clientPoint(clientX, clientY);
+    if (!held || !point) {
+      return;
+    }
+
+    const nextTargetPointer = {
+      x: point.logical.x,
+      y: point.logical.y
+    };
+    const elapsedSeconds = Math.min(
+      Math.max(
+        (now - held.lastPointerAt) / 1000,
+        1 / 240
+      ),
+      0.05
+    );
+    let velocityX =
+      (
+        nextTargetPointer.x -
+        held.lastPointerTarget.x
+      ) /
+      elapsedSeconds;
+    let velocityY =
+      (
+        nextTargetPointer.y -
+        held.lastPointerTarget.y
+      ) /
+      elapsedSeconds;
+    const speed = Math.hypot(velocityX, velocityY);
+
+    if (speed > MATCH_PICKUP_MAX_SPEED) {
+      const speedScale =
+        MATCH_PICKUP_MAX_SPEED / speed;
+      velocityX *= speedScale;
+      velocityY *= speedScale;
+    }
+
+    held.targetPointer.x =
+      nextTargetPointer.x;
+    held.targetPointer.y =
+      nextTargetPointer.y;
+    held.targetVelocity.x = velocityX;
+    held.targetVelocity.y = velocityY;
+    held.lastPointerAt = now;
+    held.lastPointerTarget.x =
+      nextTargetPointer.x;
+    held.lastPointerTarget.y =
+      nextTargetPointer.y;
+
+    if (held.reducedMotion) {
+      held.currentPointer.x =
+        held.targetPointer.x;
+      held.currentPointer.y =
+        held.targetPointer.y;
+      held.depth = MATCH_PICKUP_LIFT_Z;
+      held.velocity.x = 0;
+      held.velocity.y = 0;
+      held.tiltX = 0;
+      held.tiltY = 0;
+      held.phase = 'held';
+      this.applyEntryPose(
+        held.entry,
+        held.entry.currentPosition.x,
+        held.entry.currentPosition.y,
+        held.depth,
+        0,
+        0,
+        {
+          local: held.localGrab,
+          screen: held.currentPointer
+        }
+      );
+      this.render();
+      return;
+    }
+
+    held.phase = held.depth <
+      MATCH_PICKUP_LIFT_Z - 0.01
+      ? 'lifting'
+      : 'following';
+    this.scheduleAnimationFrame();
+  }
+
+  scheduleAnimationFrame() {
+    if (
+      this.animationFrameId !== null ||
+      !this.heldCard ||
+      this.disposed ||
+      this.contextLost ||
+      this.suspended ||
+      this.visibilitySuspended ||
+      this.heldCard.reducedMotion
+    ) {
+      return;
+    }
+
+    this.pendingFrameCount = 1;
+    this.peakPendingFrameCount = Math.max(
+      this.peakPendingFrameCount,
+      this.pendingFrameCount
+    );
+    this.animationFrameId = window.requestAnimationFrame(
+      (timestamp) => {
+        this.animationFrameId = null;
+        this.pendingFrameCount = 0;
+        this.stepPickup(timestamp);
+      }
+    );
+  }
+
+  stepPickup(timestamp) {
+    const held = this.heldCard;
+    if (
+      !held ||
+      this.disposed ||
+      this.contextLost ||
+      this.suspended ||
+      this.visibilitySuspended
+    ) {
+      return;
+    }
+
+    const elapsedSeconds = held.lastFrameAt === null
+      ? 1 / 60
+      : Math.min(
+        Math.max((timestamp - held.lastFrameAt) / 1000, 1 / 240),
+        0.05
+      );
+    held.lastFrameAt = timestamp;
+    const positionBlend =
+      1 - Math.exp(
+        -MATCH_PICKUP_POSITION_RESPONSE * elapsedSeconds
+      );
+    held.currentPointer.x +=
+      (
+        held.targetPointer.x -
+        held.currentPointer.x
+      ) *
+      positionBlend;
+    held.currentPointer.y +=
+      (
+        held.targetPointer.y -
+        held.currentPointer.y
+      ) *
+      positionBlend;
+
+    const liftProgress = Math.min(
+      Math.max(
+        (timestamp - held.liftStartedAt) /
+        MATCH_PICKUP_DURATION_MS,
+        0
+      ),
+      1
+    );
+    const easedLift =
+      1 - Math.pow(1 - liftProgress, 3);
+    held.depth =
+      MATCH_PICKUP_LIFT_Z * easedLift;
+
+    const pointerIsStale =
+      timestamp - held.lastPointerAt >
+      MATCH_PICKUP_STALE_VELOCITY_MS;
+    const desiredVelocityX = pointerIsStale
+      ? 0
+      : held.targetVelocity.x;
+    const desiredVelocityY = pointerIsStale
+      ? 0
+      : held.targetVelocity.y;
+    const velocityResponse = pointerIsStale
+      ? MATCH_PICKUP_VELOCITY_DECAY
+      : MATCH_PICKUP_VELOCITY_RESPONSE;
+    const velocityBlend =
+      1 - Math.exp(
+        -velocityResponse * elapsedSeconds
+      );
+    held.velocity.x +=
+      (desiredVelocityX - held.velocity.x) *
+      velocityBlend;
+    held.velocity.y +=
+      (desiredVelocityY - held.velocity.y) *
+      velocityBlend;
+
+    const targetTiltX =
+      Math.max(
+        -1,
+        Math.min(
+          held.velocity.y / MATCH_PICKUP_TILT_SPEED,
+          1
+        )
+      ) * MATCH_PICKUP_MAX_TILT * easedLift;
+    const targetTiltY =
+      Math.max(
+        -1,
+        Math.min(
+          held.velocity.x / MATCH_PICKUP_TILT_SPEED,
+          1
+        )
+      ) * MATCH_PICKUP_MAX_TILT * easedLift;
+    const tiltBlend =
+      1 - Math.exp(
+        -MATCH_PICKUP_TILT_RESPONSE * elapsedSeconds
+      );
+    held.tiltX +=
+      (targetTiltX - held.tiltX) * tiltBlend;
+    held.tiltY +=
+      (targetTiltY - held.tiltY) * tiltBlend;
+
+    this.applyEntryPose(
+      held.entry,
+      held.entry.currentPosition.x,
+      held.entry.currentPosition.y,
+      held.depth,
+      held.tiltX,
+      held.tiltY,
+      {
+        local: held.localGrab,
+        screen: held.currentPointer
+      }
+    );
+    this.frameCount += 1;
+    this.render();
+
+    const positionUnsettled =
+      Math.hypot(
+        held.targetPointer.x -
+          held.currentPointer.x,
+        held.targetPointer.y -
+          held.currentPointer.y
+      ) > MATCH_PICKUP_POSITION_EPSILON;
+    const velocityUnsettled =
+      Math.hypot(
+        held.velocity.x,
+        held.velocity.y
+      ) > MATCH_PICKUP_VELOCITY_EPSILON;
+    const tiltUnsettled =
+      Math.abs(held.tiltX) >
+        MATCH_PICKUP_TILT_EPSILON ||
+      Math.abs(held.tiltY) >
+        MATCH_PICKUP_TILT_EPSILON;
+    const liftUnsettled = liftProgress < 1;
+
+    if (
+      liftUnsettled ||
+      positionUnsettled ||
+      velocityUnsettled ||
+      tiltUnsettled
+    ) {
+      held.phase = liftUnsettled
+        ? 'lifting'
+        : 'following';
+      this.scheduleAnimationFrame();
+      return;
+    }
+
+    held.currentPointer.x =
+      held.targetPointer.x;
+    held.currentPointer.y =
+      held.targetPointer.y;
+    held.depth = MATCH_PICKUP_LIFT_Z;
+    held.velocity.x = 0;
+    held.velocity.y = 0;
+    held.tiltX = 0;
+    held.tiltY = 0;
+    held.phase = 'held';
+    this.applyEntryPose(
+      held.entry,
+      held.entry.currentPosition.x,
+      held.entry.currentPosition.y,
+      held.depth,
+      0,
+      0,
+      {
+        local: held.localGrab,
+        screen: held.currentPointer
+      }
+    );
+    this.render();
+  }
+
+  cancelAnimationFrame() {
+    if (this.animationFrameId !== null) {
+      window.cancelAnimationFrame(
+        this.animationFrameId
+      );
+    }
+    this.animationFrameId = null;
+    this.pendingFrameCount = 0;
+  }
+
+  cancelPickup(reason, shouldRender) {
+    this.cancelAnimationFrame();
+    if (!this.heldCard) {
+      return;
+    }
+
+    const entry = this.heldCard.entry;
+    const cancellation = {
+      reason,
+      gameCardId: entry.card.gameCardId,
+      handIndex: entry.card.handIndex
+    };
+    this.heldCard = null;
+    this.resetEntryPose(entry);
+    this.host.style.cursor = '';
+    this.lastCancellation = cancellation;
+    if (shouldRender !== false) {
+      this.render();
+    }
+  }
+
+  suspend() {
+    if (this.disposed) {
+      return;
+    }
+    this.suspended = true;
+    this.cancelPickup('suspend', false);
+    this.detachInputHandlers();
+    this.render();
+  }
+
+  resume() {
+    if (this.disposed) {
+      return;
+    }
+    this.suspended = false;
+    this.attachInputHandlers();
+    this.render();
   }
 
   setContentScale(contentScale) {
@@ -397,10 +1310,13 @@ class ModernGraphicsSurface {
 
   clearCommittedHands() {
     this.cardEntries.forEach((entry) => {
-      this.cardGroup.remove(entry.mesh);
+      this.cardGroup.remove(entry.root);
+      this.cardGroup.remove(entry.shadowMesh);
       entry.material.dispose();
     });
     this.cardEntries = [];
+    this.playerPickMeshes = [];
+    this.opponentPickMeshes = [];
     this.textures.forEach((texture) => texture.dispose());
     this.textures.clear();
   }
@@ -414,28 +1330,85 @@ class ModernGraphicsSurface {
         color: 0xffffff,
         transparent: true,
         alphaTest: 0.01,
-        depthTest: true,
-        depthWrite: true,
+        depthTest: false,
+        depthWrite: false,
         side: FrontSide,
         toneMapped: false
       });
-      const mesh = new Mesh(this.cardGeometry, material);
-
-      mesh.position.set(
-        card.x + (card.width / 2),
-        LOGICAL_HEIGHT - card.y - (card.height / 2),
-        1 + (card.handIndex * 0.1)
+      const root = new Group();
+      const tilt = new Group();
+      const bodyMesh = new Mesh(
+        this.cardBodyGeometry,
+        this.cardBodyMaterial
       );
-      mesh.scale.set(card.width / 117, card.height / 146, 1);
-      mesh.rotation.z = 0;
-      mesh.renderOrder = card.handIndex;
-      this.cardGroup.add(mesh);
+      const mesh = new Mesh(
+        this.cardGeometry,
+        material
+      );
+      const shadowMesh = new Mesh(
+        this.matchShadowGeometry,
+        this.matchShadowMaterial
+      );
+      const basePosition = {
+        x: card.x + (card.width / 2),
+        y: card.y + (card.height / 2)
+      };
+      const baseRenderOrder =
+        (card.side === 'player' ? 100 : 0) +
+        (card.handIndex * 3);
 
-      return {
+      root.scale.set(
+        card.width / MATCH_CARD_WIDTH,
+        card.height / MATCH_CARD_HEIGHT,
+        1
+      );
+      mesh.position.z = MATCH_CARD_FACE_OFFSET;
+      mesh.rotation.z = 0;
+      shadowMesh.visible = false;
+      tilt.add(bodyMesh);
+      tilt.add(mesh);
+      root.add(tilt);
+      this.cardGroup.add(shadowMesh);
+      this.cardGroup.add(root);
+
+      const entry = {
         card,
         material,
-        mesh
+        root,
+        tilt,
+        bodyMesh,
+        mesh,
+        shadowMesh,
+        basePosition,
+        baseRenderOrder,
+        held: false,
+        currentPosition: {
+          x: basePosition.x,
+          y: basePosition.y,
+          z: 0
+        },
+        rotationRadians: {
+          x: 0,
+          y: 0,
+          z: 0
+        }
       };
+      mesh.userData.purettCardEntry = entry;
+      this.setEntryRenderOrder(entry, false);
+      this.applyEntryPose(
+        entry,
+        basePosition.x,
+        basePosition.y,
+        0,
+        0,
+        0
+      );
+      if (card.side === 'player') {
+        this.playerPickMeshes.push(mesh);
+      } else {
+        this.opponentPickMeshes.push(mesh);
+      }
+      return entry;
     });
   }
 
@@ -454,12 +1427,15 @@ class ModernGraphicsSurface {
       (this.status === 'loading' || this.status === 'ready')
     ) {
       if (this.status === 'ready') {
+        this.attachInputHandlers();
         this.reportReady();
       }
       this.render();
       return;
     }
 
+    this.cancelPickup('hand-replaced', false);
+    this.detachInputHandlers();
     this.handsKey = nextKey;
     this.generation += 1;
     const generation = this.generation;
@@ -500,12 +1476,14 @@ class ModernGraphicsSurface {
       if (loadError) {
         loadedTextures.forEach((texture) => texture.dispose());
         this.status = 'error';
+        this.detachInputHandlers();
         this.reportError(loadError);
         return;
       }
 
       this.commitHands(cards, loadedTextures);
       this.status = 'ready';
+      this.attachInputHandlers();
       this.render();
       this.reportReady();
     });
@@ -532,6 +1510,93 @@ class ModernGraphicsSurface {
   getDebugState() {
     const context = this.renderer.getContext();
     const isWebGL2 = typeof WebGL2RenderingContext !== 'undefined' && context instanceof WebGL2RenderingContext;
+    const held = this.heldCard;
+    const interactive =
+      this.status === 'ready' &&
+      !this.suspended &&
+      !this.contextLost &&
+      this.inputHandlersAttached;
+    const heldTargetCenter = held
+      ? this.settledCenterForGrab(
+        held.entry,
+        held.targetPointer,
+        held.localGrab,
+        MATCH_PICKUP_LIFT_Z
+      )
+      : null;
+    const heldCard = held
+      ? {
+        gameCardId: held.entry.card.gameCardId,
+        userCardId: held.entry.card.userCardId,
+        handIndex: held.entry.card.handIndex,
+        phase: held.phase,
+        reducedMotion: held.reducedMotion,
+        base: {
+          x: held.base.x,
+          y: held.base.y,
+          z: held.base.z
+        },
+        current: {
+          x: held.entry.currentPosition.x,
+          y: held.entry.currentPosition.y,
+          z: held.depth
+        },
+        currentPosition: {
+          x: held.entry.currentPosition.x,
+          y: held.entry.currentPosition.y,
+          z: held.depth
+        },
+        target: {
+          x: heldTargetCenter.x,
+          y: heldTargetCenter.y,
+          z: heldTargetCenter.z
+        },
+        targetPosition: {
+          x: heldTargetCenter.x,
+          y: heldTargetCenter.y,
+          z: heldTargetCenter.z
+        },
+        grabOffset: {
+          x: held.grabOffset.x,
+          y: held.grabOffset.y
+        },
+        pointerPosition: {
+          x: held.targetPointer.x,
+          y: held.targetPointer.y
+        },
+        presentedGrabPoint: {
+          x: held.currentPointer.x,
+          y: held.currentPointer.y
+        },
+        localGrabPoint: {
+          x: held.localGrab.x,
+          y: held.localGrab.y
+        },
+        liftZ: MATCH_PICKUP_LIFT_Z,
+        tiltX: held.tiltX,
+        tiltY: held.tiltY,
+        rotationRadians: {
+          x: held.tiltX,
+          y: held.tiltY,
+          z: 0
+        },
+        velocity: {
+          x: held.velocity.x,
+          y: held.velocity.y
+        },
+        projectedScale:
+          MATCH_CAMERA_DISTANCE /
+          (MATCH_CAMERA_DISTANCE - held.depth),
+        perspectiveScale:
+          MATCH_CAMERA_DISTANCE /
+          (MATCH_CAMERA_DISTANCE - held.depth),
+        renderOrder: {
+          shadow: held.entry.shadowMesh.renderOrder,
+          body: held.entry.bodyMesh.renderOrder,
+          face: held.entry.mesh.renderOrder
+        }
+      }
+      : null;
 
     return {
       packageVersion: __PURETT_THREE_PACKAGE_VERSION__,
@@ -541,11 +1606,11 @@ class ModernGraphicsSurface {
       logicalWidth: LOGICAL_WIDTH,
       logicalHeight: LOGICAL_HEIGHT,
       camera: {
-        projection: 'orthographic',
-        left: this.camera.left,
-        right: this.camera.right,
-        top: this.camera.top,
-        bottom: this.camera.bottom,
+        projection: 'perspective',
+        fov: this.camera.fov,
+        aspect: this.camera.aspect,
+        tablePlaneDistance: MATCH_CAMERA_DISTANCE,
+        settledPlaneScale: 1,
         position: {
           x: this.camera.position.x,
           y: this.camera.position.y,
@@ -562,41 +1627,104 @@ class ModernGraphicsSurface {
           4,
           this.renderer.capabilities.getMaxAnisotropy()
         ),
-        placement: 'legacy-exact',
-        interaction: 'none'
+        placement: 'legacy-exact-at-rest',
+        table: 'flat-top-down',
+        interaction: 'pickup-only'
+      },
+      pickupPolicy: {
+        activation: 'click',
+        maxHeld: 1,
+        playerCardsOnly: true,
+        preserveGrabOffset: true,
+        liftZ: MATCH_PICKUP_LIFT_Z,
+        projectedLiftScale:
+          MATCH_CAMERA_DISTANCE /
+          (MATCH_CAMERA_DISTANCE - MATCH_PICKUP_LIFT_Z),
+        maxTiltRadians: MATCH_PICKUP_MAX_TILT,
+        follow: 'pointer-with-transient-velocity-tilt',
+        drop: 'not-implemented',
+        invalidReturn: 'not-implemented',
+        gameplayAuthority: false
       },
       pixelRatio: this.renderer.getPixelRatio(),
       disposed: this.disposed,
       contextLost: this.contextLost,
+      suspended: this.suspended,
+      visibilitySuspended:
+        this.visibilitySuspended,
       status: this.status,
       ready: this.status === 'ready',
-      interactive: false,
-      inputHandlersAttached: false,
-      rafActive: false,
+      interactive,
+      inputHandlersAttached:
+        this.inputHandlersAttached,
+      reducedMotion: this.prefersReducedMotion(),
+      rafActive: this.animationFrameId !== null,
+      pendingFrameCount: this.pendingFrameCount,
+      peakPendingFrameCount:
+        this.peakPendingFrameCount,
+      frameCount: this.frameCount,
+      heldCard,
+      acceptedPickups: this.acceptedPickups,
+      ignoredWhileHeld: this.ignoredWhileHeld,
+      emptyClicks: this.emptyClicks,
+      opponentClicks: this.opponentClicks,
+      semanticActionCount: 0,
+      requestCount: 0,
+      lastPick: clonePlain(this.lastPick),
+      lastCancellation:
+        clonePlain(this.lastCancellation),
       playerCount: this.hands.player.length,
       opponentCount: this.hands.opponent.length,
       meshCount: this.cardEntries.length,
       textureCount: this.textures.size,
       drawCalls: this.renderer.info.render.calls,
-      cards: this.hands.player.concat(this.hands.opponent).map((card) => ({
-        side: card.side,
-        handIndex: card.handIndex,
-        gameCardId: card.gameCardId,
-        userCardId: card.userCardId,
-        owner: card.owner,
-        visibleArtKey: card.visibleArtKey,
-        face: card.face,
-        textureUrl: card.textureUrl,
-        screenRect: {
-          x: card.x,
-          y: card.y,
-          width: card.width,
-          height: card.height
-        },
-        rotationDegrees: 0,
-        zOrder: card.zOrder,
-        visible: this.status === 'ready'
-      }))
+      cards: this.hands.player.concat(this.hands.opponent)
+        .map((card, index) => {
+          const entry = this.cardEntries[index];
+          return {
+            side: card.side,
+            handIndex: card.handIndex,
+            gameCardId: card.gameCardId,
+            userCardId: card.userCardId,
+            owner: card.owner,
+            visibleArtKey: card.visibleArtKey,
+            face: card.face,
+            textureUrl: card.textureUrl,
+            screenRect: {
+              x: card.x,
+              y: card.y,
+              width: card.width,
+              height: card.height
+            },
+            currentPosition: entry
+              ? {
+                x: entry.currentPosition.x,
+                y: entry.currentPosition.y,
+                z: entry.currentPosition.z
+              }
+              : {
+                x: card.x + (card.width / 2),
+                y: card.y + (card.height / 2),
+                z: 0
+              },
+            rotationRadians: entry
+              ? {
+                x: entry.rotationRadians.x,
+                y: entry.rotationRadians.y,
+                z: entry.rotationRadians.z
+              }
+              : {
+                x: 0,
+                y: 0,
+                z: 0
+              },
+            rotationDegrees: 0,
+            zOrder: card.zOrder,
+            pickable: card.side === 'player',
+            held: Boolean(entry && entry.held),
+            visible: this.status === 'ready'
+          };
+        })
     };
   }
 
@@ -605,6 +1733,8 @@ class ModernGraphicsSurface {
       return;
     }
 
+    this.cancelPickup('dispose', false);
+    this.detachInputHandlers();
     this.disposed = true;
     this.generation += 1;
     this.cancelPendingTextureLoads();
@@ -612,8 +1742,30 @@ class ModernGraphicsSurface {
     if (this.cardGeometry) {
       this.cardGeometry.dispose();
     }
+    if (this.cardBodyGeometry) {
+      this.cardBodyGeometry.dispose();
+    }
+    if (this.matchShadowGeometry) {
+      this.matchShadowGeometry.dispose();
+    }
+    if (this.cardBodyMaterial) {
+      this.cardBodyMaterial.dispose();
+    }
+    if (this.matchShadowMaterial) {
+      this.matchShadowMaterial.dispose();
+    }
+    if (this.matchShadowTexture) {
+      this.matchShadowTexture.dispose();
+    }
     if (this.canvas && this.handleContextLost) {
       this.canvas.removeEventListener('webglcontextlost', this.handleContextLost, false);
+    }
+    if (this.handleVisibilityChange) {
+      document.removeEventListener(
+        'visibilitychange',
+        this.handleVisibilityChange,
+        false
+      );
     }
     if (this.renderer) {
       this.renderer.dispose();
@@ -622,6 +1774,7 @@ class ModernGraphicsSurface {
     if (this.canvas && this.canvas.parentNode) {
       this.canvas.parentNode.removeChild(this.canvas);
     }
+    this.host.style.cursor = '';
   }
 }
 

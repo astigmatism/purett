@@ -60,7 +60,12 @@ try {
   assert(!/window\.THREE\s*=/.test(modernSource + modernBundle), 'modern bundle overwrites the legacy snow THREE global');
   assert(fs.existsSync(path.join(root, 'public/js/modern/THREE-LICENSE.txt')), 'distributed Three.js license is missing');
 
-  assert(coordinator.includes('/js/modern/purett-modern-graphics.min.js?v=0.185.1-match-hands.1'), 'coordinator does not use the match-hands bundle cache revision');
+  assert(
+    coordinator.includes(
+      '/js/modern/purett-modern-graphics.min.js?v=0.185.1-match-pickup.1'
+    ),
+    'coordinator does not use the match-pickup bundle cache revision'
+  );
   assert(!/https?:\/\//.test(coordinator), 'coordinator references a third-party graphics URL');
   assert(coordinator.includes("this.storageKey = 'purett.graphicsMode.v1'"), 'graphics preference does not have a stable storage key');
   assert(coordinator.includes("this.requestedMode = 'legacy'"), 'Legacy is not the safe default');
@@ -106,12 +111,18 @@ try {
     'graphics coordinator does not explicitly scope the match-hand bridge to an active match'
   );
   assert(
-    /new OrthographicCamera\(\s*0,\s*LOGICAL_WIDTH,\s*LOGICAL_HEIGHT,\s*0,\s*0\.1,\s*1000\s*\)/.test(activeSurfaceSource) &&
+    activeSurfaceSource.includes(
+      'this.camera = new PerspectiveCamera('
+    ) &&
       activeSurfaceSource.includes('setHands(hands)') &&
       activeSurfaceSource.includes("surface: 'active-match-hands'") &&
-      activeSurfaceSource.includes("projection: 'orthographic'") &&
-      activeSurfaceSource.includes("placement: 'legacy-exact'"),
-    'active Modern surface does not provide a one-to-one passive match-hand projection'
+      activeSurfaceSource.includes("projection: 'perspective'") &&
+      activeSurfaceSource.includes('tablePlaneDistance:') &&
+      activeSurfaceSource.includes('settledPlaneScale: 1') &&
+      activeSurfaceSource.includes(
+        "placement: 'legacy-exact-at-rest'"
+      ),
+    'active Modern surface does not preserve exact settled hands through its pickup-capable perspective projection'
   );
   assert(
     activeSurfaceSource.includes('Promise.allSettled(') &&
@@ -120,12 +131,129 @@ try {
       activeSurfaceSource.includes('cancelPendingTextureLoads()') &&
       activeSurfaceSource.includes('canonicalTextureUrl.pathname === textureUrl') &&
       activeSurfaceSource.includes('.slice(0, 5)') &&
-      activeSurfaceSource.includes("interaction: 'none'") &&
-      activeSurfaceSource.includes('inputHandlersAttached: false') &&
-      activeSurfaceSource.includes('rafActive: false') &&
-      !activeSurfaceSource.includes('requestAnimationFrame') &&
-      !activeSurfaceSource.includes('new Raycaster'),
-    'active match-hand texture deadline, path guard, five-card bound, or passive diagnostics are incomplete'
+      activeSurfaceSource.includes("interaction: 'pickup-only'") &&
+      activeSurfaceSource.includes('inputHandlersAttached:') &&
+      activeSurfaceSource.includes('rafActive:'),
+    'active match-hand texture deadline, path guard, five-card bound, or pickup-only diagnostics are incomplete'
+  );
+  assert(
+    activeSurfaceSource.includes('new Raycaster()') &&
+      activeSurfaceSource.includes('this.playerPickMeshes') &&
+      activeSurfaceSource.includes('this.opponentPickMeshes') &&
+      activeSurfaceSource.includes("card.side === 'player'") &&
+      activeSurfaceSource.includes("activation: 'click'") &&
+      activeSurfaceSource.includes('maxHeld: 1') &&
+      activeSurfaceSource.includes("drop: 'not-implemented'") &&
+      activeSurfaceSource.includes('heldCard,'),
+    'active-match picking is not explicitly bounded to one renderer-local player card'
+  );
+  assert(
+    /addEventListener\(\s*'click'/.test(
+      activeSurfaceSource
+    ) &&
+      /addEventListener\(\s*'pointermove'/.test(
+        activeSurfaceSource
+      ) &&
+      /removeEventListener\(\s*'click'/.test(
+        activeSurfaceSource
+      ) &&
+      /removeEventListener\(\s*'pointermove'/.test(
+        activeSurfaceSource
+      ) &&
+      activeSurfaceSource.includes('getBoundingClientRect()') &&
+      activeSurfaceSource.includes(
+        'normalizedX * LOGICAL_WIDTH'
+      ) &&
+      activeSurfaceSource.includes(
+        'normalizedY * LOGICAL_HEIGHT'
+      ),
+    'active-match pickup does not own removable click/follow handlers with scale-correct logical pointer mapping'
+  );
+  const activePointerMappingIndex =
+    activeSurfaceSource.indexOf('getBoundingClientRect()');
+  const activePointerMappingSource = activeSurfaceSource.slice(
+    Math.max(0, activePointerMappingIndex - 600),
+    activePointerMappingIndex + 1800
+  );
+  assert(
+    activePointerMappingIndex > -1 &&
+    !activePointerMappingSource.includes('devicePixelRatio') &&
+      !activePointerMappingSource.includes('contentScale'),
+    'active-match pointer mapping incorrectly multiplies CSS coordinates by backing resolution or application scale'
+  );
+  assert(
+    modernSource.includes('const MATCH_PICKUP_LIFT_Z = 48') &&
+      activeSurfaceSource.includes('MATCH_PICKUP_LIFT_Z') &&
+      activeSurfaceSource.includes('MATCH_PICKUP_MAX_TILT') &&
+      activeSurfaceSource.includes('currentPosition:') &&
+      activeSurfaceSource.includes('targetPosition:') &&
+      activeSurfaceSource.includes('grabOffset:') &&
+      activeSurfaceSource.includes('rotationRadians:') &&
+      activeSurfaceSource.includes('perspectiveScale:'),
+    'active-match diagnostics do not expose the bounded lift, grab offset, pointer target, tilt, and perspective evidence'
+  );
+  assert(
+    activeSurfaceSource.includes('window.requestAnimationFrame') &&
+      activeSurfaceSource.includes('window.cancelAnimationFrame') &&
+      activeSurfaceSource.includes('pendingFrameCount:') &&
+      activeSurfaceSource.includes('peakPendingFrameCount:') &&
+      activeSurfaceSource.includes('scheduleAnimationFrame()') &&
+      activeSurfaceSource.includes('cancelPickup('),
+    'active-match pickup does not use one inspectable cancellable demand scheduler'
+  );
+  assert(
+    activeSurfaceSource.includes('suspend()') &&
+      activeSurfaceSource.includes('resume()') &&
+      activeSurfaceSource.includes('prefersReducedMotion()') &&
+      activeSurfaceSource.includes('this.cancelPickup(') &&
+      activeSurfaceSource.includes('this.detachInputHandlers()') &&
+      !activeSurfaceSource.includes('/index/me') &&
+      !activeSurfaceSource.includes('$.ajax') &&
+      !activeSurfaceSource.includes('game.grab') &&
+      !activeSurfaceSource.includes('game.drop'),
+    'pickup cleanup, reduced motion, or renderer-local authority isolation is incomplete'
+  );
+  const activeSetHandsIndex =
+    activeSurfaceSource.indexOf('setHands(hands)');
+  const activeSetHandsSource = activeSurfaceSource.slice(
+    activeSetHandsIndex,
+    activeSurfaceSource.indexOf(
+      '\n  render()',
+      activeSetHandsIndex
+    )
+  );
+  assert(
+    activeSetHandsSource.includes('cancelPickup(') &&
+      activeSurfaceSource.includes(
+        "this.cancelPickup('context-lost'"
+      ) &&
+      activeSurfaceSource.includes(
+        "this.cancelPickup('suspend'"
+      ) &&
+      activeSurfaceSource.includes(
+        "this.cancelPickup('dispose'"
+      ),
+    'hand replacement, context loss, mode suspension, or disposal can retain stale pickup state'
+  );
+  const activateLegacySource = coordinator.slice(
+    coordinator.indexOf('activateLegacy: function('),
+    coordinator.indexOf('setModernEnabled: function(')
+  );
+  const renderCurrentSurfaceSource = coordinator.slice(
+    coordinator.indexOf('renderCurrentSurface: function('),
+    coordinator.indexOf('disposeSurface: function(')
+  );
+  assert(
+    activateLegacySource.includes(
+      "typeof this.surface.suspend === 'function'"
+    ) &&
+      !activateLegacySource.includes(
+        "this.surfaceKind === 'lobby-hand'"
+      ) &&
+      renderCurrentSurfaceSource.includes(
+        "typeof this.surface.resume === 'function'"
+      ),
+    'runtime mode switching does not suspend and resume the active-match pickup surface generically'
   );
   assert(
     boardCss.includes('#board.graphics-modern-hands-ready #modernGraphics .modern-graphics-message') &&

@@ -15,7 +15,7 @@ gh.graphics.prototype = {
             'purett.lobbyMotionPlaybook.v1';
         this.threePackageVersion = '0.185.1';
         this.threeRevision = '185';
-        this.modernScriptUrl = '/js/modern/purett-modern-graphics.min.js?v=0.185.1-match-hands.1';
+        this.modernScriptUrl = '/js/modern/purett-modern-graphics.min.js?v=0.185.1-match-pickup.1';
         this.requestedMode = 'legacy';
         this.effectiveMode = 'legacy';
         this.loadState = 'idle';
@@ -299,8 +299,7 @@ gh.graphics.prototype = {
         if (this.menu && this.menu.setGraphicsMode) {
             this.menu.setGraphicsMode('legacy');
         }
-        if (this.surfaceKind === 'lobby-hand' &&
-            this.surface &&
+        if (this.surface &&
             typeof this.surface.suspend === 'function') {
             this.surface.suspend();
         }
@@ -664,10 +663,10 @@ gh.graphics.prototype = {
             return;
         }
         this.surface.setContentScale(this.getContentScale());
+        if (typeof this.surface.resume === 'function') {
+            this.surface.resume();
+        }
         if (this.surfaceKind === 'lobby-hand') {
-            if (typeof this.surface.resume === 'function') {
-                this.surface.resume();
-            }
             if (this.lobbyPresentation &&
                 this.lobbyPresentationDeliveredId !==
                     String(this.lobbyPresentation.id)) {
@@ -1171,7 +1170,7 @@ gh.graphics.prototype = {
                 ? this.surface.getDebugState()
                 : null;
             if (surfaceState && surfaceState.ready) {
-                this.setStatus('Three.js ' + this.threePackageVersion + ' match hands active. Cards are display-only; select Legacy to play.');
+                this.setStatus('Three.js ' + this.threePackageVersion + ' match hands active. Click a player card to lift and move it; placement is not yet enabled.');
             } else {
                 this.setStatus('Three.js ' + this.threePackageVersion + ' is preparing the Modern match hands\u2026');
             }

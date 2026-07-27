@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Status | Phase 0.11 renderer-local active-match pickup/follow motion study authorized; Phase 0.10 passive hand projection implemented; Phase 0.9 lobby playbook verification remains in progress; Phase 0.7 visual baseline rejected |
-| Version | 1.8 |
+| Version | 1.9 |
 | Last updated | 2026-07-27 |
 | Scope | Active-match graphics roadmap plus a renderer-local Modern player-card pickup/follow study, Modern match-hand rendering, Modern lobby-hand rendering, an application-bound lobby intro/exit playbook, Motion Studio authoring, renderer-neutral motion recipes, and bounded decorative card experiments |
 | Modern renderer | Three.js `0.185.1` (`r185`) with `WebGLRenderer`, selected for Phase 0 and provisional for the playable renderer |
@@ -319,7 +319,8 @@ These decisions are part of the baseline requirements.
 | DEC-051 | Phase 0.11 movement tilt is derived from logical pointer velocity, not absolute board position or random per-frame values. Horizontal and vertical travel produce bounded trailing local-Y and local-X tilt respectively, filtered motion cannot expose the card back, and both axes damp back to zero while the pointer is stationary. No idle card, hand anchor, or camera may inherit the held card's transient tilt. |
 | DEC-052 | Phase 0.11 deliberately implements no click-to-drop, drop-zone picking, legal-target highlight, return-to-hand path, controller selection, `gh.game.dragging` mutation, turn gating, move request, or network authority. While one card is held, every further card or background activation is ignored and never queued. Lifecycle cancellation discards the transient pose and restores or disposes the renderer projection without a gameplay consequence. |
 | DEC-053 | Reduced motion preserves the renderer-local study without inertial choreography: pickup becomes immediate, pointer-follow remains available, and velocity-driven tilt is suppressed. Mode change, match/lobby transition, hand revision, selected-card removal, visibility suspension, context loss, surface replacement, and disposal must clear the hold, listener ownership, and pending frame atomically. |
-| DEC-054 | The Phase 0.11 generated Modern artifact retains Three.js `0.185.1` (`r185`) and uses the cache identity `0.185.1-match-pickup.1`. Source, generated bundle, loader URL, DOM dataset, diagnostics, and static contract must agree on that identity. |
+| DEC-054 | The Phase 0.11 generated Modern artifact retains Three.js `0.185.1` (`r185`) and uses the cache identity `0.185.1-match-pickup.2`. Source, generated bundle, loader URL, DOM dataset, diagnostics, and static contract must agree on that identity. |
+| DEC-055 | Phase 0.11 visual review accepted the pickup and follow mechanics but found the original resistance cue too subtle because its velocity impulse expired before the rendered card approached the authored tilt. Normal motion therefore uses a visibly pronounced but bounded response: ordinary brisk travel can reach `10` degrees per local axis, the full-response velocity scale is `450` logical pixels per second, a sampled impulse remains current for `80` milliseconds, and the velocity/tilt filters respond at `18` with non-oscillating velocity decay at `12`. Position follow, lift, grab-point preservation, reduced-motion behavior, and the no-drop boundary remain unchanged. |
 
 ## 7. Goals
 
@@ -991,7 +992,7 @@ Before beta, this flow requires automated accessible-tree and keyboard assertion
 
 **FR-MATCH-PICKUP-008** — After the first click, the card must follow pointer movement within the active-match host without requiring a mouse button to remain pressed. Pointer follow may lag through a bounded, frame-rate-independent smoothing response for physical character, but steady or stationary input must converge so the accepted local card point is within one logical pixel of its mapped target. Pointer departure from the host must stop accumulating travel velocity and level the card without creating a drop or cancellation.
 
-**FR-MATCH-PICKUP-009** — Transient three-dimensional resistance must derive from filtered logical pointer velocity. Horizontal travel must produce a bounded trailing side tilt and vertical travel a bounded trailing pitch; each axis must oppose the apparent direction of travel, remain within `10` degrees of the calibrated flat pose, remain finite under irregular or zero-duration event intervals, and never turn far enough to expose or require a card back.
+**FR-MATCH-PICKUP-009** — Transient three-dimensional resistance must derive from filtered logical pointer velocity. Horizontal travel must produce a bounded trailing side tilt and vertical travel a bounded trailing pitch; each axis must oppose the apparent direction of travel, remain within `10` degrees of the calibrated flat pose, become plainly visible during ordinary brisk cardinal and diagonal movement, remain finite under irregular or zero-duration event intervals, and never turn far enough to expose or require a card back.
 
 **FR-MATCH-PICKUP-010** — When pointer velocity approaches zero, transient pitch and side tilt must damp monotonically toward zero without oscillation, overshoot, random jitter, or residual rotation. The held card remains lifted and front-facing after tilt settles. Idle cards and the camera remain unchanged.
 
@@ -1011,7 +1012,7 @@ Before beta, this flow requires automated accessible-tree and keyboard assertion
 
 **FR-MATCH-PICKUP-018** — A failure before or during this renderer-local study must not attempt to reconcile a hold into Legacy. It must clear Modern input and animation ownership, dispose or hide the failed surface, reveal the intact live Legacy state once, preserve the requested/effective mode distinction and local diagnostic reason, and issue no gameplay request.
 
-**FR-MATCH-PICKUP-019** — The Phase 0.11 source and generated bundle must continue to use Three.js `0.185.1` (`r185`) and must share the cache identity `0.185.1-match-pickup.1`. The loader URL, bundle registration, DOM metadata, diagnostics, static contract, and deployment artifact must not disagree.
+**FR-MATCH-PICKUP-019** — The Phase 0.11 source and generated bundle must continue to use Three.js `0.185.1` (`r185`) and must share the cache identity `0.185.1-match-pickup.2`. The loader URL, bundle registration, DOM metadata, diagnostics, static contract, and deployment artifact must not disagree.
 
 **FR-MATCH-PICKUP-020** — This pointer-only motion study does not satisfy the semantic DOM, keyboard selection, cancellation, slot discovery, or placement obligations of `KB-PLAY-01`. It must not be advertised as accessible playable input, and it must not weaken the requirement that a future playable action flow use the shared semantic dispatcher.
 
@@ -2575,7 +2576,7 @@ client pointer
 
 Application scale and device-pixel ratio may change backing resolution but never this logical mapping. After the first click, pointer motion carries the card without a pressed mouse button. Movement is confined to presentation; it does not need a controller drag token.
 
-The physical resistance treatment uses only local-X and local-Y card tilt derived from filtered logical pointer velocity. The tilt must visually trail motion: the card leans against horizontal and vertical travel rather than leading or turning toward it. Each tilt axis is clamped within 8 degrees of flat, remains front-facing, and is insensitive to absolute screen position. No randomness is sampled during pointer events or frames. When travel slows or stops, the tilt approaches zero through a non-oscillating damped response. Once position and tilt converge, the card remains lifted and stable without a pending animation frame.
+The physical resistance treatment uses only local-X and local-Y card tilt derived from filtered logical pointer velocity. The tilt must visually trail motion: the card leans against horizontal and vertical travel rather than leading or turning toward it. Each tilt axis is clamped within 10 degrees of flat, reaches a visibly readable response during ordinary brisk movement, remains front-facing, and is insensitive to absolute screen position. Its full-response velocity scale is 450 logical pixels per second; a sampled velocity remains current for 80 milliseconds; velocity and tilt use response coefficients of 18; and stale velocity decays monotonically with a coefficient of 12. No randomness is sampled during pointer events or frames. When travel slows or stops, the tilt approaches zero through a non-oscillating damped response. Once position and tilt converge, the card remains lifted and stable without a pending animation frame.
 
 No pointer movement may rotate, scale, or move an idle card or the camera. The study may omit a physical shadow, slab, or back; if any optional lift cue is added, it must be renderer-local, artifact-free, resource-bounded, invisible at canonical rest, and subject to the same cancellation and reduced-motion rules.
 
@@ -2632,7 +2633,7 @@ Diagnostics must not expose a Three.js object, pointer event, Raphael handle, hi
 The served Modern script remains the pinned Three.js `0.185.1` (`r185`) bundle and must use the cache identity:
 
 ```text
-0.185.1-match-pickup.1
+0.185.1-match-pickup.2
 ```
 
 The source registration, generated artifact, coordinator URL, DOM dataset, runtime diagnostic, and static contract must agree. Phase 0.10's `0.185.1-match-hands.1` remains its historical delivery identity and must not be described as the current Phase 0.11 artifact.
@@ -2659,7 +2660,7 @@ At application scales 1, 1.5, 2, and 3, deterministic pointer traces to the cent
 
 **AC-P011-005 — Bounded resistant tilt and settlement**
 
-Controlled right, left, up, down, and diagonal pointer traces produce finite trailing local-X/local-Y tilt with the expected directional sign, no axis exceeding 8 degrees, no card-back exposure, and no local-Z or camera motion. Stopping the trace causes non-oscillating convergence to zero tilt. The scheduler returns to zero pending frames while the card remains stably lifted.
+Controlled right, left, up, down, and diagonal pointer traces produce finite trailing local-X/local-Y tilt with the expected directional sign. The canonical brisk diagonal trace reaches at least 4 degrees on both axes so the resistance is visually readable, no axis exceeds 10 degrees, no card back is exposed, and no local-Z or camera motion occurs. Stopping the trace causes non-oscillating convergence to zero tilt. The scheduler returns to zero pending frames while the card remains stably lifted.
 
 **AC-P011-006 — Single hold and absent drop**
 
@@ -2679,19 +2680,19 @@ With reduced motion active, pickup immediately establishes the stable `1.075` he
 
 **AC-P011-010 — Diagnostics, failure, and cache identity**
 
-Diagnostics expose every plain field required by Section 12.14.7, report no renderer object or concealed opponent data, and show zero semantic action/request counts. Forced initialization, required-texture, and context failure restore Legacy under the Phase 0.10 fail-open policy. The only current active-match Modern loader identity is `0.185.1-match-pickup.1`, and the generated bundle matches its reviewed source.
+Diagnostics expose every plain field required by Section 12.14.7, report no renderer object or concealed opponent data, and show zero semantic action/request counts. Forced initialization, required-texture, and context failure restore Legacy under the Phase 0.10 fail-open policy. The only current active-match Modern loader identity is `0.185.1-match-pickup.2`, and the generated bundle matches its reviewed source.
 
 #### 12.14.9 Required evidence and definition of done
 
 Phase 0.11 requires:
 
 - a static source and generated-bundle contract covering the perspective camera, canonical anchors, card-bounded player picking, one-hold lock, projected-scale target, pointer mapping, velocity tilt bounds, no-drop/no-request boundary, lifecycle generation guard, reduced-motion policy, diagnostics, and cache identity;
-- controlled-clock unit evidence for lift interpolation, logical pointer mapping, filtered-velocity direction, 8-degree clamps, damped zero-tilt convergence, and zero idle frame activity;
+- controlled-clock unit evidence for lift interpolation, logical pointer mapping, filtered-velocity direction, visible 4-degree diagonal response, 10-degree clamps, damped zero-tilt convergence, and zero idle frame activity;
 - browser or controlled-harness evidence at every application scale for exact settled geometry, topmost player-only picking, grab-offset preservation, mouse-button-free follow, one-hold behavior, opponent/empty rejection, absent slots/drop/return, and unchanged Legacy/controller/request state;
 - lifecycle evidence during both lift and follow for mode switch, hand revision, selected-card removal, view transition, visibility loss, context loss, replacement, and disposal;
 - normal and reduced-motion visual captures at actual application size, including outer and center cards, horizontal, vertical, and diagonal travel;
 - current Graphics persistence, Phase 0.10 secrecy/fallback, lobby, Motion Studio, and applicable Legacy regression results;
-- a generated Modern artifact matching reviewed source and pinned Three.js `0.185.1` with cache identity `0.185.1-match-pickup.1`.
+- a generated Modern artifact matching reviewed source and pinned Three.js `0.185.1` with cache identity `0.185.1-match-pickup.2`.
 
 Phase 0.11 is complete only when all `AC-P011-*` criteria and required evidence pass and a normal-speed review accepts that the selected card reads as lifted from a flat surface and resisting pointer travel. Completion does not authorize click-to-drop, drop zones, invalid return, placement, controller selection, game-state authority, network requests, board rendering, scores, turns, rules, or promotion of Modern as playable.
 
@@ -3246,12 +3247,12 @@ Exit gate:
 - A primary click picks only the visually topmost eligible player card and establishes exactly one renderer-local hold.
 - Pickup brings that card above both hands and reaches the single Legacy-equivalent `1.075` projected scale without compounded enlargement.
 - Pointer follow preserves the accepted local grab point at application scales 1, 1.5, 2, and 3 without requiring a pressed mouse button.
-- Filtered logical pointer velocity produces finite, trailing local-X/local-Y tilt within 8 degrees and damps to zero without jitter, overshoot, residual rotation, or an idle frame.
+- Filtered logical pointer velocity produces a plainly visible trailing local-X/local-Y response of at least 4 degrees per axis on the canonical brisk diagonal trace, remains within 10 degrees per axis, and damps to zero without jitter, overshoot, residual rotation, or an idle frame.
 - Opponent, empty, held-card, other-card, and future-slot clicks cannot replace or drop the held card and never queue work.
 - Modern creates no drop zones, legal-target state, return path, semantic action, game mutation, Legacy mutation, or network request.
 - Reduced motion immediately establishes the stable held pose and preserves direct pointer follow without velocity tilt.
 - Every lifecycle, revision, visibility, failure, switch, and disposal boundary clears the hold and pending frame atomically and restores the intact live Legacy route where applicable.
-- Diagnostics expose only permitted plain study state, show zero gameplay/request authority, and agree with the generated bundle and loader cache identity `0.185.1-match-pickup.1`.
+- Diagnostics expose only permitted plain study state, show zero gameplay/request authority, and agree with the generated bundle and loader cache identity `0.185.1-match-pickup.2`.
 - Static, controlled-clock, browser or controlled-harness, actual-size visual, lifecycle, generated-bundle, Phase 0.10 secrecy/fallback, Graphics persistence, lobby, and applicable Legacy regressions pass.
 
 ### Phase 1 — Characterization and Legacy renderer boundary
@@ -3480,7 +3481,7 @@ SVG node order and Three.js mesh identity may be inspected in renderer-specific 
 - reduced-motion and keyboard checklist;
 - exported candidate motion recipe, seed, actual-size 1× capture, slowed diagnostic capture, and explicit visual approval or rejection record;
 - canonical lobby playbook export plus deterministic intro/exit batch evidence, command-continuation/watchdog traces, and Graphics-preference restoration evidence;
-- Phase 0.11 calibrated-camera snapshot, controlled pickup/follow traces, actual-size normal/reduced-motion captures, zero-authority/request evidence, lifecycle cleanup report, and `0.185.1-match-pickup.1` source/bundle/cache-identity proof;
+- Phase 0.11 calibrated-camera snapshot, controlled pickup/follow traces, actual-size normal/reduced-motion captures, zero-authority/request evidence, lifecycle cleanup report, and `0.185.1-match-pickup.2` source/bundle/cache-identity proof;
 - tested Modern-default environment matrix;
 - current known limitations.
 
@@ -3506,7 +3507,7 @@ Phase 0 through Phase 0.11 requirements and acceptance criteria are the authoriz
 | `FR-MOTION-STUDIO-*` | Phase 0.8 | Motion Studio UI and renderer-neutral card-motion module | Mode-isolation, control synchronization, deterministic pose, playback/scrub, session persistence, import/export, accessibility, lifecycle/resource, no-side-effect, and visual-review evidence | Evidence enabler |
 | `FR-LOBBY-PLAYBOOK-*` | Phase 0.9 | Playbook module, Motion Studio, Modern lobby surface, graphics coordinator, and menu command bridge | Fixed-anchor and seed determinism contracts, distinct endpoint evidence, whole-playbook persistence/import/export, production-preview parity, all-command exact-once/fail-open traces, Tutorials Back replay, reduced-motion/lifecycle cleanup, Legacy regression, and normal-speed review | Yes |
 | `AC-P010-*` / Section 12.13 | Phase 0.10 | Modern active-match surface, graphics coordinator, and temporary game compatibility bridge | Exact two-hand geometry and order, Closed-art secrecy, passive-input diagnostics, demand rendering, texture/context fallback, runtime toggle, generated-bundle, and applicable Legacy regression evidence | Yes |
-| `FR-MATCH-PICKUP-*` / `AC-P011-*` | Phase 0.11 | Modern active-match surface and graphics coordinator; temporary game bridge remains presentation-only | Calibrated perspective flat-table geometry, topmost player-only picking, one renderer-local hold, `1.075` projected lift, scale-correct grab-offset follow, bounded velocity tilt and zero-idle settlement, absent drop/game/network authority, reduced motion, lifecycle reset, Legacy identity, diagnostics, visual review, and `0.185.1-match-pickup.1` bundle evidence | Yes |
+| `FR-MATCH-PICKUP-*` / `AC-P011-*` | Phase 0.11 | Modern active-match surface and graphics coordinator; temporary game bridge remains presentation-only | Calibrated perspective flat-table geometry, topmost player-only picking, one renderer-local hold, `1.075` projected lift, scale-correct grab-offset follow, bounded velocity tilt and zero-idle settlement, absent drop/game/network authority, reduced motion, lifecycle reset, Legacy identity, diagnostics, visual review, and `0.185.1-match-pickup.2` bundle evidence | Yes |
 | `NFR-PERF-*` | Phase 2 | Modern build and renderer | GM-P100/GM-P200 performance and bundle report | Yes |
 | `NFR-REL-*` | Phase 1/5 | Both renderers and controller | Repeated lifecycle, heap/resource, stale-revision, and severity report | Yes |
 | `NFR-SEC-*` | Phase 2 | Build/deployment boundary | CSP, same-origin, dependency, and network audit | Yes |
@@ -3630,7 +3631,7 @@ The preference should survive browser restarts. It is intentionally browser/orig
 | Browser-local playbook becomes confused with repository or account defaults | One browser's experiment is treated as a shipped design or appears on another account unexpectedly | Label persistence as local, export the complete versioned document for review, issue no network request, and require separate source-control promotion for global defaults |
 | Perspective calibration makes outer active-match cards look fanned or curved | The study repeats the rejected curved-surface appearance and pickup movement cannot be judged against a credible flat table | Calibrate every settled anchor on one constant-depth plane, assert equal projected corner silhouettes at left/center/right positions, keep local rotation zero at rest, and prohibit camera or slot-dependent tilt |
 | Pointer coordinates are scaled twice or projected onto the wrong depth plane | The card drifts away from the pointer at application scale, browser zoom, or during lift | Convert through the current host rectangle into 693 by 500 logical space once, preserve the accepted local card point on the held plane, and test scales 1, 1.5, 2, and 3 plus DPR/zoom cases |
-| Velocity tilt becomes jittery, inverted, or permanent | The card appears unstable, leads rather than resists motion, or leaves residual skew | Filter logical velocity with finite-delta guards, clamp both tilt axes to 8 degrees, test directional sign, use non-oscillating damping, and stop the scheduler after zero-tilt convergence |
+| Velocity tilt becomes jittery, inverted, or permanent | The card appears unstable, leads rather than resists motion, or leaves residual skew | Filter logical velocity with finite-delta guards, require a readable canonical diagonal response, clamp both tilt axes to 10 degrees, test directional sign, use non-oscillating damping, and stop the scheduler after zero-tilt convergence |
 | Renderer-local hold leaks into game authority | A visual study changes `dragging`, turn state, target state, requests, replay, or fallback identity | Keep the hold inside the Modern surface, expose diagnostics only as cloned data, omit semantic dispatch and slot objects, and assert controller/Legacy/request identity before and after every trace |
 | A held card survives mode, hand, view, or context replacement | A stale event moves the wrong card, a hidden scheduler leaks, or Legacy appears to inherit a Modern drag | Generation-token every hold and frame; cancel on every documented lifecycle/revision boundary; detach ownership before reveal/disposal; prove late events inert |
 | A second click silently becomes a partial drop implementation | Scope expands into invalid return, target legality, or move authority before the controller seam exists | Ignore and never queue every activation while one card is held; create no slot pick target; assert zero drop/return/request paths in source, diagnostics, and browser traces |

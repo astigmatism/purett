@@ -62,7 +62,7 @@ try {
 
   assert(
     coordinator.includes(
-      '/js/modern/purett-modern-graphics.min.js?v=0.185.1-match-pickup.1'
+      '/js/modern/purett-modern-graphics.min.js?v=0.185.1-match-pickup.2'
     ),
     'coordinator does not use the match-pickup bundle cache revision'
   );
@@ -191,6 +191,27 @@ try {
       activeSurfaceSource.includes('rotationRadians:') &&
       activeSurfaceSource.includes('perspectiveScale:'),
     'active-match diagnostics do not expose the bounded lift, grab offset, pointer target, tilt, and perspective evidence'
+  );
+  assert(
+    modernSource.includes(
+      'const MATCH_PICKUP_VELOCITY_RESPONSE = 18'
+    ) &&
+      modernSource.includes(
+        'const MATCH_PICKUP_STALE_VELOCITY_MS = 80'
+      ) &&
+      modernSource.includes(
+        'const MATCH_PICKUP_VELOCITY_DECAY = 12'
+      ) &&
+      modernSource.includes(
+        'const MATCH_PICKUP_TILT_SPEED = 450'
+      ) &&
+      modernSource.includes(
+        'const MATCH_PICKUP_TILT_RESPONSE = 18'
+      ) &&
+      modernSource.includes(
+        '10 * (Math.PI / 180)'
+      ),
+    'active-match resistance tilt is not tuned to the reviewed pronounced response'
   );
   assert(
     activeSurfaceSource.includes('window.requestAnimationFrame') &&

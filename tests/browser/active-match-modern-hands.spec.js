@@ -425,7 +425,7 @@ test('click-picks one player card, preserves its grab offset, and settles bounde
       6
     );
 
-  const pointerTarget = {x: 350, y: 220};
+  const pointerTarget = {x: 310, y: 100};
   await moveModernLogicalPoint(
     page,
     pointerTarget.x,
@@ -439,11 +439,13 @@ test('click-picks one player card, preserves its grab offset, and settles bounde
       return false;
     }
     const rotation = held.rotationRadians;
-    const magnitude = Math.max(
+    const minimumReadableTilt =
+      4 * Math.PI / 180;
+    const magnitude = Math.min(
       Math.abs(rotation.x),
       Math.abs(rotation.y)
     );
-    if (magnitude > 0.002) {
+    if (magnitude >= minimumReadableTilt) {
       window.__modernPickupTiltEvidence = {
         x: rotation.x,
         y: rotation.y
@@ -458,7 +460,12 @@ test('click-picks one player card, preserves its grab offset, and settles bounde
   const observedTilt = await page.evaluate(() => (
     window.__modernPickupTiltEvidence
   ));
-  const maximumTiltRadians = (8 * Math.PI / 180) + 0.002;
+  const minimumReadableTiltRadians = 4 * Math.PI / 180;
+  const maximumTiltRadians = (10 * Math.PI / 180) + 0.002;
+  expect(Math.abs(observedTilt.x))
+    .toBeGreaterThanOrEqual(minimumReadableTiltRadians);
+  expect(Math.abs(observedTilt.y))
+    .toBeGreaterThanOrEqual(minimumReadableTiltRadians);
   expect(Math.abs(observedTilt.x))
     .toBeLessThanOrEqual(maximumTiltRadians);
   expect(Math.abs(observedTilt.y))

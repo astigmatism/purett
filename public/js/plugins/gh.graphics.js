@@ -15,7 +15,7 @@ gh.graphics.prototype = {
             'purett.lobbyMotionPlaybook.v1';
         this.threePackageVersion = '0.185.1';
         this.threeRevision = '185';
-        this.modernScriptUrl = '/js/modern/purett-modern-graphics.min.js?v=0.185.1-match-return.1';
+        this.modernScriptUrl = '/js/modern/purett-modern-graphics.min.js?v=0.185.1-match-placement.1';
         this.requestedMode = 'legacy';
         this.effectiveMode = 'legacy';
         this.loadState = 'idle';
@@ -36,6 +36,7 @@ gh.graphics.prototype = {
             player: [],
             opponent: []
         };
+        this.matchDropZones = [];
         this.lobbyPresentation = null;
         this.lobbyPresentationDeliveredId = null;
         this.scriptElement = null;
@@ -439,6 +440,7 @@ gh.graphics.prototype = {
                 player: [],
                 opponent: []
             };
+            this.matchDropZones = [];
             if (this.game && this.game.setModernMatchReady) {
                 this.game.setModernMatchReady(false);
             }
@@ -477,6 +479,7 @@ gh.graphics.prototype = {
             player: [],
             opponent: []
         };
+        this.matchDropZones = [];
         if (this.game && this.game.setModernMatchReady) {
             this.game.setModernMatchReady(false);
         }
@@ -516,6 +519,7 @@ gh.graphics.prototype = {
             player: [],
             opponent: []
         };
+        this.matchDropZones = [];
         this.lobbyPresentation = null;
         this.cancelLobbyPreview('cancelled-view-change');
         if (this.game && this.game.setModernMatchReady) {
@@ -548,6 +552,9 @@ gh.graphics.prototype = {
                 (source.opponent || []).slice(0, 5)
             )
         };
+        this.matchDropZones = this.clonePlain(
+            (source.dropZones || []).slice(0, 9)
+        );
         if (!this.studioOpen &&
                 this.activeMatchVisible &&
                 !this.lobbyVisible &&
@@ -681,7 +688,10 @@ gh.graphics.prototype = {
                     String(playbookRequest.id);
             }
         } else {
-            this.surface.setHands(this.matchHands);
+            this.surface.setHands(
+                this.matchHands,
+                this.matchDropZones
+            );
         }
     },
     disposeSurface: function() {
@@ -1170,7 +1180,7 @@ gh.graphics.prototype = {
                 ? this.surface.getDebugState()
                 : null;
             if (surfaceState && surfaceState.ready) {
-                this.setStatus('Three.js ' + this.threePackageVersion + ' match hands active. Click a player card to lift and move it; click again to return it to the hand. Board placement is not yet enabled.');
+                this.setStatus('Three.js ' + this.threePackageVersion + ' match placement study active. Hover an available board space while carrying a card, then click to place it visually. Modern match rendering remains incomplete and non-playable; moves are not submitted.');
             } else {
                 this.setStatus('Three.js ' + this.threePackageVersion + ' is preparing the Modern match hands\u2026');
             }
@@ -1242,6 +1252,8 @@ gh.graphics.prototype = {
             lobbyPresentationDeliveredId:
                 this.lobbyPresentationDeliveredId,
             matchHands: this.clonePlain(this.matchHands),
+            matchDropZones:
+                this.clonePlain(this.matchDropZones),
             playbookRevision: this.playbookRevision,
             lobbyPlaybook: this.lobbyPlaybook
                 ? this.clonePlain(this.lobbyPlaybook)

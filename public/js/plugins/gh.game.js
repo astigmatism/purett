@@ -72,8 +72,46 @@ gh.game.prototype = {
 
         return {
             player: describe(this.p1h, this.p1p, 'player'),
-            opponent: describe(this.p2h, this.p2p, 'opponent')
+            opponent: describe(this.p2h, this.p2p, 'opponent'),
+            dropZones: this.describeMatchDropZones()
         };
+    },
+    describeMatchDropZones: function() {
+        var me = this;
+        var zones = [];
+        var interactionEnabled =
+            this.boardEnabled === true &&
+            this.isMyTurn === true &&
+            this.gameover !== true &&
+            this.underReview !== true;
+
+        if (!this.pb || this.pb.length !== 9 ||
+                !this.pbp || this.pbp.length < 10) {
+            return zones;
+        }
+
+        $.each(this.pb, function(index, item) {
+            var position = me.pbp[index + 1];
+            var available =
+                item && Number(item.gameCardId) === 0;
+            if (!position) {
+                return;
+            }
+            zones.push({
+                slotIndex: index,
+                x: position.x,
+                y: position.y,
+                width: me.cW || 117,
+                height: me.cH || 146,
+                cornerRadius: 10,
+                available: available,
+                valid: available && interactionEnabled
+            });
+        });
+
+        return zones.length === 9
+            ? zones
+            : [];
     },
     notifyGraphicsHands: function() {
         if (this.graphics &&
@@ -130,6 +168,7 @@ gh.game.prototype = {
         this.isMyTurn = false;      //when true, cards are playable
         this.dragging = null;       //a flag which will contain the player object deck array item of the currently dragging card
         this.isDroppable = false;   //a card can only be droppable once picked up. This flag prevents immature dropping
+        this.boardEnabled = false;  //tracks the same turn gate applied to the Legacy drop rectangles
         this.grapbpoint = null;
     
         this.rules = [];           //will store a rule object if rule if active for this game
@@ -992,6 +1031,7 @@ gh.game.prototype = {
     },
     enableBoard: function(enableBoard) {
         var me = this;
+        me.boardEnabled = enableBoard === true;
         if (enableBoard) {
             $.each(me.pb, function(index, item) {
                 //turn on droppable actions
@@ -1007,6 +1047,7 @@ gh.game.prototype = {
                 }
             });
         }
+        me.notifyGraphicsHands();
     },
     getPointerPosition: function(event) {
         var position = {x: event.clientX, y: event.clientY};

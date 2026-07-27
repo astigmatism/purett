@@ -100,6 +100,14 @@ const MATCH_INVALID_RETURN_ROTATION_Z =
   -2 * Math.PI;
 const MATCH_INVALID_RETURN_EASING =
   'cubic-out';
+const MATCH_VALID_PLACEMENT_DURATION_MS = 300;
+const MATCH_VALID_PLACEMENT_EASING =
+  'cubic-out';
+const MATCH_VALID_PLACEMENT_ROTATION_RANGE_DEGREES = 2;
+const MATCH_DROP_ZONE_OPACITY = 0.3;
+const MATCH_DROP_ZONE_CORNER_RADIUS = 10;
+const MATCH_DROP_ZONE_RENDER_ORDER = 50;
+const MATCH_PLACED_CARD_RENDER_ORDER = 200;
 const LOBBY_CARD_BACK_URL = '/images/cards/cardBack.png';
 const LOBBY_CAMERA_FOV = 40;
 const LOBBY_CAMERA_CENTER_X = LOBBY_LOGICAL_WIDTH / 2;
@@ -193,6 +201,8 @@ class ModernGraphicsSurface {
       opponent: []
     };
     this.handsKey = null;
+    this.dropZones = [];
+    this.dropZonesKey = null;
     this.cardEntries = [];
     this.playerPickMeshes = [];
     this.opponentPickMeshes = [];
@@ -201,6 +211,8 @@ class ModernGraphicsSurface {
     this.raycaster = new Raycaster();
     this.pointerNdc = new Vector2();
     this.heldCard = null;
+    this.hoveredDropZone = null;
+    this.localPreviewPlacement = null;
     this.holdGeneration = 0;
     this.animationFrameId = null;
     this.pendingFrameCount = 0;
@@ -211,13 +223,25 @@ class ModernGraphicsSurface {
     this.ignoredWhileHeld = 0;
     this.acceptedInvalidReturns = 0;
     this.completedInvalidReturns = 0;
+    this.acceptedValidPlacements = 0;
+    this.completedValidPlacements = 0;
     this.ignoredUnarmedReturns = 0;
+    this.ignoredUnarmedPlacements = 0;
     this.ignoredWhileReturning = 0;
+    this.ignoredWhilePlacing = 0;
+    this.ignoredAfterPlacement = 0;
+    this.dropZoneHoverChanges = 0;
     this.emptyClicks = 0;
     this.opponentClicks = 0;
     this.lastPick = null;
     this.lastReturn = null;
+    this.lastPlacement = null;
+    this.lastPlacementReset = null;
     this.lastCancellation = null;
+    this.randomSource =
+      typeof this.options.random === 'function'
+        ? this.options.random
+        : Math.random;
     this.textureLoadTimeoutMs =
       Number.isFinite(Number(this.options.textureLoadTimeoutMs)) &&
       Number(this.options.textureLoadTimeoutMs) > 0
@@ -274,6 +298,30 @@ class ModernGraphicsSurface {
         depthWrite: false,
         toneMapped: false
       });
+      this.dropZoneTexture =
+        this.createDropZoneTexture();
+      this.dropZoneGeometry = new PlaneGeometry(
+        MATCH_CARD_WIDTH,
+        MATCH_CARD_HEIGHT
+      );
+      this.dropZoneMaterial =
+        new MeshBasicMaterial({
+          map: this.dropZoneTexture,
+          color: 0x000000,
+          transparent: true,
+          opacity: MATCH_DROP_ZONE_OPACITY,
+          depthTest: false,
+          depthWrite: false,
+          toneMapped: false
+        });
+      this.dropZoneHighlight = new Mesh(
+        this.dropZoneGeometry,
+        this.dropZoneMaterial
+      );
+      this.dropZoneHighlight.visible = false;
+      this.dropZoneHighlight.renderOrder =
+        MATCH_DROP_ZONE_RENDER_ORDER;
+      this.cardGroup.add(this.dropZoneHighlight);
       this.textureLoader = new TextureLoader();
       this.renderer = new WebGLRenderer({
         alpha: true,
@@ -298,6 +346,10 @@ class ModernGraphicsSurface {
         event.preventDefault();
         this.contextLost = true;
         this.cancelPickup('context-lost', false);
+        this.clearLocalPreviewPlacement(
+          'context-lost',
+          false
+        );
         this.detachInputHandlers();
         if (typeof this.options.onContextLost === 'function') {
           this.options.onContextLost(new Error('The WebGL context was lost.'));
@@ -309,9 +361,24 @@ class ModernGraphicsSurface {
         }
         event.preventDefault();
         if (this.heldCard) {
-          this.beginInvalidReturn(
-            performance.now()
+          const now = performance.now();
+          const point = this.clientPoint(
+            event.clientX,
+            event.clientY
           );
+          const dropZone = point
+            ? this.findValidDropZone(
+                point.logical
+              )
+            : null;
+          if (dropZone) {
+            this.beginValidPlacement(
+              dropZone,
+              now
+            );
+          } else {
+            this.beginInvalidReturn(now);
+          }
           return;
         }
         this.pickUpAt(event.clientX, event.clientY);
@@ -320,6 +387,7 @@ class ModernGraphicsSurface {
         if (
           !this.heldCard ||
           this.heldCard.phase === 'returning' ||
+          this.heldCard.phase === 'placing' ||
           this.suspended ||
           this.visibilitySuspended
         ) {
@@ -330,12 +398,25 @@ class ModernGraphicsSurface {
           event.clientY,
           performance.now()
         );
+        this.updateDropZoneHover(
+          event.clientX,
+          event.clientY
+        );
+      };
+      this.handlePointerLeave = () => {
+        if (this.clearDropZoneHover()) {
+          this.render();
+        }
       };
       this.handleVisibilityChange = () => {
         this.visibilitySuspended =
           document.hidden === true;
         if (this.visibilitySuspended) {
           this.cancelPickup(
+            'visibility-hidden',
+            false
+          );
+          this.clearLocalPreviewPlacement(
             'visibility-hidden',
             false
           );
@@ -393,6 +474,59 @@ class ModernGraphicsSurface {
     return texture;
   }
 
+  createDropZoneTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = MATCH_CARD_WIDTH * 2;
+    canvas.height = MATCH_CARD_HEIGHT * 2;
+    const context = canvas.getContext('2d');
+    const radius =
+      MATCH_DROP_ZONE_CORNER_RADIUS * 2;
+    const width = canvas.width;
+    const height = canvas.height;
+
+    context.clearRect(0, 0, width, height);
+    context.beginPath();
+    context.moveTo(radius, 0);
+    context.lineTo(width - radius, 0);
+    context.quadraticCurveTo(
+      width,
+      0,
+      width,
+      radius
+    );
+    context.lineTo(width, height - radius);
+    context.quadraticCurveTo(
+      width,
+      height,
+      width - radius,
+      height
+    );
+    context.lineTo(radius, height);
+    context.quadraticCurveTo(
+      0,
+      height,
+      0,
+      height - radius
+    );
+    context.lineTo(0, radius);
+    context.quadraticCurveTo(
+      0,
+      0,
+      radius,
+      0
+    );
+    context.closePath();
+    context.fillStyle = '#000000';
+    context.fill();
+
+    const texture = new CanvasTexture(canvas);
+    texture.minFilter = LinearFilter;
+    texture.magFilter = LinearFilter;
+    texture.generateMipmaps = false;
+    texture.needsUpdate = true;
+    return texture;
+  }
+
   prefersReducedMotion() {
     if (typeof this.options.reducedMotion === 'boolean') {
       return this.options.reducedMotion;
@@ -421,6 +555,11 @@ class ModernGraphicsSurface {
       this.handlePointerMove,
       false
     );
+    this.host.addEventListener(
+      'pointerleave',
+      this.handlePointerLeave,
+      false
+    );
     this.inputHandlersAttached = true;
   }
 
@@ -433,6 +572,11 @@ class ModernGraphicsSurface {
     this.host.removeEventListener(
       'pointermove',
       this.handlePointerMove,
+      false
+    );
+    this.host.removeEventListener(
+      'pointerleave',
+      this.handlePointerLeave,
       false
     );
     this.inputHandlersAttached = false;
@@ -456,6 +600,203 @@ class ModernGraphicsSurface {
         y: 1 - (normalizedY * 2)
       }
     };
+  }
+
+  normalizeDropZones(dropZones) {
+    const source =
+      Array.isArray(dropZones)
+        ? dropZones
+        : [];
+    if (
+      source.length !== 0 &&
+      source.length !== 9
+    ) {
+      return [];
+    }
+
+    const seenSlotIndexes = new Set();
+    const normalized = [];
+    for (let index = 0; index < source.length; index += 1) {
+      const zone = source[index];
+      const slotIndex = Number(
+        zone && zone.slotIndex
+      );
+      const x = Number(zone && zone.x);
+      const y = Number(zone && zone.y);
+      const width = Number(zone && zone.width);
+      const height = Number(zone && zone.height);
+      const cornerRadius = Number(
+        zone && zone.cornerRadius
+      );
+
+      if (
+        !Number.isInteger(slotIndex) ||
+        slotIndex < 0 ||
+        slotIndex > 8 ||
+        seenSlotIndexes.has(slotIndex) ||
+        !Number.isFinite(x) ||
+        !Number.isFinite(y) ||
+        !Number.isFinite(width) ||
+        !Number.isFinite(height) ||
+        !Number.isFinite(cornerRadius) ||
+        width <= 0 ||
+        height <= 0 ||
+        cornerRadius < 0 ||
+        zone.x == null ||
+        zone.y == null ||
+        zone.width == null ||
+        zone.height == null ||
+        zone.cornerRadius == null ||
+        x !==
+          172 +
+          ((slotIndex % 3) * MATCH_CARD_WIDTH) ||
+        y !==
+          35 +
+          (
+            Math.floor(slotIndex / 3) *
+            MATCH_CARD_HEIGHT
+          ) ||
+        width !== MATCH_CARD_WIDTH ||
+        height !== MATCH_CARD_HEIGHT ||
+        cornerRadius !==
+          MATCH_DROP_ZONE_CORNER_RADIUS
+      ) {
+        return [];
+      }
+
+      seenSlotIndexes.add(slotIndex);
+      const available =
+        zone.available === true;
+      normalized.push({
+        slotIndex,
+        x,
+        y,
+        width,
+        height,
+        cornerRadius,
+        available,
+        valid:
+          available &&
+          zone.valid === true
+      });
+    }
+    return normalized.sort((left, right) =>
+      left.slotIndex - right.slotIndex
+    );
+  }
+
+  dropZoneCenter(zone) {
+    return {
+      x: zone.x + (zone.width / 2),
+      y: zone.y + (zone.height / 2)
+    };
+  }
+
+  findValidDropZone(logicalPoint) {
+    if (
+      !logicalPoint ||
+      this.localPreviewPlacement
+    ) {
+      return null;
+    }
+
+    return this.dropZones.find((zone) =>
+      zone.available === true &&
+      zone.valid === true &&
+      logicalPoint.x >= zone.x &&
+      logicalPoint.x < zone.x + zone.width &&
+      logicalPoint.y >= zone.y &&
+      logicalPoint.y < zone.y + zone.height
+    ) || null;
+  }
+
+  clearDropZoneHover() {
+    const changed =
+      this.hoveredDropZone !== null ||
+      (
+        this.dropZoneHighlight &&
+        this.dropZoneHighlight.visible
+      );
+    this.hoveredDropZone = null;
+    if (this.dropZoneHighlight) {
+      this.dropZoneHighlight.visible = false;
+    }
+    if (changed) {
+      this.dropZoneHoverChanges += 1;
+    }
+    return changed;
+  }
+
+  setDropZoneHover(zone) {
+    if (
+      !zone ||
+      !this.heldCard ||
+      this.heldCard.phase === 'returning' ||
+      this.heldCard.phase === 'placing' ||
+      this.localPreviewPlacement
+    ) {
+      return this.clearDropZoneHover();
+    }
+    if (
+      this.hoveredDropZone &&
+      this.hoveredDropZone.slotIndex ===
+        zone.slotIndex &&
+      this.dropZoneHighlight.visible
+    ) {
+      return false;
+    }
+
+    const center = this.dropZoneCenter(zone);
+    const world = this.screenCenterToWorld(
+      center.x,
+      center.y,
+      0
+    );
+    this.hoveredDropZone = zone;
+    this.dropZoneHighlight.position.set(
+      world.x,
+      world.y,
+      0
+    );
+    this.dropZoneHighlight.scale.set(
+      zone.width / MATCH_CARD_WIDTH,
+      zone.height / MATCH_CARD_HEIGHT,
+      1
+    );
+    this.dropZoneMaterial.opacity =
+      MATCH_DROP_ZONE_OPACITY;
+    this.dropZoneHighlight.visible = true;
+    this.dropZoneHoverChanges += 1;
+    return true;
+  }
+
+  updateDropZoneHoverAtLogical(
+    logicalPoint,
+    shouldRender
+  ) {
+    const zone = this.findValidDropZone(
+      logicalPoint
+    );
+    const changed = this.setDropZoneHover(zone);
+    if (changed && shouldRender !== false) {
+      this.render();
+    }
+    return changed;
+  }
+
+  updateDropZoneHover(
+    clientX,
+    clientY,
+    shouldRender
+  ) {
+    const point = this.clientPoint(
+      clientX,
+      clientY
+    );
+    return this.updateDropZoneHoverAtLogical(
+      point ? point.logical : null,
+      shouldRender
+    );
   }
 
   screenCenterToWorld(screenX, screenY, depth) {
@@ -539,6 +880,15 @@ class ModernGraphicsSurface {
     entry.shadowMesh.renderOrder = entry.baseRenderOrder;
     entry.bodyMesh.renderOrder = entry.baseRenderOrder + 1;
     entry.mesh.renderOrder = entry.baseRenderOrder + 2;
+  }
+
+  setEntryPlacedRenderOrder(entry, slotIndex) {
+    const base =
+      MATCH_PLACED_CARD_RENDER_ORDER +
+      (slotIndex * 3);
+    entry.shadowMesh.renderOrder = base;
+    entry.bodyMesh.renderOrder = base + 1;
+    entry.mesh.renderOrder = base + 2;
   }
 
   applyEntryPose(
@@ -647,6 +997,9 @@ class ModernGraphicsSurface {
 
   resetEntryPose(entry) {
     entry.held = false;
+    entry.placed = false;
+    entry.placedSlotIndex = null;
+    entry.placedPose = null;
     this.setEntryRenderOrder(entry, false);
     this.applyEntryPose(
       entry,
@@ -665,7 +1018,9 @@ class ModernGraphicsSurface {
       .filter((intersection) =>
         Boolean(
           intersection.object.userData
-            .purettCardEntry
+            .purettCardEntry &&
+          intersection.object.userData
+            .purettCardEntry.placed !== true
         )
       )
       .sort((left, right) =>
@@ -688,6 +1043,18 @@ class ModernGraphicsSurface {
     }
     if (this.heldCard) {
       this.ignoredWhileHeld += 1;
+      return false;
+    }
+    if (this.localPreviewPlacement) {
+      this.ignoredAfterPlacement += 1;
+      this.lastPick = {
+        outcome:
+          'renderer-local-placement-already-present',
+        gameCardId:
+          this.localPreviewPlacement.gameCardId,
+        slotIndex:
+          this.localPreviewPlacement.slotIndex
+      };
       return false;
     }
 
@@ -763,6 +1130,7 @@ class ModernGraphicsSurface {
       reducedMotion,
       dropArmed: reducedMotion,
       returnMotion: null,
+      placementMotion: null,
       base: {
         x: entry.basePosition.x,
         y: entry.basePosition.y,
@@ -844,6 +1212,7 @@ class ModernGraphicsSurface {
     if (
       !held ||
       held.phase === 'returning' ||
+      held.phase === 'placing' ||
       !point
     ) {
       return;
@@ -927,6 +1296,32 @@ class ModernGraphicsSurface {
     this.scheduleAnimationFrame();
   }
 
+  ensureHeldDropArmed(now) {
+    const held = this.heldCard;
+    if (!held) {
+      return false;
+    }
+    if (
+      !held.dropArmed &&
+      !held.reducedMotion &&
+      now - held.liftStartedAt >=
+        MATCH_PICKUP_DURATION_MS
+    ) {
+      this.cancelAnimationFrame();
+      this.stepPickup(
+        now,
+        held.generation,
+        false
+      );
+    }
+    return Boolean(
+      this.heldCard &&
+      this.heldCard.generation ===
+        held.generation &&
+      this.heldCard.dropArmed
+    );
+  }
+
   beginInvalidReturn(now) {
     const held = this.heldCard;
     if (
@@ -949,20 +1344,21 @@ class ModernGraphicsSurface {
       };
       return false;
     }
-    if (
-      !held.dropArmed &&
-      !held.reducedMotion &&
-      now - held.liftStartedAt >=
-        MATCH_PICKUP_DURATION_MS
-    ) {
-      this.cancelAnimationFrame();
-      this.stepPickup(
-        now,
-        held.generation,
-        false
-      );
+    if (held.phase === 'placing') {
+      this.ignoredWhileHeld += 1;
+      this.ignoredWhilePlacing += 1;
+      this.lastPick = {
+        outcome: 'placement-already-running',
+        gameCardId: held.entry.card.gameCardId,
+        handIndex: held.entry.card.handIndex,
+        slotIndex:
+          held.placementMotion
+            ? held.placementMotion.slotIndex
+            : null
+      };
+      return false;
     }
-    if (!held.dropArmed) {
+    if (!this.ensureHeldDropArmed(now)) {
       this.ignoredWhileHeld += 1;
       this.ignoredUnarmedReturns += 1;
       this.lastPick = {
@@ -974,6 +1370,7 @@ class ModernGraphicsSurface {
     }
 
     this.cancelAnimationFrame();
+    this.clearDropZoneHover();
     const entry = held.entry;
     const startProjectedScale =
       MATCH_CAMERA_DISTANCE /
@@ -1217,6 +1614,402 @@ class ModernGraphicsSurface {
     return true;
   }
 
+  sampleValidPlacementRotation() {
+    let unit = 0.5;
+    try {
+      const sampled = Number(this.randomSource());
+      if (Number.isFinite(sampled)) {
+        unit = Math.min(
+          Math.max(sampled, 0),
+          1 - Number.EPSILON
+        );
+      }
+    } catch (error) {
+      unit = 0.5;
+    }
+
+    const screenDegrees =
+      (
+        (unit * 2) -
+        1
+      ) *
+      MATCH_VALID_PLACEMENT_ROTATION_RANGE_DEGREES;
+    return {
+      unit,
+      screenDegrees,
+      localRadians:
+        -screenDegrees * (Math.PI / 180)
+    };
+  }
+
+  beginValidPlacement(zone, now) {
+    const held = this.heldCard;
+    const currentZone = zone
+      ? this.dropZones.find((candidate) =>
+          candidate.slotIndex ===
+            zone.slotIndex &&
+          candidate.available === true &&
+          candidate.valid === true
+        )
+      : null;
+    if (
+      !held ||
+      !currentZone ||
+      this.localPreviewPlacement ||
+      this.disposed ||
+      this.contextLost ||
+      this.suspended ||
+      this.visibilitySuspended ||
+      this.status !== 'ready'
+    ) {
+      return false;
+    }
+    if (held.phase === 'returning') {
+      this.ignoredWhileHeld += 1;
+      this.ignoredWhileReturning += 1;
+      this.lastPick = {
+        outcome: 'return-already-running',
+        gameCardId: held.entry.card.gameCardId,
+        handIndex: held.entry.card.handIndex
+      };
+      return false;
+    }
+    if (held.phase === 'placing') {
+      this.ignoredWhileHeld += 1;
+      this.ignoredWhilePlacing += 1;
+      this.lastPick = {
+        outcome: 'placement-already-running',
+        gameCardId: held.entry.card.gameCardId,
+        handIndex: held.entry.card.handIndex,
+        slotIndex:
+          held.placementMotion
+            ? held.placementMotion.slotIndex
+            : currentZone.slotIndex
+      };
+      return false;
+    }
+    if (!this.ensureHeldDropArmed(now)) {
+      this.ignoredWhileHeld += 1;
+      this.ignoredUnarmedPlacements += 1;
+      this.lastPick = {
+        outcome: 'placement-not-armed',
+        gameCardId: held.entry.card.gameCardId,
+        handIndex: held.entry.card.handIndex,
+        slotIndex: currentZone.slotIndex
+      };
+      return false;
+    }
+
+    this.cancelAnimationFrame();
+    this.clearDropZoneHover();
+    const entry = held.entry;
+    const destination =
+      this.dropZoneCenter(currentZone);
+    const rotation =
+      this.sampleValidPlacementRotation();
+    const startProjectedScale =
+      MATCH_CAMERA_DISTANCE /
+      (MATCH_CAMERA_DISTANCE - held.depth);
+    const reducedMotion =
+      held.reducedMotion ||
+      this.prefersReducedMotion();
+
+    held.phase = 'placing';
+    held.dropArmed = false;
+    held.reducedMotion = reducedMotion;
+    held.velocity.x = 0;
+    held.velocity.y = 0;
+    held.targetVelocity.x = 0;
+    held.targetVelocity.y = 0;
+    held.lastFrameAt = null;
+    held.placementMotion = {
+      slotIndex: currentZone.slotIndex,
+      placementOrdinal:
+        this.acceptedValidPlacements + 1,
+      startedAt: now,
+      durationMs:
+        MATCH_VALID_PLACEMENT_DURATION_MS,
+      easing:
+        MATCH_VALID_PLACEMENT_EASING,
+      progress: 0,
+      easedProgress: 0,
+      randomUnit: rotation.unit,
+      screenRotationDegrees:
+        rotation.screenDegrees,
+      start: {
+        x: entry.currentPosition.x,
+        y: entry.currentPosition.y,
+        depth: held.depth,
+        projectedScale:
+          startProjectedScale,
+        tiltX: held.tiltX,
+        tiltY: held.tiltY,
+        rotationZ:
+          entry.rotationRadians.z
+      },
+      destination: {
+        x: destination.x,
+        y: destination.y,
+        depth: 0,
+        projectedScale: 1,
+        tiltX: 0,
+        tiltY: 0,
+        rotationZ:
+          rotation.localRadians
+      },
+      current: {
+        x: entry.currentPosition.x,
+        y: entry.currentPosition.y,
+        depth: held.depth,
+        projectedScale:
+          startProjectedScale,
+        tiltX: held.tiltX,
+        tiltY: held.tiltY,
+        rotationZ:
+          entry.rotationRadians.z
+      }
+    };
+    this.setEntryRenderOrder(entry, true);
+    this.acceptedValidPlacements += 1;
+    this.lastPick = {
+      outcome: 'valid-placement-started',
+      gameCardId: entry.card.gameCardId,
+      handIndex: entry.card.handIndex,
+      slotIndex: currentZone.slotIndex
+    };
+    this.lastPlacement = {
+      outcome: 'running',
+      gameCardId: entry.card.gameCardId,
+      handIndex: entry.card.handIndex,
+      slotIndex: currentZone.slotIndex,
+      placementOrdinal:
+        held.placementMotion.placementOrdinal,
+      startedAt: now,
+      durationMs:
+        MATCH_VALID_PLACEMENT_DURATION_MS,
+      easing:
+        MATCH_VALID_PLACEMENT_EASING,
+      screenRotationDegrees:
+        rotation.screenDegrees,
+      reducedMotion
+    };
+    this.host.style.cursor = '';
+
+    if (reducedMotion) {
+      this.completeValidPlacement(
+        now,
+        'reduced-motion'
+      );
+      return true;
+    }
+
+    this.render();
+    this.scheduleAnimationFrame();
+    return true;
+  }
+
+  stepValidPlacement(
+    timestamp,
+    holdGeneration
+  ) {
+    const held = this.heldCard;
+    if (
+      !held ||
+      held.generation !== holdGeneration ||
+      held.phase !== 'placing' ||
+      !held.placementMotion
+    ) {
+      return;
+    }
+
+    const motion = held.placementMotion;
+    const progress = Math.min(
+      Math.max(
+        (
+          timestamp -
+          motion.startedAt
+        ) /
+        motion.durationMs,
+        0
+      ),
+      1
+    );
+    const easedProgress =
+      easeOutCubic(progress);
+    const inverseProgress =
+      1 - easedProgress;
+    const projectedScale =
+      motion.start.projectedScale +
+      (
+        motion.destination.projectedScale -
+        motion.start.projectedScale
+      ) *
+      easedProgress;
+    const depth =
+      MATCH_CAMERA_DISTANCE *
+      (1 - (1 / projectedScale));
+    const screenX =
+      motion.start.x +
+      (
+        motion.destination.x -
+        motion.start.x
+      ) *
+      easedProgress;
+    const screenY =
+      motion.start.y +
+      (
+        motion.destination.y -
+        motion.start.y
+      ) *
+      easedProgress;
+    const tiltX =
+      motion.start.tiltX *
+      inverseProgress;
+    const tiltY =
+      motion.start.tiltY *
+      inverseProgress;
+    const rotationZ =
+      motion.start.rotationZ +
+      (
+        motion.destination.rotationZ -
+        motion.start.rotationZ
+      ) *
+      easedProgress;
+
+    held.depth = depth;
+    held.tiltX = tiltX;
+    held.tiltY = tiltY;
+    motion.progress = progress;
+    motion.easedProgress = easedProgress;
+    motion.current = {
+      x: screenX,
+      y: screenY,
+      depth,
+      projectedScale,
+      tiltX,
+      tiltY,
+      rotationZ
+    };
+    this.applyEntryPose(
+      held.entry,
+      screenX,
+      screenY,
+      depth,
+      tiltX,
+      tiltY,
+      {
+        local: {x: 0, y: 0},
+        screen: {x: screenX, y: screenY}
+      },
+      rotationZ
+    );
+    this.frameCount += 1;
+    this.render();
+
+    if (progress >= 1) {
+      this.completeValidPlacement(
+        timestamp,
+        'animation'
+      );
+      return;
+    }
+    this.scheduleAnimationFrame();
+  }
+
+  completeValidPlacement(
+    completedAt,
+    completion
+  ) {
+    const held = this.heldCard;
+    if (
+      !held ||
+      held.phase !== 'placing' ||
+      !held.placementMotion
+    ) {
+      return false;
+    }
+
+    const entry = held.entry;
+    const motion = held.placementMotion;
+    const finalPose = {
+      x: motion.destination.x,
+      y: motion.destination.y,
+      depth: 0,
+      projectedScale: 1,
+      rotationRadians: {
+        x: 0,
+        y: 0,
+        z: motion.destination.rotationZ
+      },
+      screenRotationDegrees:
+        motion.screenRotationDegrees
+    };
+    this.cancelAnimationFrame();
+    this.holdGeneration += 1;
+    this.heldCard = null;
+    entry.held = false;
+    entry.placed = true;
+    entry.placedSlotIndex =
+      motion.slotIndex;
+    entry.placedPose = clonePlain(finalPose);
+    this.setEntryPlacedRenderOrder(
+      entry,
+      motion.slotIndex
+    );
+    this.applyEntryPose(
+      entry,
+      finalPose.x,
+      finalPose.y,
+      0,
+      0,
+      0,
+      null,
+      finalPose.rotationRadians.z
+    );
+    entry.shadowMesh.visible = false;
+    this.matchShadowMaterial.opacity = 0;
+    this.clearDropZoneHover();
+    this.host.style.cursor = '';
+    this.completedValidPlacements += 1;
+    this.localPreviewPlacement = {
+      entry,
+      gameCardId: entry.card.gameCardId,
+      userCardId: entry.card.userCardId,
+      handIndex: entry.card.handIndex,
+      slotIndex: motion.slotIndex,
+      placementOrdinal:
+        motion.placementOrdinal,
+      startedAt: motion.startedAt,
+      completedAt,
+      durationMs: motion.durationMs,
+      easing: motion.easing,
+      randomUnit: motion.randomUnit,
+      screenRotationDegrees:
+        motion.screenRotationDegrees,
+      finalPose
+    };
+    this.lastPlacement = {
+      outcome: 'completed',
+      completion,
+      gameCardId: entry.card.gameCardId,
+      handIndex: entry.card.handIndex,
+      slotIndex: motion.slotIndex,
+      placementOrdinal:
+        motion.placementOrdinal,
+      startedAt: motion.startedAt,
+      completedAt,
+      durationMs: motion.durationMs,
+      easing: motion.easing,
+      randomUnit: motion.randomUnit,
+      screenRotationDegrees:
+        motion.screenRotationDegrees,
+      reducedMotion: held.reducedMotion,
+      finalPose: clonePlain(finalPose)
+    };
+    this.render();
+    return true;
+  }
+
   scheduleAnimationFrame() {
     if (
       this.animationFrameId !== null ||
@@ -1284,6 +2077,13 @@ class ModernGraphicsSurface {
       );
       return;
     }
+    if (held.phase === 'placing') {
+      this.stepValidPlacement(
+        timestamp,
+        holdGeneration
+      );
+      return;
+    }
 
     const elapsedSeconds = held.lastFrameAt === null
       ? 1 / 60
@@ -1309,6 +2109,8 @@ class ModernGraphicsSurface {
       ) *
       positionBlend;
 
+    const wasDropArmed =
+      held.dropArmed;
     const liftProgress = Math.min(
       Math.max(
         (timestamp - held.liftStartedAt) /
@@ -1323,6 +2125,15 @@ class ModernGraphicsSurface {
       MATCH_PICKUP_LIFT_Z * easedLift;
     if (liftProgress >= 1) {
       held.dropArmed = true;
+    }
+    if (
+      !wasDropArmed &&
+      held.dropArmed
+    ) {
+      this.updateDropZoneHoverAtLogical(
+        held.targetPointer,
+        false
+      );
     }
 
     const pointerIsStale =
@@ -1460,6 +2271,7 @@ class ModernGraphicsSurface {
 
   cancelPickup(reason, shouldRender) {
     this.cancelAnimationFrame();
+    this.clearDropZoneHover();
     if (!this.heldCard) {
       this.holdGeneration += 1;
       return;
@@ -1498,6 +2310,38 @@ class ModernGraphicsSurface {
           held.reducedMotion
       };
     }
+    if (
+      held.phase === 'placing' &&
+      held.placementMotion
+    ) {
+      this.lastPlacement = {
+        outcome: 'cancelled',
+        reason,
+        gameCardId: entry.card.gameCardId,
+        handIndex: entry.card.handIndex,
+        slotIndex:
+          held.placementMotion.slotIndex,
+        placementOrdinal:
+          held.placementMotion
+            .placementOrdinal,
+        startedAt:
+          held.placementMotion.startedAt,
+        progress:
+          held.placementMotion.progress,
+        easedProgress:
+          held.placementMotion
+            .easedProgress,
+        durationMs:
+          held.placementMotion.durationMs,
+        easing:
+          held.placementMotion.easing,
+        screenRotationDegrees:
+          held.placementMotion
+            .screenRotationDegrees,
+        reducedMotion:
+          held.reducedMotion
+      };
+    }
     this.holdGeneration += 1;
     this.heldCard = null;
     this.resetEntryPose(entry);
@@ -1508,12 +2352,57 @@ class ModernGraphicsSurface {
     }
   }
 
+  clearLocalPreviewPlacement(
+    reason,
+    shouldRender
+  ) {
+    const placement =
+      this.localPreviewPlacement;
+    const hoverChanged =
+      this.clearDropZoneHover();
+    if (!placement) {
+      if (
+        hoverChanged &&
+        shouldRender !== false
+      ) {
+        this.render();
+      }
+      return false;
+    }
+
+    this.localPreviewPlacement = null;
+    if (
+      placement.entry &&
+      this.cardEntries.includes(
+        placement.entry
+      )
+    ) {
+      this.resetEntryPose(placement.entry);
+    }
+    this.lastPlacementReset = {
+      reason,
+      gameCardId: placement.gameCardId,
+      handIndex: placement.handIndex,
+      slotIndex: placement.slotIndex,
+      placementOrdinal:
+        placement.placementOrdinal
+    };
+    if (shouldRender !== false) {
+      this.render();
+    }
+    return true;
+  }
+
   suspend() {
     if (this.disposed) {
       return;
     }
     this.suspended = true;
     this.cancelPickup('suspend', false);
+    this.clearLocalPreviewPlacement(
+      'suspend',
+      false
+    );
     this.detachInputHandlers();
     this.render();
   }
@@ -1777,6 +2666,9 @@ class ModernGraphicsSurface {
         basePosition,
         baseRenderOrder,
         held: false,
+        placed: false,
+        placedSlotIndex: null,
+        placedPose: null,
         currentPosition: {
           x: basePosition.x,
           y: basePosition.y,
@@ -1807,20 +2699,43 @@ class ModernGraphicsSurface {
     });
   }
 
-  setHands(hands) {
+  setHands(hands, dropZones) {
     if (this.disposed) {
       return;
     }
 
     const normalized = this.normalizeHands(hands);
+    const normalizedDropZones =
+      this.normalizeDropZones(dropZones);
     const cards = normalized.player.concat(normalized.opponent);
-    const nextKey = JSON.stringify(normalized);
+    const nextHandsKey =
+      JSON.stringify(normalized);
+    const nextDropZonesKey =
+      JSON.stringify(normalizedDropZones);
+    const handsUnchanged =
+      nextHandsKey === this.handsKey;
+    const dropZonesChanged =
+      nextDropZonesKey !==
+        this.dropZonesKey;
 
     this.hands = normalized;
+    this.dropZones = normalizedDropZones;
     if (
-      nextKey === this.handsKey &&
+      handsUnchanged &&
       (this.status === 'loading' || this.status === 'ready')
     ) {
+      if (dropZonesChanged) {
+        this.cancelPickup(
+          'drop-zones-replaced',
+          false
+        );
+        this.clearLocalPreviewPlacement(
+          'drop-zones-replaced',
+          false
+        );
+        this.dropZonesKey =
+          nextDropZonesKey;
+      }
       if (this.status === 'ready') {
         this.attachInputHandlers();
         this.reportReady();
@@ -1830,8 +2745,14 @@ class ModernGraphicsSurface {
     }
 
     this.cancelPickup('hand-replaced', false);
+    this.clearLocalPreviewPlacement(
+      'hand-replaced',
+      false
+    );
     this.detachInputHandlers();
-    this.handsKey = nextKey;
+    this.handsKey = nextHandsKey;
+    this.dropZonesKey =
+      nextDropZonesKey;
     this.generation += 1;
     const generation = this.generation;
     this.cancelPendingTextureLoads();
@@ -1919,12 +2840,25 @@ class ModernGraphicsSurface {
               y: held.entry.basePosition.y,
               z: 0
             }
+          : (
+            held.phase === 'placing' &&
+            held.placementMotion
+              ? {
+                  x:
+                    held.placementMotion
+                      .destination.x,
+                  y:
+                    held.placementMotion
+                      .destination.y,
+                  z: 0
+                }
           : this.settledCenterForGrab(
               held.entry,
               held.targetPointer,
               held.localGrab,
               MATCH_PICKUP_LIFT_Z
             )
+          )
       )
       : null;
     const heldCard = held
@@ -2003,9 +2937,113 @@ class ModernGraphicsSurface {
           face: held.entry.mesh.renderOrder
         },
         returnMotion:
-          clonePlain(held.returnMotion)
+          clonePlain(held.returnMotion),
+        placementMotion:
+          clonePlain(held.placementMotion)
       }
       : null;
+    const localPreviewPlacement =
+      this.localPreviewPlacement
+        ? {
+            gameCardId:
+              this.localPreviewPlacement
+                .gameCardId,
+            userCardId:
+              this.localPreviewPlacement
+                .userCardId,
+            handIndex:
+              this.localPreviewPlacement
+                .handIndex,
+            slotIndex:
+              this.localPreviewPlacement
+                .slotIndex,
+            placementOrdinal:
+              this.localPreviewPlacement
+                .placementOrdinal,
+            startedAt:
+              this.localPreviewPlacement
+                .startedAt,
+            completedAt:
+              this.localPreviewPlacement
+                .completedAt,
+            durationMs:
+              this.localPreviewPlacement
+                .durationMs,
+            easing:
+              this.localPreviewPlacement
+                .easing,
+            randomUnit:
+              this.localPreviewPlacement
+                .randomUnit,
+            screenRotationDegrees:
+              this.localPreviewPlacement
+                .screenRotationDegrees,
+            finalPose:
+              clonePlain(
+                this.localPreviewPlacement
+                  .finalPose
+              )
+          }
+        : null;
+    const hoveredDropZone =
+      this.hoveredDropZone
+        ? {
+            slotIndex:
+              this.hoveredDropZone
+                .slotIndex,
+            x: this.hoveredDropZone.x,
+            y: this.hoveredDropZone.y,
+            width:
+              this.hoveredDropZone.width,
+            height:
+              this.hoveredDropZone.height,
+            cornerRadius:
+              this.hoveredDropZone
+                .cornerRadius
+          }
+        : null;
+    const dropZones = this.dropZones.map(
+      (zone) => {
+        const locallyOccupied =
+          Boolean(
+            localPreviewPlacement &&
+            localPreviewPlacement.slotIndex ===
+              zone.slotIndex
+          );
+        const valid =
+          zone.valid === true &&
+          !this.localPreviewPlacement;
+        return {
+          slotIndex: zone.slotIndex,
+          x: zone.x,
+          y: zone.y,
+          width: zone.width,
+          height: zone.height,
+          cornerRadius:
+            zone.cornerRadius,
+          available:
+            zone.available === true &&
+            !locallyOccupied,
+          sourceValid:
+            zone.valid === true,
+          valid,
+          locallyOccupied,
+          hovered:
+            Boolean(
+              hoveredDropZone &&
+              hoveredDropZone.slotIndex ===
+                zone.slotIndex
+            ),
+          visible:
+            Boolean(
+              this.dropZoneHighlight.visible &&
+              hoveredDropZone &&
+              hoveredDropZone.slotIndex ===
+                zone.slotIndex
+            )
+        };
+      }
+    );
 
     return {
       packageVersion: __PURETT_THREE_PACKAGE_VERSION__,
@@ -2039,7 +3077,7 @@ class ModernGraphicsSurface {
         placement: 'legacy-exact-at-rest',
         table: 'flat-top-down',
         interaction:
-          'pickup-invalid-return'
+          'pickup-invalid-return-valid-placement-preview'
       },
       pickupPolicy: {
         activation: 'click',
@@ -2053,9 +3091,39 @@ class ModernGraphicsSurface {
         maxTiltRadians: MATCH_PICKUP_MAX_TILT,
         follow: 'pointer-with-transient-velocity-tilt',
         drop:
-          'second-click-always-invalid',
-        dropZoneCount: 0,
-        validPlacement: 'not-implemented',
+          'second-click-valid-zone-preview-otherwise-invalid',
+        dropZoneCount:
+          this.dropZones.length,
+        validDropZoneCount:
+          dropZones.filter(
+            (zone) => zone.valid
+          ).length,
+        hover: {
+          visibleOnlyWhen:
+            'held-pointer-over-valid-zone',
+          color: 'black',
+          opacity:
+            MATCH_DROP_ZONE_OPACITY,
+          cornerRadius:
+            MATCH_DROP_ZONE_CORNER_RADIUS,
+          persistent: false
+        },
+        validPlacement: {
+          durationMs:
+            MATCH_VALID_PLACEMENT_DURATION_MS,
+          easing:
+            MATCH_VALID_PLACEMENT_EASING,
+          reversePickupLift: true,
+          exactSlotCenter: true,
+          positionJitter: false,
+          screenRotationRangeDegrees: [
+            -MATCH_VALID_PLACEMENT_ROTATION_RANGE_DEGREES,
+            MATCH_VALID_PLACEMENT_ROTATION_RANGE_DEGREES
+          ],
+          oneRendererLocalPlacementPerSnapshot:
+            true,
+          submitted: false
+        },
         invalidReturn: {
           durationMs:
             MATCH_INVALID_RETURN_DURATION_MS,
@@ -2095,15 +3163,50 @@ class ModernGraphicsSurface {
         this.completedInvalidReturns,
       ignoredUnarmedReturns:
         this.ignoredUnarmedReturns,
+      ignoredUnarmedPlacements:
+        this.ignoredUnarmedPlacements,
       ignoredWhileReturning:
         this.ignoredWhileReturning,
+      ignoredWhilePlacing:
+        this.ignoredWhilePlacing,
+      ignoredAfterPlacement:
+        this.ignoredAfterPlacement,
+      acceptedValidPlacements:
+        this.acceptedValidPlacements,
+      completedValidPlacements:
+        this.completedValidPlacements,
+      dropZoneHoverChanges:
+        this.dropZoneHoverChanges,
       emptyClicks: this.emptyClicks,
       opponentClicks: this.opponentClicks,
+      dropZones,
+      hoveredDropZone,
+      visibleDropZoneCount:
+        dropZones.filter(
+          (zone) => zone.visible
+        ).length,
+      dropZoneHighlight: {
+        visible:
+          this.dropZoneHighlight.visible,
+        opacity:
+          this.dropZoneMaterial.opacity,
+        color: 'black',
+        renderOrder:
+          this.dropZoneHighlight
+            .renderOrder
+      },
+      localPreviewPlacement,
       semanticActionCount: 0,
       requestCount: 0,
       lastPick: clonePlain(this.lastPick),
       lastReturn:
         clonePlain(this.lastReturn),
+      lastPlacement:
+        clonePlain(this.lastPlacement),
+      lastPlacementReset:
+        clonePlain(
+          this.lastPlacementReset
+        ),
       lastCancellation:
         clonePlain(this.lastCancellation),
       playerCount: this.hands.player.length,
@@ -2151,10 +3254,30 @@ class ModernGraphicsSurface {
                 y: 0,
                 z: 0
               },
-            rotationDegrees: 0,
+            rotationDegrees: entry
+              ? -(
+                  entry.rotationRadians.z *
+                  (180 / Math.PI)
+                )
+              : 0,
             zOrder: card.zOrder,
-            pickable: card.side === 'player',
+            pickable:
+              card.side === 'player' &&
+              !this.localPreviewPlacement &&
+              Boolean(
+                !entry ||
+                entry.placed !== true
+              ),
             held: Boolean(entry && entry.held),
+            placed:
+              Boolean(
+                entry &&
+                entry.placed
+              ),
+            placedSlotIndex:
+              entry
+                ? entry.placedSlotIndex
+                : null,
             visible: this.status === 'ready'
           };
         })
@@ -2167,6 +3290,10 @@ class ModernGraphicsSurface {
     }
 
     this.cancelPickup('dispose', false);
+    this.clearLocalPreviewPlacement(
+      'dispose',
+      false
+    );
     this.detachInputHandlers();
     this.disposed = true;
     this.generation += 1;
@@ -2189,6 +3316,15 @@ class ModernGraphicsSurface {
     }
     if (this.matchShadowTexture) {
       this.matchShadowTexture.dispose();
+    }
+    if (this.dropZoneGeometry) {
+      this.dropZoneGeometry.dispose();
+    }
+    if (this.dropZoneMaterial) {
+      this.dropZoneMaterial.dispose();
+    }
+    if (this.dropZoneTexture) {
+      this.dropZoneTexture.dispose();
     }
     if (this.canvas && this.handleContextLost) {
       this.canvas.removeEventListener('webglcontextlost', this.handleContextLost, false);

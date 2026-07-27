@@ -58,19 +58,23 @@ try {
     'generated modern graphics bundle omits the Motion Studio surface or card-motion recipe API'
   );
   assert(
-    modernBundle.includes('pickup-invalid-return') &&
-      modernBundle.includes('second-click-always-invalid') &&
+    modernBundle.includes(
+      'pickup-invalid-return-valid-placement-preview'
+    ) &&
+      modernBundle.includes(
+        'second-click-valid-zone-preview-otherwise-invalid'
+      ) &&
       modernBundle.includes('cubic-out'),
-    'generated modern graphics bundle omits the active-match invalid-return implementation'
+    'generated modern graphics bundle omits active-match drop-zone placement or invalid return'
   );
   assert(!/window\.THREE\s*=/.test(modernSource + modernBundle), 'modern bundle overwrites the legacy snow THREE global');
   assert(fs.existsSync(path.join(root, 'public/js/modern/THREE-LICENSE.txt')), 'distributed Three.js license is missing');
 
   assert(
     coordinator.includes(
-      '/js/modern/purett-modern-graphics.min.js?v=0.185.1-match-return.1'
+      '/js/modern/purett-modern-graphics.min.js?v=0.185.1-match-placement.1'
     ),
-    'coordinator does not use the match-return bundle cache revision'
+    'coordinator does not use the match-placement bundle cache revision'
   );
   assert(!/https?:\/\//.test(coordinator), 'coordinator references a third-party graphics URL');
   assert(coordinator.includes("this.storageKey = 'purett.graphicsMode.v1'"), 'graphics preference does not have a stable storage key');
@@ -95,10 +99,14 @@ try {
   assert(game.includes('id="modernGraphics"'), 'game surface does not include a Modern host');
   assert(game.includes('setGraphicsMode: function(mode)'), 'game surface has no runtime graphics gate');
   assert(
-    game.includes('setGraphicsCoordinator: function(graphics)') &&
+      game.includes('setGraphicsCoordinator: function(graphics)') &&
       game.includes('describeMatchHands: function()') &&
+      game.includes('describeMatchDropZones: function()') &&
       game.includes('notifyGraphicsHands: function()') &&
       game.includes('visibleImage: item.lkjasdojwlkajsdkjdpakjkjs') &&
+      game.includes('this.boardEnabled === true') &&
+      game.includes('this.isMyTurn === true') &&
+      game.includes('cornerRadius: 10') &&
       !game.slice(
         game.indexOf('describeMatchHands: function()'),
         game.indexOf('notifyGraphicsHands: function()')
@@ -110,7 +118,16 @@ try {
       coordinator.includes('this.activeMatchVisible = false') &&
       coordinator.includes('setActiveMatch: function(active)') &&
       coordinator.includes('updateMatchHands: function(hands)') &&
-      coordinator.includes('this.surface.setHands(this.matchHands)') &&
+      coordinator.includes('this.matchDropZones = []') &&
+      coordinator.includes(
+        '(source.dropZones || []).slice(0, 9)'
+      ) &&
+      coordinator.includes(
+        'this.surface.setHands(\n' +
+        '                this.matchHands,\n' +
+        '                this.matchDropZones\n' +
+        '            )'
+      ) &&
       coordinator.includes("me.surfaceKind === 'active-match'") &&
       game.includes('this.graphics.setActiveMatch(true)') &&
       application.includes('me.graphics.setActiveMatch(false)'),
@@ -120,7 +137,9 @@ try {
     activeSurfaceSource.includes(
       'this.camera = new PerspectiveCamera('
     ) &&
-      activeSurfaceSource.includes('setHands(hands)') &&
+      activeSurfaceSource.includes(
+        'setHands(hands, dropZones)'
+      ) &&
       activeSurfaceSource.includes("surface: 'active-match-hands'") &&
       activeSurfaceSource.includes("projection: 'perspective'") &&
       activeSurfaceSource.includes('tablePlaneDistance:') &&
@@ -137,7 +156,9 @@ try {
       activeSurfaceSource.includes('cancelPendingTextureLoads()') &&
       activeSurfaceSource.includes('canonicalTextureUrl.pathname === textureUrl') &&
       activeSurfaceSource.includes('.slice(0, 5)') &&
-      activeSurfaceSource.includes("'pickup-invalid-return'") &&
+      activeSurfaceSource.includes(
+        "'pickup-invalid-return-valid-placement-preview'"
+      ) &&
       activeSurfaceSource.includes('inputHandlersAttached:') &&
       activeSurfaceSource.includes('rafActive:'),
     'active match-hand texture deadline, path guard, five-card bound, or pickup/return diagnostics are incomplete'
@@ -150,14 +171,15 @@ try {
       activeSurfaceSource.includes("activation: 'click'") &&
       activeSurfaceSource.includes('maxHeld: 1') &&
       activeSurfaceSource.includes(
-        "'second-click-always-invalid'"
+        "'second-click-valid-zone-preview-otherwise-invalid'"
       ) &&
-      activeSurfaceSource.includes('dropZoneCount: 0') &&
+      activeSurfaceSource.includes('dropZoneCount:') &&
       activeSurfaceSource.includes(
-        "validPlacement: 'not-implemented'"
+        'oneRendererLocalPlacementPerSnapshot:'
       ) &&
+      activeSurfaceSource.includes('gameplayAuthority: false') &&
       activeSurfaceSource.includes('heldCard,'),
-    'active-match picking and invalid return are not explicitly bounded to one renderer-local player card without placement targets'
+    'active-match picking, drop zones, and renderer-local placement are not explicitly bounded'
   );
   assert(
     /addEventListener\(\s*'click'/.test(
@@ -265,6 +287,66 @@ try {
       activeCompleteReturnIndex
     )
   );
+  const activeEnsureArmedIndex =
+    activeSurfaceSource.indexOf(
+      'ensureHeldDropArmed(now)'
+    );
+  const activeEnsureArmedSource =
+    activeSurfaceSource.slice(
+      activeEnsureArmedIndex,
+      activeSurfaceSource.indexOf(
+        '\n  beginInvalidReturn(',
+        activeEnsureArmedIndex
+      )
+    );
+  const activeSetDropZoneHoverIndex =
+    activeSurfaceSource.indexOf(
+      'setDropZoneHover(zone)'
+    );
+  const activeSetDropZoneHoverSource =
+    activeSurfaceSource.slice(
+      activeSetDropZoneHoverIndex,
+      activeSurfaceSource.indexOf(
+        '\n  updateDropZoneHoverAtLogical(',
+        activeSetDropZoneHoverIndex
+      )
+    );
+  const activeBeginPlacementIndex =
+    activeSurfaceSource.indexOf(
+      'beginValidPlacement(zone, now)'
+    );
+  const activeBeginPlacementSource =
+    activeSurfaceSource.slice(
+      activeBeginPlacementIndex,
+      activeSurfaceSource.indexOf(
+        '\n  stepValidPlacement(',
+        activeBeginPlacementIndex
+      )
+    );
+  const activeStepPlacementIndex =
+    activeSurfaceSource.indexOf(
+      'stepValidPlacement('
+    );
+  const activeStepPlacementSource =
+    activeSurfaceSource.slice(
+      activeStepPlacementIndex,
+      activeSurfaceSource.indexOf(
+        '\n  completeValidPlacement(',
+        activeStepPlacementIndex
+      )
+    );
+  const activeCompletePlacementIndex =
+    activeSurfaceSource.indexOf(
+      '\n  completeValidPlacement(\n'
+    );
+  const activeCompletePlacementSource =
+    activeSurfaceSource.slice(
+      activeCompletePlacementIndex,
+      activeSurfaceSource.indexOf(
+        '\n  scheduleAnimationFrame()',
+        activeCompletePlacementIndex
+      )
+    );
   const activeScheduleIndex =
     activeSurfaceSource.indexOf(
       '\n  scheduleAnimationFrame() {'
@@ -361,17 +443,18 @@ try {
       activeSurfaceSource.includes(
         'this.beginInvalidReturn('
       ) &&
+      activeEnsureArmedIndex > -1 &&
       activeBeginReturnSource.includes(
-        'if (!held.dropArmed)'
+        'if (!this.ensureHeldDropArmed(now))'
       ) &&
       activeBeginReturnSource.includes(
         'this.ignoredUnarmedReturns += 1'
       ) &&
       /!held\.dropArmed\s*&&\s*!held\.reducedMotion\s*&&\s*now - held\.liftStartedAt >=\s*MATCH_PICKUP_DURATION_MS/.test(
-        activeBeginReturnSource
+        activeEnsureArmedSource
       ) &&
       /this\.cancelAnimationFrame\(\);\s*this\.stepPickup\(\s*now,\s*held\.generation,\s*false\s*\);/.test(
-        activeBeginReturnSource
+        activeEnsureArmedSource
       ) &&
       /if \(shouldSchedule !== false\)\s*\{\s*this\.scheduleAnimationFrame\(\);\s*\}/.test(
         activeStepPickupSource
@@ -382,7 +465,7 @@ try {
       activeStepPickupSource.includes(
         'held.dropArmed = true;'
       ),
-    'active-match second-click return does not synchronously finish an elapsed 300 ms pickup with its pending frame cancelled and rescheduling suppressed before checking the arm'
+    'active-match second-click drops do not synchronously finish an elapsed pickup before checking the shared arm'
   );
   assert(
     activeBeginReturnSource.includes(
@@ -428,6 +511,9 @@ try {
       activeResetEntrySource.includes(
         'this.matchShadowMaterial.opacity = 0'
       ) &&
+      activeResetEntrySource.includes(
+        'entry.placed = false'
+      ) &&
       activeCompleteReturnSource.includes(
         "outcome: 'completed'"
       ) &&
@@ -440,11 +526,99 @@ try {
     'active-match invalid return does not discard interpolation and restore the exact canonical hand pose, stack order, and hidden shadow'
   );
   assert(
+    modernSource.includes(
+      'const MATCH_VALID_PLACEMENT_DURATION_MS = 300;'
+    ) &&
+      modernSource.includes(
+        "const MATCH_VALID_PLACEMENT_EASING =\n" +
+        "  'cubic-out';"
+      ) &&
+      modernSource.includes(
+        'const MATCH_VALID_PLACEMENT_ROTATION_RANGE_DEGREES = 2;'
+      ) &&
+      modernSource.includes(
+        'const MATCH_DROP_ZONE_OPACITY = 0.3;'
+      ) &&
+      modernSource.includes(
+        'const MATCH_DROP_ZONE_CORNER_RADIUS = 10;'
+      ) &&
+      activeSurfaceSource.includes(
+        'normalizeDropZones(dropZones)'
+      ) &&
+      activeSurfaceSource.includes(
+        'findValidDropZone(logicalPoint)'
+      ) &&
+      activeSurfaceSource.includes(
+        'logicalPoint.x < zone.x + zone.width'
+      ) &&
+      activeSurfaceSource.includes(
+        'logicalPoint.y < zone.y + zone.height'
+      ) &&
+      activeSurfaceSource.includes(
+        'this.dropZoneHighlight.visible = true'
+      ) &&
+      activeSetDropZoneHoverIndex > -1 &&
+      activeSetDropZoneHoverSource.includes(
+        '!this.heldCard'
+      ) &&
+      !activeSetDropZoneHoverSource.includes(
+        'dropArmed'
+      ),
+    'active-match drop shadows do not preserve exact Legacy geometry, half-open hit bounds, immediate carried-card hover, and 0.3 opacity'
+  );
+  assert(
+    activeBeginPlacementIndex > -1 &&
+      activeStepPlacementIndex > -1 &&
+      activeCompletePlacementIndex > -1 &&
+      activeBeginPlacementSource.includes(
+        'this.ensureHeldDropArmed(now)'
+      ) &&
+      activeBeginPlacementSource.includes(
+        "held.phase = 'placing'"
+      ) &&
+      activeBeginPlacementSource.includes(
+        'this.sampleValidPlacementRotation()'
+      ) &&
+      activeBeginPlacementSource.includes(
+        'MATCH_VALID_PLACEMENT_DURATION_MS'
+      ) &&
+      activeBeginPlacementSource.includes(
+        'MATCH_VALID_PLACEMENT_EASING'
+      ) &&
+      activeStepPlacementSource.includes(
+        'easeOutCubic(progress)'
+      ) &&
+      activeStepPlacementSource.includes(
+        'MATCH_CAMERA_DISTANCE *'
+      ) &&
+      activeStepPlacementSource.includes(
+        '(1 - (1 / projectedScale))'
+      ) &&
+      activeStepPlacementSource.includes(
+        'local: {x: 0, y: 0}'
+      ) &&
+      activeCompletePlacementSource.includes(
+        'entry.placed = true'
+      ) &&
+      activeCompletePlacementSource.includes(
+        'this.localPreviewPlacement = {'
+      ) &&
+      activeCompletePlacementSource.includes(
+        'this.completedValidPlacements += 1'
+      ),
+    'valid placement does not reverse the 300 ms cubic-out lift into one exact renderer-local askew slot'
+  );
+  assert(
     /const reducedMotion\s*=\s*held\.reducedMotion\s*\|\|\s*this\.prefersReducedMotion\(\)/.test(
       activeBeginReturnSource
     ) &&
       activeBeginReturnSource.includes(
         "completeInvalidReturn(\n" +
+        "        now,\n" +
+        "        'reduced-motion'"
+      ) &&
+      activeBeginPlacementSource.includes(
+        "completeValidPlacement(\n" +
         "        now,\n" +
         "        'reduced-motion'"
       ) &&
@@ -454,7 +628,7 @@ try {
       activeScheduleSource.includes(
         'this.heldCard.reducedMotion'
       ),
-    'active-match reduced motion does not arm immediately and settle an invalid return synchronously without a frame'
+    'active-match reduced motion does not arm and settle valid or invalid drops synchronously'
   );
   assert(
     activeSurfaceSource.includes(
@@ -472,14 +646,20 @@ try {
       activeStepReturnSource.includes(
         'held.generation !== holdGeneration'
       ) &&
+      activeStepPlacementSource.includes(
+        'held.generation !== holdGeneration'
+      ) &&
       activeCompleteReturnSource.includes(
+        'this.holdGeneration += 1'
+      ) &&
+      activeCompletePlacementSource.includes(
         'this.holdGeneration += 1'
       ) &&
       activeCancelPickupIndex > -1 &&
       activeCancelPickupSource.includes(
         'this.holdGeneration += 1'
       ),
-    'active-match hold and invalid-return frames are not protected from stale callbacks by a renderer-local generation token'
+    'active-match pickup and drop frames are not protected from stale callbacks by a renderer-local generation token'
   );
   assert(
     activeSurfaceSource.includes('window.requestAnimationFrame') &&
@@ -488,19 +668,24 @@ try {
       activeSurfaceSource.includes('peakPendingFrameCount:') &&
       activeSurfaceSource.includes('scheduleAnimationFrame()') &&
       activeSurfaceSource.includes('stepInvalidReturn(') &&
+      activeSurfaceSource.includes('stepValidPlacement(') &&
       activeSurfaceSource.includes('cancelPickup('),
-    'active-match pickup and invalid return do not share one inspectable cancellable demand scheduler'
+    'active-match pickup and both drop paths do not share one inspectable cancellable demand scheduler'
   );
   assert(
     activeSurfaceSource.includes('suspend()') &&
       activeSurfaceSource.includes('resume()') &&
       activeSurfaceSource.includes('prefersReducedMotion()') &&
       activeSurfaceSource.includes('this.cancelPickup(') &&
-      activeSurfaceSource.includes('this.detachInputHandlers()') &&
-      activeSurfaceSource.includes('dropZoneCount: 0') &&
       activeSurfaceSource.includes(
-        "validPlacement: 'not-implemented'"
+        'this.clearLocalPreviewPlacement('
       ) &&
+      activeSurfaceSource.includes('this.detachInputHandlers()') &&
+      activeSurfaceSource.includes('dropZoneCount:') &&
+      activeSurfaceSource.includes(
+        'oneRendererLocalPlacementPerSnapshot:'
+      ) &&
+      activeSurfaceSource.includes('submitted: false') &&
       activeSurfaceSource.includes(
         'semanticActionCount: 0'
       ) &&
@@ -509,10 +694,12 @@ try {
       !activeSurfaceSource.includes('$.ajax') &&
       !activeSurfaceSource.includes('game.grab') &&
       !activeSurfaceSource.includes('game.drop'),
-    'pickup/return cleanup, reduced motion, or renderer-local no-placement authority isolation is incomplete'
+    'pickup/drop cleanup, reduced motion, or renderer-local placement authority isolation is incomplete'
   );
   const activeSetHandsIndex =
-    activeSurfaceSource.indexOf('setHands(hands)');
+    activeSurfaceSource.indexOf(
+      'setHands(hands, dropZones)'
+    );
   const activeSetHandsSource = activeSurfaceSource.slice(
     activeSetHandsIndex,
     activeSurfaceSource.indexOf(
@@ -522,6 +709,12 @@ try {
   );
   assert(
     activeSetHandsSource.includes('cancelPickup(') &&
+      activeSetHandsSource.includes(
+        'clearLocalPreviewPlacement('
+      ) &&
+      activeSetHandsSource.includes(
+        'normalizeDropZones(dropZones)'
+      ) &&
       activeSurfaceSource.includes(
         "this.cancelPickup('context-lost'"
       ) &&
@@ -530,8 +723,15 @@ try {
       ) &&
       activeSurfaceSource.includes(
         "this.cancelPickup('dispose'"
+      ) &&
+      activeSurfaceSource.includes(
+        "'visibility-hidden'"
+      ) &&
+      activeSurfaceSource.includes(
+        "this.clearLocalPreviewPlacement(\n" +
+        "      'suspend'"
       ),
-    'hand replacement, context loss, mode suspension, or disposal can retain stale pickup state'
+    'snapshot, context, visibility, mode, or disposal can retain stale hover or local placement state'
   );
   const activateLegacySource = coordinator.slice(
     coordinator.indexOf('activateLegacy: function('),

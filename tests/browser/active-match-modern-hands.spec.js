@@ -58,12 +58,37 @@ async function installPassiveMatchFixture(page, options = {}) {
     game.p2h = [];
     game.pb = [];
     game.gameid = 'modern-match-hand-fixture';
-    game.isMyTurn = true;
+    game.isMyTurn = settings.isMyTurn !== false;
     game.dragging = null;
     game.isDroppable = false;
     game.isreplay = true;
     game.buildCanvas();
     game.buildPositions();
+    game.pb = game.pbp.slice(1).map(position => ({
+      gameCardId: 0,
+      image: null,
+      visibleImage: null,
+      captured: null,
+      owner: null,
+      usercardid: null,
+      card: null,
+      rect: null,
+      elementId: -1,
+      element: null,
+      bonus: 0,
+      bonusObject: null,
+      x: position.x,
+      y: position.y
+    }));
+    (settings.occupiedSlots || []).forEach(slotIndex => {
+      if (game.pb[slotIndex]) {
+        game.pb[slotIndex].gameCardId =
+          900 + slotIndex;
+        game.pb[slotIndex].image = 'cardBack';
+        game.pb[slotIndex].visibleImage = 'cardBack';
+        game.pb[slotIndex].owner = '1';
+      }
+    });
 
     lobbyCards.forEach((card, index) => {
       const legacyImage = toVisibleArtKey(card.textureUrl);
@@ -96,8 +121,10 @@ async function installPassiveMatchFixture(page, options = {}) {
       });
     });
 
+    game.drawBoardDrops();
     game.drawPlayerOneHand();
     game.drawPlayerTwoHand();
+    game.enableBoard(settings.boardEnabled !== false);
     game.p2h.forEach(item => {
       item.image = 'opponent-hidden-face';
     });
@@ -108,7 +135,12 @@ async function installPassiveMatchFixture(page, options = {}) {
       playerIds: game.p1h.map(item => item.gameCardId),
       opponentIds: game.p2h.map(item => item.gameCardId),
       playerLegacyTextureUrls:
-        lobbyCards.map(card => card.textureUrl)
+        lobbyCards.map(card => card.textureUrl),
+      boardNodes: game.pb.map(item =>
+        item.rect ? item.rect.node : null
+      ),
+      boardEnabled: game.boardEnabled,
+      isMyTurn: game.isMyTurn
     };
   }, options);
 }
@@ -287,9 +319,18 @@ test('renders exact pickup-capable player and Closed opponent hands and restores
     pickupPolicy: {
       activation: 'click',
       maxHeld: 1,
-      drop: 'second-click-always-invalid',
-      dropZoneCount: 0,
-      validPlacement: 'not-implemented',
+      drop: 'second-click-valid-zone-preview-otherwise-invalid',
+      dropZoneCount: 9,
+      validPlacement: {
+        durationMs: 300,
+        easing: 'cubic-out',
+        reversePickupLift: true,
+        exactSlotCenter: true,
+        positionJitter: false,
+        screenRotationRangeDegrees: [-2, 2],
+        oneRendererLocalPlacementPerSnapshot: true,
+        submitted: false
+      },
       invalidReturn: {
         durationMs: 300,
         easing: 'cubic-out',
@@ -388,6 +429,197 @@ test('renders exact pickup-capable player and Closed opponent hands and restores
     );
   })).toBe(true);
   await expect(page.locator('#svgBoard image')).toHaveCount(10);
+  expect(moveRequests).toHaveLength(0);
+});
+
+test('shows one exact Legacy drop shadow while a carried card hovers a valid empty slot, including during lift', async ({page}) => {
+  const moveRequests = [];
+  page.on('request', request => {
+    const requestUrl = new URL(request.url());
+    if (
+      request.method() === 'POST' &&
+      requestUrl.pathname === '/index/me'
+    ) {
+      moveRequests.push(request.url());
+    }
+  });
+
+  await loginWithLegacyGraphics(page);
+  await installPassiveMatchFixture(page, {
+    occupiedSlots: [4]
+  });
+  await selectGraphicsMode(page, 'modern');
+  await waitForModernMatch(page);
+
+  const initial = await page.evaluate(() => {
+    const surface =
+      gh.manager.graphics.getState().surface;
+    return {
+      dropZones: surface.dropZones.map(zone => ({
+        slotIndex: zone.slotIndex,
+        x: zone.x,
+        y: zone.y,
+        width: zone.width,
+        height: zone.height,
+        cornerRadius: zone.cornerRadius,
+        available: zone.available,
+        valid: zone.valid,
+        hovered: zone.hovered,
+        visible: zone.visible
+      })),
+      hoveredDropZone:
+        surface.hoveredDropZone,
+      visibleDropZoneCount:
+        surface.visibleDropZoneCount
+    };
+  });
+  const expectedPositions = [
+    [172, 35],
+    [289, 35],
+    [406, 35],
+    [172, 181],
+    [289, 181],
+    [406, 181],
+    [172, 327],
+    [289, 327],
+    [406, 327]
+  ];
+  expect(initial.dropZones).toEqual(
+    expectedPositions.map(([x, y], slotIndex) => ({
+      slotIndex,
+      x,
+      y,
+      width: 117,
+      height: 146,
+      cornerRadius: 10,
+      available: slotIndex !== 4,
+      valid: slotIndex !== 4,
+      hovered: false,
+      visible: false
+    }))
+  );
+  expect(initial).toMatchObject({
+    hoveredDropZone: null,
+    visibleDropZoneCount: 0
+  });
+
+  await installControlledMatchFrameClock(page);
+  await clickModernLogicalPoint(page, 110, 300);
+  await expect.poll(() => page.evaluate(() => {
+    const surface =
+      gh.manager.graphics.getState().surface;
+    return surface.heldCard &&
+      surface.heldCard.phase === 'lifting' &&
+      surface.heldCard.dropArmed === false;
+  })).toBe(true);
+
+  await moveModernLogicalPoint(page, 230.5, 108);
+  await expect.poll(() => page.evaluate(() => {
+    const surface =
+      gh.manager.graphics.getState().surface;
+    return {
+      hoveredSlot: surface.hoveredDropZone
+        ? surface.hoveredDropZone.slotIndex
+        : null,
+      heldPhase: surface.heldCard.phase,
+      dropArmed: surface.heldCard.dropArmed,
+      visibleDropZoneCount:
+        surface.visibleDropZoneCount,
+      visibleSlots: surface.dropZones
+        .filter(zone => zone.visible)
+        .map(zone => zone.slotIndex)
+    };
+  })).toEqual({
+    hoveredSlot: 0,
+    heldPhase: 'lifting',
+    dropArmed: false,
+    visibleDropZoneCount: 1,
+    visibleSlots: [0]
+  });
+
+  // Hover starts with Legacy's dragging state, but placement remains
+  // guarded by the original 300 ms pickup deadline.
+  await page.evaluate(() => {
+    const surface = gh.manager.graphics.surface;
+    const beginValidPlacement =
+      surface.beginValidPlacement;
+    const earlyTimestamp =
+      surface.heldCard.liftStartedAt + 100;
+    surface.beginValidPlacement = function(zone) {
+      surface.beginValidPlacement =
+        beginValidPlacement;
+      return beginValidPlacement.call(
+        surface,
+        zone,
+        earlyTimestamp
+      );
+    };
+  });
+  await clickModernLogicalPoint(page, 230.5, 108);
+  expect(await page.evaluate(() => {
+    const surface =
+      gh.manager.graphics.getState().surface;
+    return {
+      phase: surface.heldCard.phase,
+      dropArmed: surface.heldCard.dropArmed,
+      ignoredUnarmedPlacements:
+        surface.ignoredUnarmedPlacements,
+      acceptedValidPlacements:
+        surface.acceptedValidPlacements
+    };
+  })).toEqual({
+    phase: 'lifting',
+    dropArmed: false,
+    ignoredUnarmedPlacements: 1,
+    acceptedValidPlacements: 0
+  });
+
+  // Slot four is occupied in the fixture and therefore can never
+  // produce a Modern drop shadow.
+  await moveModernLogicalPoint(page, 347.5, 254);
+  await expect.poll(() => page.evaluate(() => {
+    const surface =
+      gh.manager.graphics.getState().surface;
+    return {
+      hoveredDropZone: surface.hoveredDropZone,
+      visibleDropZoneCount:
+        surface.visibleDropZoneCount
+    };
+  })).toEqual({
+    hoveredDropZone: null,
+    visibleDropZoneCount: 0
+  });
+
+  // The rectangles use half-open hit bounds, so the shared x=289
+  // boundary belongs to slot one rather than slot zero.
+  await moveModernLogicalPoint(page, 289, 108);
+  await expect.poll(() => page.evaluate(() => (
+    gh.manager.graphics.getState().surface
+      .hoveredDropZone
+  ))).toMatchObject({
+    slotIndex: 1
+  });
+
+  await moveModernLogicalPoint(page, 620, 420);
+  await expect.poll(() => page.evaluate(() => {
+    const surface =
+      gh.manager.graphics.getState().surface;
+    return {
+      hoveredDropZone: surface.hoveredDropZone,
+      visibleDropZoneCount:
+        surface.visibleDropZoneCount
+    };
+  })).toEqual({
+    hoveredDropZone: null,
+    visibleDropZoneCount: 0
+  });
+  await page.evaluate(() => {
+    gh.manager.graphics.surface.cancelPickup(
+      'test-cleanup',
+      false
+    );
+    window.__modernMatchFrameClock.restore();
+  });
   expect(moveRequests).toHaveLength(0);
 });
 
@@ -938,7 +1170,7 @@ test('second click runs the Legacy cubic-out clockwise invalid return and restor
     window.__modernMatchFrameClock.restore();
   });
 
-  const pointerTarget = {x: 450, y: 160};
+  const pointerTarget = {x: 620, y: 420};
   await moveModernLogicalPoint(
     page,
     pointerTarget.x,
@@ -981,9 +1213,18 @@ test('second click runs the Legacy cubic-out clockwise invalid return and restor
     pendingFrameCount: 1
   });
   expect(returning.pickupPolicy).toMatchObject({
-    drop: 'second-click-always-invalid',
-    dropZoneCount: 0,
-    validPlacement: 'not-implemented',
+    drop: 'second-click-valid-zone-preview-otherwise-invalid',
+    dropZoneCount: 9,
+    validPlacement: {
+      durationMs: 300,
+      easing: 'cubic-out',
+      reversePickupLift: true,
+      exactSlotCenter: true,
+      positionJitter: false,
+      screenRotationRangeDegrees: [-2, 2],
+      oneRendererLocalPlacementPerSnapshot: true,
+      submitted: false
+    },
     invalidReturn: {
       durationMs: 300,
       easing: 'cubic-out',
@@ -1239,6 +1480,349 @@ test('second click runs the Legacy cubic-out clockwise invalid return and restor
   })).toBe(2);
 });
 
+test('valid second click reverses the lift into one renderer-local askew board placement without gameplay authority', async ({page}) => {
+  const moveRequests = [];
+  page.on('request', request => {
+    const requestUrl = new URL(request.url());
+    if (
+      request.method() === 'POST' &&
+      requestUrl.pathname === '/index/me'
+    ) {
+      moveRequests.push(request.url());
+    }
+  });
+
+  await loginWithLegacyGraphics(page);
+  await installPassiveMatchFixture(page);
+  const authorityBefore = await page.evaluate(() => ({
+    playerIds: gh.manager.game.p1h.map(
+      item => item.gameCardId
+    ),
+    playerPositions: gh.manager.game.p1h.map(item => ({
+      x: item.card.attr('x'),
+      y: item.card.attr('y')
+    })),
+    boardIds: gh.manager.game.pb.map(
+      item => item.gameCardId
+    ),
+    boardEnabled: gh.manager.game.boardEnabled,
+    isMyTurn: gh.manager.game.isMyTurn,
+    dragging: gh.manager.game.dragging,
+    isDroppable: gh.manager.game.isDroppable
+  }));
+  await selectGraphicsMode(page, 'modern');
+  await waitForModernMatch(page);
+  await page.evaluate(() => {
+    gh.manager.graphics.surface.randomSource =
+      () => 0.75;
+  });
+
+  await clickModernLogicalPoint(page, 110, 300);
+  await expect.poll(() => page.evaluate(() => {
+    const surface =
+      gh.manager.graphics.getState().surface;
+    return surface.heldCard &&
+      surface.heldCard.phase === 'held' &&
+      surface.heldCard.dropArmed === true;
+  })).toBe(true);
+
+  const target = {x: 347.5, y: 254};
+  await moveModernLogicalPoint(
+    page,
+    target.x,
+    target.y,
+    {steps: 4}
+  );
+  await expect.poll(() => page.evaluate(pointer => {
+    const surface =
+      gh.manager.graphics.getState().surface;
+    const held = surface && surface.heldCard;
+    return Boolean(
+      held &&
+      held.phase === 'held' &&
+      held.dropArmed === true &&
+      Math.abs(
+        held.presentedGrabPoint.x - pointer.x
+      ) < 0.01 &&
+      Math.abs(
+        held.presentedGrabPoint.y - pointer.y
+      ) < 0.01 &&
+      surface.hoveredDropZone &&
+      surface.hoveredDropZone.slotIndex === 4 &&
+      surface.visibleDropZoneCount === 1 &&
+      surface.rafActive === false
+    );
+  }, target)).toBe(true);
+
+  await installControlledMatchFrameClock(page);
+  await clickModernLogicalPoint(
+    page,
+    target.x,
+    target.y
+  );
+  const placing = await page.evaluate(() => (
+    gh.manager.graphics.getState().surface
+  ));
+  expect(placing).toMatchObject({
+    acceptedValidPlacements: 1,
+    completedValidPlacements: 0,
+    acceptedInvalidReturns: 0,
+    hoveredDropZone: null,
+    visibleDropZoneCount: 0,
+    localPreviewPlacement: null,
+    pendingFrameCount: 1,
+    semanticActionCount: 0,
+    requestCount: 0
+  });
+  expect(placing.heldCard).toMatchObject({
+    gameCardId: 'player-5',
+    handIndex: 4,
+    phase: 'placing',
+    dropArmed: false,
+    placementMotion: {
+      slotIndex: 4,
+      durationMs: 300,
+      easing: 'cubic-out',
+      progress: 0,
+      easedProgress: 0,
+      screenRotationDegrees: 1,
+      destination: {
+        x: target.x,
+        y: target.y,
+        depth: 0,
+        projectedScale: 1,
+        tiltX: 0,
+        tiltY: 0,
+        rotationZ: -(Math.PI / 180)
+      }
+    }
+  });
+  const motion = placing.heldCard.placementMotion;
+
+  expect(await page.evaluate(timestamp => (
+    window.__modernMatchFrameClock.advance(timestamp)
+  ), motion.startedAt)).toBe(1);
+  expect(await page.evaluate(timestamp => (
+    window.__modernMatchFrameClock.advance(timestamp)
+  ), motion.startedAt + 150)).toBe(1);
+  const midpoint = await page.evaluate(() => (
+    gh.manager.graphics.getState().surface
+  ));
+  const easedMidpoint = 0.875;
+  expect(midpoint.heldCard).toMatchObject({
+    phase: 'placing',
+    placementMotion: {
+      progress: 0.5,
+      easedProgress: easedMidpoint
+    }
+  });
+  expect(midpoint.heldCard.currentPosition.x)
+    .toBeCloseTo(
+      motion.start.x +
+        (
+          motion.destination.x -
+          motion.start.x
+        ) *
+        easedMidpoint,
+      8
+    );
+  expect(midpoint.heldCard.currentPosition.y)
+    .toBeCloseTo(
+      motion.start.y +
+        (
+          motion.destination.y -
+          motion.start.y
+        ) *
+        easedMidpoint,
+      8
+    );
+  expect(midpoint.heldCard.perspectiveScale)
+    .toBeCloseTo(
+      motion.start.projectedScale +
+        (
+          1 -
+          motion.start.projectedScale
+        ) *
+        easedMidpoint,
+      8
+    );
+  expect(midpoint.heldCard.rotationRadians.z)
+    .toBeCloseTo(
+      motion.start.rotationZ +
+        (
+          motion.destination.rotationZ -
+          motion.start.rotationZ
+        ) *
+        easedMidpoint,
+      8
+    );
+
+  const midpointPose =
+    midpoint.heldCard.placementMotion.current;
+  await moveModernLogicalPoint(page, 620, 420);
+  await clickModernLogicalPoint(
+    page,
+    target.x,
+    target.y
+  );
+  const locked = await page.evaluate(() => (
+    gh.manager.graphics.getState().surface
+  ));
+  expect(locked).toMatchObject({
+    acceptedValidPlacements: 1,
+    completedValidPlacements: 0,
+    ignoredWhilePlacing: 1,
+    pendingFrameCount: 1
+  });
+  expect(locked.heldCard.phase).toBe('placing');
+  expect(locked.heldCard.placementMotion.current)
+    .toEqual(midpointPose);
+
+  expect(await page.evaluate(timestamp => (
+    window.__modernMatchFrameClock.advance(timestamp)
+  ), motion.startedAt + 300)).toBe(1);
+  const completed = await page.evaluate(() => {
+    const surface =
+      gh.manager.graphics.getState().surface;
+    return {
+      surface,
+      placedCard: surface.cards.find(
+        card => card.gameCardId === 'player-5'
+      )
+    };
+  });
+  expect(completed.surface).toMatchObject({
+    heldCard: null,
+    acceptedValidPlacements: 1,
+    completedValidPlacements: 1,
+    acceptedInvalidReturns: 0,
+    visibleDropZoneCount: 0,
+    rafActive: false,
+    pendingFrameCount: 0,
+    semanticActionCount: 0,
+    requestCount: 0,
+    localPreviewPlacement: {
+      gameCardId: 'player-5',
+      handIndex: 4,
+      slotIndex: 4,
+      finalPose: {
+        x: target.x,
+        y: target.y,
+        depth: 0,
+        projectedScale: 1,
+        screenRotationDegrees: 1,
+        rotationRadians: {
+          x: 0,
+          y: 0,
+          z: -(Math.PI / 180)
+        }
+      }
+    },
+    lastPlacement: {
+      outcome: 'completed',
+      completion: 'animation',
+      gameCardId: 'player-5',
+      handIndex: 4,
+      slotIndex: 4,
+      durationMs: 300,
+      easing: 'cubic-out',
+      screenRotationDegrees: 1,
+      reducedMotion: false
+    }
+  });
+  expect(completed.placedCard).toMatchObject({
+    currentPosition: {
+      x: target.x,
+      y: target.y,
+      z: 0
+    },
+    rotationRadians: {
+      x: 0,
+      y: 0,
+      z: -(Math.PI / 180)
+    },
+    held: false,
+    placed: true,
+    placedSlotIndex: 4,
+    pickable: false
+  });
+  expect(await page.evaluate(() => (
+    window.__modernMatchFrameClock.pending()
+  ))).toBe(0);
+  await page.evaluate(() => {
+    window.__modernMatchFrameClock.restore();
+  });
+
+  await clickModernLogicalPoint(page, 86.5, 100);
+  expect(await page.evaluate(() => {
+    const surface =
+      gh.manager.graphics.getState().surface;
+    return {
+      heldCard: surface.heldCard,
+      acceptedPickups: surface.acceptedPickups,
+      ignoredAfterPlacement:
+        surface.ignoredAfterPlacement
+    };
+  })).toEqual({
+    heldCard: null,
+    acceptedPickups: 1,
+    ignoredAfterPlacement: 1
+  });
+
+  const authorityAfter = await page.evaluate(() => ({
+    playerIds: gh.manager.game.p1h.map(
+      item => item.gameCardId
+    ),
+    playerPositions: gh.manager.game.p1h.map(item => ({
+      x: item.card.attr('x'),
+      y: item.card.attr('y')
+    })),
+    boardIds: gh.manager.game.pb.map(
+      item => item.gameCardId
+    ),
+    boardEnabled: gh.manager.game.boardEnabled,
+    isMyTurn: gh.manager.game.isMyTurn,
+    dragging: gh.manager.game.dragging,
+    isDroppable: gh.manager.game.isDroppable
+  }));
+  expect(authorityAfter).toEqual(authorityBefore);
+  expect(moveRequests).toHaveLength(0);
+
+  await page.evaluate(() => {
+    gh.manager.graphics.setMode('legacy', false);
+  });
+  await expect.poll(() => page.evaluate(() => (
+    gh.manager.graphics.effectiveMode
+  ))).toBe('legacy');
+  const reset = await page.evaluate(() => {
+    const surface =
+      gh.manager.graphics.getState().surface;
+    return {
+      localPreviewPlacement:
+        surface.localPreviewPlacement,
+      card: surface.cards.find(
+        item => item.gameCardId === 'player-5'
+      )
+    };
+  });
+  expect(reset.localPreviewPlacement).toBeNull();
+  expect(reset.card).toMatchObject({
+    currentPosition: {
+      x: 86.5,
+      y: 311,
+      z: 0
+    },
+    rotationRadians: {
+      x: 0,
+      y: 0,
+      z: 0
+    },
+    held: false,
+    placed: false,
+    pickable: true
+  });
+});
+
 test('mode and view lifecycle cancellation reject stale invalid-return frames and restore the exact hand', async ({page}) => {
   const moveRequests = [];
   page.on('request', request => {
@@ -1257,7 +1841,7 @@ test('mode and view lifecycle cancellation reject stale invalid-return frames an
   await waitForModernMatch(page);
 
   const clickLogical = {x: 110, y: 300};
-  const pointerTarget = {x: 430, y: 170};
+  const pointerTarget = {x: 620, y: 420};
   await clickModernLogicalPoint(
     page,
     clickLogical.x,
@@ -1568,7 +2152,7 @@ test('pickup and exact invalid return remain scale-correct and clean up across m
     await waitForModernMatch(page);
 
     const clickLogical = {x: 110, y: 300};
-    const pointerTarget = {x: 330, y: 205};
+    const pointerTarget = {x: 620, y: 420};
     await clickModernLogicalPoint(
       page,
       clickLogical.x,
@@ -1714,7 +2298,7 @@ test('reduced motion keeps click-to-carry functional and settles a second-click 
   await waitForModernMatch(page);
 
   const clickLogical = {x: 110, y: 300};
-  const pointerTarget = {x: 340, y: 230};
+  const pointerTarget = {x: 620, y: 420};
   await clickModernLogicalPoint(
     page,
     clickLogical.x,
@@ -1815,6 +2399,100 @@ test('reduced motion keeps click-to-carry functional and settles a second-click 
       z: 0
     },
     held: false
+  });
+  expect(moveRequests).toHaveLength(0);
+});
+
+test('reduced motion settles a valid renderer-local placement synchronously', async ({page}) => {
+  const moveRequests = [];
+  page.on('request', request => {
+    const requestUrl = new URL(request.url());
+    if (
+      request.method() === 'POST' &&
+      requestUrl.pathname === '/index/me'
+    ) {
+      moveRequests.push(request.url());
+    }
+  });
+
+  await page.emulateMedia({reducedMotion: 'reduce'});
+  await loginWithLegacyGraphics(page);
+  await installPassiveMatchFixture(page);
+  await selectGraphicsMode(page, 'modern');
+  await waitForModernMatch(page);
+  await page.evaluate(() => {
+    gh.manager.graphics.surface.randomSource =
+      () => 0.25;
+  });
+
+  await clickModernLogicalPoint(page, 110, 300);
+  await moveModernLogicalPoint(page, 464.5, 400);
+  await expect.poll(() => page.evaluate(() => (
+    gh.manager.graphics.getState().surface
+      .hoveredDropZone
+  ))).toMatchObject({
+    slotIndex: 8
+  });
+  await clickModernLogicalPoint(page, 464.5, 400);
+
+  const settled = await page.evaluate(() => {
+    const surface =
+      gh.manager.graphics.getState().surface;
+    return {
+      surface,
+      card: surface.cards.find(
+        item => item.gameCardId === 'player-5'
+      )
+    };
+  });
+  expect(settled.surface).toMatchObject({
+    reducedMotion: true,
+    heldCard: null,
+    acceptedValidPlacements: 1,
+    completedValidPlacements: 1,
+    acceptedInvalidReturns: 0,
+    visibleDropZoneCount: 0,
+    rafActive: false,
+    pendingFrameCount: 0,
+    localPreviewPlacement: {
+      gameCardId: 'player-5',
+      slotIndex: 8,
+      finalPose: {
+        x: 464.5,
+        y: 400,
+        depth: 0,
+        projectedScale: 1,
+        screenRotationDegrees: -1,
+        rotationRadians: {
+          x: 0,
+          y: 0,
+          z: Math.PI / 180
+        }
+      }
+    },
+    lastPlacement: {
+      outcome: 'completed',
+      completion: 'reduced-motion',
+      gameCardId: 'player-5',
+      slotIndex: 8,
+      reducedMotion: true
+    }
+  });
+  expect(settled.card).toMatchObject({
+    currentPosition: {
+      x: 464.5,
+      y: 400,
+      z: 0
+    },
+    rotationRadians: {
+      x: 0,
+      y: 0,
+      z: Math.PI / 180
+    },
+    held: false,
+    placed: true,
+    placedSlotIndex: 8,
+    pickable: false
   });
   expect(moveRequests).toHaveLength(0);
 });

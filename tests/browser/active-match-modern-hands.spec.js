@@ -171,6 +171,64 @@ async function moveModernLogicalPoint(page, x, y, options = {}) {
   return point;
 }
 
+async function installControlledMatchFrameClock(page) {
+  await page.evaluate(() => {
+    const originalRequestAnimationFrame =
+      window.requestAnimationFrame;
+    const originalCancelAnimationFrame =
+      window.cancelAnimationFrame;
+    const callbacks = new Map();
+    const cancelledCallbacks = [];
+    let nextFrameId = 1;
+
+    window.__modernMatchFrameClock = {
+      advance(timestamp) {
+        const queued = Array.from(
+          callbacks.entries()
+        );
+        callbacks.clear();
+        queued.forEach(([, callback]) => {
+          callback(timestamp);
+        });
+        return queued.length;
+      },
+      pending() {
+        return callbacks.size;
+      },
+      runLastCancelled(timestamp) {
+        const callback =
+          cancelledCallbacks[
+            cancelledCallbacks.length - 1
+          ];
+        if (callback) {
+          callback(timestamp);
+        }
+        return Boolean(callback);
+      },
+      restore() {
+        callbacks.clear();
+        window.requestAnimationFrame =
+          originalRequestAnimationFrame;
+        window.cancelAnimationFrame =
+          originalCancelAnimationFrame;
+      }
+    };
+    window.requestAnimationFrame = callback => {
+      const frameId = nextFrameId;
+      nextFrameId += 1;
+      callbacks.set(frameId, callback);
+      return frameId;
+    };
+    window.cancelAnimationFrame = frameId => {
+      const callback = callbacks.get(frameId);
+      if (callback) {
+        cancelledCallbacks.push(callback);
+      }
+      callbacks.delete(frameId);
+    };
+  });
+}
+
 test('renders exact pickup-capable player and Closed opponent hands and restores the same Legacy nodes', async ({page}) => {
   const moveRequests = [];
   const cardTextureRequests = [];
@@ -229,7 +287,15 @@ test('renders exact pickup-capable player and Closed opponent hands and restores
     pickupPolicy: {
       activation: 'click',
       maxHeld: 1,
-      drop: 'not-implemented'
+      drop: 'second-click-always-invalid',
+      dropZoneCount: 0,
+      validPlacement: 'not-implemented',
+      invalidReturn: {
+        durationMs: 300,
+        easing: 'cubic-out',
+        screenDirection: 'clockwise',
+        exactHandSettlement: true
+      }
     },
     playerCount: 5,
     opponentCount: 5,
@@ -530,21 +596,6 @@ test('click-picks one player card, preserves its grab offset, and settles bounde
   expect(settled.heldCard.presentedGrabPoint)
     .toEqual(pointerTarget);
 
-  const ignoredBefore = await page.evaluate(() => (
-    gh.manager.graphics.getState().surface.ignoredWhileHeld
-  ));
-  await clickModernLogicalPoint(page, 86.5, 45);
-  expect(await page.evaluate(() => {
-    const surface = gh.manager.graphics.getState().surface;
-    return {
-      gameCardId: surface.heldCard.gameCardId,
-      ignoredWhileHeld: surface.ignoredWhileHeld
-    };
-  })).toEqual({
-    gameCardId: 'player-5',
-    ignoredWhileHeld: ignoredBefore + 1
-  });
-
   const authorityAfter = await page.evaluate(() => ({
     playerIds: gh.manager.game.p1h.map(
       item => item.gameCardId
@@ -581,6 +632,871 @@ test('click-picks one player card, preserves its grab offset, and settles bounde
     isDroppable: legacyBefore.isDroppable,
     playerNodeIdentity: true,
     opponentNodeIdentity: true
+  });
+  expect(moveRequests).toHaveLength(0);
+});
+
+test('a second click at the pickup deadline arms and starts return before the delayed pickup frame arrives', async ({page}) => {
+  const moveRequests = [];
+  page.on('request', request => {
+    const requestUrl = new URL(request.url());
+    if (
+      request.method() === 'POST' &&
+      requestUrl.pathname === '/index/me'
+    ) {
+      moveRequests.push(request.url());
+    }
+  });
+
+  await loginWithLegacyGraphics(page);
+  await installPassiveMatchFixture(page);
+  await selectGraphicsMode(page, 'modern');
+  await waitForModernMatch(page);
+  await installControlledMatchFrameClock(page);
+
+  const clickLogical = {x: 110, y: 300};
+  await clickModernLogicalPoint(
+    page,
+    clickLogical.x,
+    clickLogical.y
+  );
+  const beforeDeadlineClick = await page.evaluate(() => {
+    const surface =
+      gh.manager.graphics.getState().surface;
+    return {
+      surface,
+      queuedFrames:
+        window.__modernMatchFrameClock.pending()
+    };
+  });
+  expect(beforeDeadlineClick.surface).toMatchObject({
+    acceptedPickups: 1,
+    acceptedInvalidReturns: 0,
+    ignoredUnarmedReturns: 0,
+    frameCount: 0,
+    pendingFrameCount: 1,
+    heldCard: {
+      gameCardId: 'player-5',
+      phase: 'lifting',
+      dropArmed: false,
+      currentPosition: {
+        z: 0
+      }
+    }
+  });
+  expect(beforeDeadlineClick.queuedFrames).toBe(1);
+
+  // Keep the real click path, but make its one timing argument
+  // deterministic at the exact 300 ms pickup boundary.
+  await page.evaluate(() => {
+    const surface = gh.manager.graphics.surface;
+    const beginInvalidReturn =
+      surface.beginInvalidReturn;
+    const boundaryTimestamp =
+      surface.heldCard.liftStartedAt + 300;
+    surface.beginInvalidReturn = function() {
+      surface.beginInvalidReturn =
+        beginInvalidReturn;
+      return beginInvalidReturn.call(
+        surface,
+        boundaryTimestamp
+      );
+    };
+  });
+  await clickModernLogicalPoint(
+    page,
+    clickLogical.x,
+    clickLogical.y
+  );
+
+  const returning = await page.evaluate(() => {
+    const surface =
+      gh.manager.graphics.getState().surface;
+    return {
+      surface,
+      queuedFrames:
+        window.__modernMatchFrameClock.pending()
+    };
+  });
+  expect(returning.surface).toMatchObject({
+    acceptedInvalidReturns: 1,
+    ignoredUnarmedReturns: 0,
+    frameCount: 1,
+    pendingFrameCount: 1,
+    heldCard: {
+      gameCardId: 'player-5',
+      phase: 'returning',
+      dropArmed: false,
+      currentPosition: {
+        z: 48
+      },
+      rotationRadians: {
+        x: 0,
+        y: 0,
+        z: 0
+      },
+      returnMotion: {
+        progress: 0,
+        easedProgress: 0,
+        start: {
+          depth: 48,
+          tiltX: 0,
+          tiltY: 0,
+          rotationZ: 0
+        }
+      }
+    }
+  });
+  expect(returning.surface.heldCard.returnMotion.start.x)
+    .toBeCloseTo(
+      returning.surface.heldCard.currentPosition.x,
+      8
+    );
+  expect(returning.surface.heldCard.returnMotion.start.y)
+    .toBeCloseTo(
+      returning.surface.heldCard.currentPosition.y,
+      8
+    );
+  expect(
+    returning.surface.heldCard.returnMotion.start
+      .projectedScale
+  ).toBeCloseTo(
+    returning.surface.pickupPolicy
+      .projectedLiftScale,
+    8
+  );
+  expect(returning.queuedFrames).toBe(1);
+
+  const returnStartedAt =
+    returning.surface.heldCard.returnMotion
+      .startedAt;
+  expect(await page.evaluate(timestamp => (
+    window.__modernMatchFrameClock
+      .runLastCancelled(timestamp)
+  ), returnStartedAt)).toBe(true);
+  const afterStalePickupFrame =
+    await page.evaluate(() => {
+      const surface =
+        gh.manager.graphics.getState().surface;
+      return {
+        phase: surface.heldCard.phase,
+        progress:
+          surface.heldCard.returnMotion.progress,
+        frameCount: surface.frameCount,
+        pendingFrameCount:
+          surface.pendingFrameCount,
+        queuedFrames:
+          window.__modernMatchFrameClock.pending()
+      };
+    });
+  expect(afterStalePickupFrame).toEqual({
+    phase: 'returning',
+    progress: 0,
+    frameCount: 1,
+    pendingFrameCount: 1,
+    queuedFrames: 1
+  });
+
+  expect(await page.evaluate(timestamp => (
+    window.__modernMatchFrameClock.advance(timestamp)
+  ), returnStartedAt + 300)).toBe(1);
+  const completed = await page.evaluate(() => {
+    const surface =
+      gh.manager.graphics.getState().surface;
+    return {
+      heldCard: surface.heldCard,
+      completedInvalidReturns:
+        surface.completedInvalidReturns,
+      pendingFrameCount: surface.pendingFrameCount,
+      rafActive: surface.rafActive,
+      returnedCard: surface.cards.find(
+        card => card.gameCardId === 'player-5'
+      )
+    };
+  });
+  expect(completed).toMatchObject({
+    heldCard: null,
+    completedInvalidReturns: 1,
+    pendingFrameCount: 0,
+    rafActive: false,
+    returnedCard: {
+      currentPosition: {
+        x: 86.5,
+        y: 311,
+        z: 0
+      },
+      rotationRadians: {
+        x: 0,
+        y: 0,
+        z: 0
+      },
+      held: false
+    }
+  });
+  await page.evaluate(() => {
+    window.__modernMatchFrameClock.restore();
+  });
+  expect(moveRequests).toHaveLength(0);
+});
+
+test('second click runs the Legacy cubic-out clockwise invalid return and restores the exact hand pose', async ({page}) => {
+  const moveRequests = [];
+  page.on('request', request => {
+    const requestUrl = new URL(request.url());
+    if (
+      request.method() === 'POST' &&
+      requestUrl.pathname === '/index/me'
+    ) {
+      moveRequests.push(request.url());
+    }
+  });
+
+  await loginWithLegacyGraphics(page);
+  await installPassiveMatchFixture(page);
+  const authorityBefore = await page.evaluate(() => ({
+    playerIds: gh.manager.game.p1h.map(
+      item => item.gameCardId
+    ),
+    opponentIds: gh.manager.game.p2h.map(
+      item => item.gameCardId
+    ),
+    playerPositions: gh.manager.game.p1h.map(item => ({
+      x: item.card.attr('x'),
+      y: item.card.attr('y')
+    })),
+    gameId: gh.manager.game.gameid,
+    isMyTurn: gh.manager.game.isMyTurn,
+    dragging: gh.manager.game.dragging,
+    isDroppable: gh.manager.game.isDroppable
+  }));
+  await selectGraphicsMode(page, 'modern');
+  await waitForModernMatch(page);
+
+  const clickLogical = {x: 110, y: 300};
+  await installControlledMatchFrameClock(page);
+  await clickModernLogicalPoint(
+    page,
+    clickLogical.x,
+    clickLogical.y
+  );
+  const lifting = await page.evaluate(() => (
+    gh.manager.graphics.getState().surface
+  ));
+  expect(lifting.heldCard).toMatchObject({
+    gameCardId: 'player-5',
+    phase: 'lifting',
+    dropArmed: false
+  });
+  expect(lifting.pendingFrameCount).toBe(1);
+
+  await clickModernLogicalPoint(
+    page,
+    clickLogical.x,
+    clickLogical.y
+  );
+  const unarmed = await page.evaluate(() => (
+    gh.manager.graphics.getState().surface
+  ));
+  expect(unarmed).toMatchObject({
+    acceptedInvalidReturns: 0,
+    ignoredUnarmedReturns: 1,
+    ignoredWhileHeld: 1,
+    pendingFrameCount: 1
+  });
+  expect(unarmed.heldCard).toMatchObject({
+    gameCardId: 'player-5',
+    phase: 'lifting',
+    dropArmed: false
+  });
+
+  const liftStartedAt =
+    unarmed.heldCard.liftStartedAt;
+  expect(await page.evaluate(timestamp => (
+    window.__modernMatchFrameClock.advance(timestamp)
+  ), liftStartedAt)).toBe(1);
+  expect(await page.evaluate(timestamp => (
+    window.__modernMatchFrameClock.advance(timestamp)
+  ), liftStartedAt + 300)).toBe(1);
+  const armed = await page.evaluate(() => (
+    gh.manager.graphics.getState().surface
+  ));
+  expect(armed.heldCard).toMatchObject({
+    phase: 'held',
+    dropArmed: true,
+    currentPosition: {
+      z: 48
+    },
+    rotationRadians: {
+      x: 0,
+      y: 0,
+      z: 0
+    }
+  });
+  expect(armed.rafActive).toBe(false);
+  expect(armed.pendingFrameCount).toBe(0);
+  await page.evaluate(() => {
+    window.__modernMatchFrameClock.restore();
+  });
+
+  const pointerTarget = {x: 450, y: 160};
+  await moveModernLogicalPoint(
+    page,
+    pointerTarget.x,
+    pointerTarget.y,
+    {steps: 4}
+  );
+  await expect.poll(() => page.evaluate(pointer => {
+    const surface =
+      gh.manager.graphics.getState().surface;
+    const held = surface && surface.heldCard;
+    return Boolean(
+      held &&
+      held.phase === 'held' &&
+      held.dropArmed === true &&
+      Math.abs(
+        held.presentedGrabPoint.x - pointer.x
+      ) < 0.01 &&
+      Math.abs(
+        held.presentedGrabPoint.y - pointer.y
+      ) < 0.01 &&
+      surface.rafActive === false
+    );
+  }, pointerTarget)).toBe(true);
+  const heldBeforeReturn = await page.evaluate(() => (
+    gh.manager.graphics.getState().surface
+  ));
+
+  await installControlledMatchFrameClock(page);
+  await clickModernLogicalPoint(
+    page,
+    pointerTarget.x,
+    pointerTarget.y
+  );
+  const returning = await page.evaluate(() => (
+    gh.manager.graphics.getState().surface
+  ));
+  expect(returning).toMatchObject({
+    acceptedInvalidReturns: 1,
+    completedInvalidReturns: 0,
+    pendingFrameCount: 1
+  });
+  expect(returning.pickupPolicy).toMatchObject({
+    drop: 'second-click-always-invalid',
+    dropZoneCount: 0,
+    validPlacement: 'not-implemented',
+    invalidReturn: {
+      durationMs: 300,
+      easing: 'cubic-out',
+      screenDirection: 'clockwise',
+      exactHandSettlement: true
+    }
+  });
+  expect(returning.heldCard).toMatchObject({
+    gameCardId: 'player-5',
+    phase: 'returning',
+    dropArmed: false,
+    returnMotion: {
+      durationMs: 300,
+      easing: 'cubic-out',
+      screenDirection: 'clockwise',
+      progress: 0,
+      easedProgress: 0,
+      destination: {
+        x: 86.5,
+        y: 311,
+        depth: 0,
+        projectedScale: 1,
+        tiltX: 0,
+        tiltY: 0,
+        normalizedRotationZ: 0
+      }
+    },
+    renderOrder: {
+      shadow: 112,
+      body: 113,
+      face: 114
+    }
+  });
+  expect(returning.heldCard.returnMotion.start.x)
+    .toBeCloseTo(
+      heldBeforeReturn.heldCard.currentPosition.x,
+      8
+    );
+  expect(returning.heldCard.returnMotion.start.y)
+    .toBeCloseTo(
+      heldBeforeReturn.heldCard.currentPosition.y,
+      8
+    );
+  expect(
+    returning.heldCard.returnMotion.destination
+      .unwrappedRotationZ
+  ).toBeCloseTo(-2 * Math.PI, 8);
+
+  const returnStartedAt =
+    returning.heldCard.returnMotion.startedAt;
+  expect(await page.evaluate(timestamp => (
+    window.__modernMatchFrameClock.advance(timestamp)
+  ), returnStartedAt)).toBe(1);
+  const zeroFrame = await page.evaluate(() => (
+    gh.manager.graphics.getState().surface
+  ));
+  expect(zeroFrame.heldCard.returnMotion.progress)
+    .toBe(0);
+  expect(zeroFrame.heldCard.currentPosition.x)
+    .toBeCloseTo(
+      returning.heldCard.returnMotion.start.x,
+      8
+    );
+  expect(zeroFrame.heldCard.currentPosition.y)
+    .toBeCloseTo(
+      returning.heldCard.returnMotion.start.y,
+      8
+    );
+  expect(zeroFrame.heldCard.currentPosition.z)
+    .toBeCloseTo(
+      returning.heldCard.returnMotion.start.depth,
+      8
+    );
+
+  expect(await page.evaluate(timestamp => (
+    window.__modernMatchFrameClock.advance(timestamp)
+  ), returnStartedAt + 150)).toBe(1);
+  const midpoint = await page.evaluate(() => (
+    gh.manager.graphics.getState().surface
+  ));
+  const easedMidpoint = 0.875;
+  const returnStart =
+    returning.heldCard.returnMotion.start;
+  const returnDestination =
+    returning.heldCard.returnMotion.destination;
+  const expectedMidpoint = {
+    x:
+      returnStart.x +
+      (
+        returnDestination.x -
+        returnStart.x
+      ) *
+      easedMidpoint,
+    y:
+      returnStart.y +
+      (
+        returnDestination.y -
+        returnStart.y
+      ) *
+      easedMidpoint,
+    projectedScale:
+      returnStart.projectedScale +
+      (
+        1 -
+        returnStart.projectedScale
+      ) *
+      easedMidpoint,
+    rotationZ:
+      returnStart.rotationZ -
+      (2 * Math.PI * easedMidpoint)
+  };
+  expect(midpoint.heldCard.returnMotion.progress)
+    .toBeCloseTo(0.5, 8);
+  expect(midpoint.heldCard.returnMotion.easedProgress)
+    .toBeCloseTo(easedMidpoint, 8);
+  expect(midpoint.heldCard.currentPosition.x)
+    .toBeCloseTo(expectedMidpoint.x, 8);
+  expect(midpoint.heldCard.currentPosition.y)
+    .toBeCloseTo(expectedMidpoint.y, 8);
+  expect(midpoint.heldCard.perspectiveScale)
+    .toBeCloseTo(
+      expectedMidpoint.projectedScale,
+      8
+    );
+  expect(midpoint.heldCard.rotationRadians.z)
+    .toBeCloseTo(expectedMidpoint.rotationZ, 8);
+  expect(midpoint.heldCard.rotationRadians.z)
+    .toBeLessThan(0);
+  expect(midpoint.pendingFrameCount).toBe(1);
+
+  const midpointPose =
+    midpoint.heldCard.returnMotion.current;
+  await moveModernLogicalPoint(page, 600, 420);
+  await clickModernLogicalPoint(
+    page,
+    pointerTarget.x,
+    pointerTarget.y
+  );
+  const locked = await page.evaluate(() => (
+    gh.manager.graphics.getState().surface
+  ));
+  expect(locked).toMatchObject({
+    acceptedInvalidReturns: 1,
+    completedInvalidReturns: 0,
+    ignoredWhileReturning: 1,
+    pendingFrameCount: 1
+  });
+  expect(locked.heldCard.phase).toBe('returning');
+  expect(locked.heldCard.returnMotion.current)
+    .toEqual(midpointPose);
+
+  expect(await page.evaluate(timestamp => (
+    window.__modernMatchFrameClock.advance(timestamp)
+  ), returnStartedAt + 300)).toBe(1);
+  const completed = await page.evaluate(() => {
+    const surface =
+      gh.manager.graphics.getState().surface;
+    return {
+      surface,
+      returnedCard: surface.cards.find(
+        card => card.gameCardId === 'player-5'
+      )
+    };
+  });
+  expect(completed.surface).toMatchObject({
+    heldCard: null,
+    acceptedInvalidReturns: 1,
+    completedInvalidReturns: 1,
+    rafActive: false,
+    pendingFrameCount: 0,
+    semanticActionCount: 0,
+    requestCount: 0,
+    lastReturn: {
+      outcome: 'completed',
+      completion: 'animation',
+      gameCardId: 'player-5',
+      handIndex: 4,
+      durationMs: 300,
+      easing: 'cubic-out',
+      screenDirection: 'clockwise',
+      reducedMotion: false,
+      finalPose: {
+        x: 86.5,
+        y: 311,
+        depth: 0,
+        projectedScale: 1,
+        rotationRadians: {
+          x: 0,
+          y: 0,
+          z: 0
+        }
+      }
+    }
+  });
+  expect(completed.returnedCard).toMatchObject({
+    screenRect: {
+      x: 28,
+      y: 238,
+      width: 117,
+      height: 146
+    },
+    currentPosition: {
+      x: 86.5,
+      y: 311,
+      z: 0
+    },
+    rotationRadians: {
+      x: 0,
+      y: 0,
+      z: 0
+    },
+    held: false,
+    pickable: true
+  });
+  expect(await page.evaluate(() => (
+    window.__modernMatchFrameClock.pending()
+  ))).toBe(0);
+  await page.evaluate(() => {
+    window.__modernMatchFrameClock.restore();
+  });
+
+  const authorityAfter = await page.evaluate(() => ({
+    playerIds: gh.manager.game.p1h.map(
+      item => item.gameCardId
+    ),
+    opponentIds: gh.manager.game.p2h.map(
+      item => item.gameCardId
+    ),
+    playerPositions: gh.manager.game.p1h.map(item => ({
+      x: item.card.attr('x'),
+      y: item.card.attr('y')
+    })),
+    gameId: gh.manager.game.gameid,
+    isMyTurn: gh.manager.game.isMyTurn,
+    dragging: gh.manager.game.dragging,
+    isDroppable: gh.manager.game.isDroppable
+  }));
+  expect(authorityAfter).toEqual(authorityBefore);
+  expect(moveRequests).toHaveLength(0);
+
+  await clickModernLogicalPoint(
+    page,
+    clickLogical.x,
+    clickLogical.y
+  );
+  await expect.poll(() => page.evaluate(() => {
+    const surface =
+      gh.manager.graphics.getState().surface;
+    return surface.heldCard &&
+      surface.heldCard.phase === 'held'
+      ? surface.acceptedPickups
+      : null;
+  })).toBe(2);
+});
+
+test('mode and view lifecycle cancellation reject stale invalid-return frames and restore the exact hand', async ({page}) => {
+  const moveRequests = [];
+  page.on('request', request => {
+    const requestUrl = new URL(request.url());
+    if (
+      request.method() === 'POST' &&
+      requestUrl.pathname === '/index/me'
+    ) {
+      moveRequests.push(request.url());
+    }
+  });
+
+  await loginWithLegacyGraphics(page);
+  await installPassiveMatchFixture(page);
+  await selectGraphicsMode(page, 'modern');
+  await waitForModernMatch(page);
+
+  const clickLogical = {x: 110, y: 300};
+  const pointerTarget = {x: 430, y: 170};
+  await clickModernLogicalPoint(
+    page,
+    clickLogical.x,
+    clickLogical.y
+  );
+  await expect.poll(() => page.evaluate(() => {
+    const surface =
+      gh.manager.graphics.getState().surface;
+    return surface.heldCard &&
+      surface.heldCard.phase === 'held';
+  })).toBe(true);
+  await moveModernLogicalPoint(
+    page,
+    pointerTarget.x,
+    pointerTarget.y,
+    {steps: 3}
+  );
+  await expect.poll(() => page.evaluate(pointer => {
+    const surface =
+      gh.manager.graphics.getState().surface;
+    return Boolean(
+      surface.heldCard &&
+      surface.heldCard.phase === 'held' &&
+      Math.abs(
+        surface.heldCard.presentedGrabPoint.x -
+          pointer.x
+      ) < 0.01 &&
+      Math.abs(
+        surface.heldCard.presentedGrabPoint.y -
+          pointer.y
+      ) < 0.01 &&
+      surface.rafActive === false
+    );
+  }, pointerTarget)).toBe(true);
+
+  await installControlledMatchFrameClock(page);
+  await clickModernLogicalPoint(
+    page,
+    pointerTarget.x,
+    pointerTarget.y
+  );
+  const returnBeforeModeSwitch =
+    await page.evaluate(() => (
+      gh.manager.graphics.getState().surface
+    ));
+  expect(returnBeforeModeSwitch.heldCard.phase)
+    .toBe('returning');
+  expect(returnBeforeModeSwitch.pendingFrameCount)
+    .toBe(1);
+  const returnStartedAt =
+    returnBeforeModeSwitch.heldCard.returnMotion
+      .startedAt;
+  const returnGeneration =
+    returnBeforeModeSwitch.heldCard.generation;
+
+  await page.evaluate(() => {
+    gh.manager.graphics.setMode('legacy', false);
+  });
+  await expect.poll(() => page.evaluate(() => (
+    gh.manager.graphics.effectiveMode
+  ))).toBe('legacy');
+  const cancelledByMode = await page.evaluate(() => {
+    const state = gh.manager.graphics.getState();
+    const returnedCard = state.surface.cards.find(
+      card => card.gameCardId === 'player-5'
+    );
+    return {
+      state,
+      returnedCard,
+      legacyIdentity:
+        window.__matchHandFixture.playerNodes.every(
+          (node, index) =>
+            node === gh.manager.game.p1h[index].card.node
+        )
+    };
+  });
+  expect(cancelledByMode.state.surface).toMatchObject({
+    heldCard: null,
+    completedInvalidReturns: 0,
+    inputHandlersAttached: false,
+    rafActive: false,
+    pendingFrameCount: 0,
+    lastReturn: {
+      outcome: 'cancelled',
+      reason: 'suspend',
+      gameCardId: 'player-5'
+    }
+  });
+  expect(
+    cancelledByMode.state.surface.holdGeneration
+  ).toBeGreaterThan(returnGeneration);
+  expect(cancelledByMode.returnedCard).toMatchObject({
+    currentPosition: {
+      x: 86.5,
+      y: 311,
+      z: 0
+    },
+    rotationRadians: {
+      x: 0,
+      y: 0,
+      z: 0
+    },
+    held: false
+  });
+  expect(cancelledByMode.legacyIdentity).toBe(true);
+
+  expect(await page.evaluate(timestamp => (
+    window.__modernMatchFrameClock
+      .runLastCancelled(timestamp)
+  ), returnStartedAt + 300)).toBe(true);
+  const afterStaleModeFrame = await page.evaluate(() => {
+    const surface =
+      gh.manager.graphics.getState().surface;
+    return {
+      heldCard: surface.heldCard,
+      completedInvalidReturns:
+        surface.completedInvalidReturns,
+      lastReturn: surface.lastReturn,
+      rafActive: surface.rafActive,
+      pendingFrameCount: surface.pendingFrameCount,
+      returnedCard: surface.cards.find(
+        card => card.gameCardId === 'player-5'
+      )
+    };
+  });
+  expect(afterStaleModeFrame).toMatchObject({
+    heldCard: null,
+    completedInvalidReturns: 0,
+    lastReturn: {
+      outcome: 'cancelled',
+      reason: 'suspend',
+      gameCardId: 'player-5'
+    },
+    rafActive: false,
+    pendingFrameCount: 0,
+    returnedCard: {
+      currentPosition: {
+        x: 86.5,
+        y: 311,
+        z: 0
+      },
+      rotationRadians: {
+        x: 0,
+        y: 0,
+        z: 0
+      },
+      held: false
+    }
+  });
+  await page.evaluate(() => {
+    window.__modernMatchFrameClock.restore();
+    gh.manager.graphics.setMode('modern', false);
+  });
+  await waitForModernMatch(page);
+  expect(await page.evaluate(() => {
+    const surface =
+      gh.manager.graphics.getState().surface;
+    const returnedCard = surface.cards.find(
+      card => card.gameCardId === 'player-5'
+    );
+    return {
+      heldCard: surface.heldCard,
+      inputHandlersAttached:
+        surface.inputHandlersAttached,
+      rafActive: surface.rafActive,
+      currentPosition:
+        returnedCard.currentPosition,
+      rotationRadians:
+        returnedCard.rotationRadians
+    };
+  })).toEqual({
+    heldCard: null,
+    inputHandlersAttached: true,
+    rafActive: false,
+    currentPosition: {
+      x: 86.5,
+      y: 311,
+      z: 0
+    },
+    rotationRadians: {
+      x: 0,
+      y: 0,
+      z: 0
+    }
+  });
+
+  await clickModernLogicalPoint(
+    page,
+    clickLogical.x,
+    clickLogical.y
+  );
+  await expect.poll(() => page.evaluate(() => {
+    const surface =
+      gh.manager.graphics.getState().surface;
+    return surface.heldCard &&
+      surface.heldCard.phase === 'held';
+  })).toBe(true);
+  await installControlledMatchFrameClock(page);
+  await clickModernLogicalPoint(
+    page,
+    clickLogical.x,
+    clickLogical.y
+  );
+  const returnBeforeViewExit =
+    await page.evaluate(() => (
+      gh.manager.graphics.getState().surface
+    ));
+  expect(returnBeforeViewExit.heldCard.phase)
+    .toBe('returning');
+  const viewReturnStartedAt =
+    returnBeforeViewExit.heldCard.returnMotion
+      .startedAt;
+  await page.evaluate(() => {
+    gh.manager.graphics.setActiveMatch(false);
+  });
+  expect(await page.evaluate(timestamp => (
+    window.__modernMatchFrameClock
+      .runLastCancelled(timestamp)
+  ), viewReturnStartedAt + 300)).toBe(true);
+  await expect(
+    page.locator('#modernGraphics canvas')
+  ).toHaveCount(0);
+  expect(await page.evaluate(() => {
+    const state = gh.manager.graphics.getState();
+    return {
+      activeMatchVisible: state.activeMatchVisible,
+      surface: state.surface,
+      matchHands: state.matchHands
+    };
+  })).toEqual({
+    activeMatchVisible: false,
+    surface: null,
+    matchHands: {
+      player: [],
+      opponent: []
+    }
+  });
+  await page.evaluate(() => {
+    window.__modernMatchFrameClock.restore();
   });
   expect(moveRequests).toHaveLength(0);
 });
@@ -629,7 +1545,7 @@ test('opponent and empty clicks are inert while overlap picking selects only the
   expect(moveRequests).toHaveLength(0);
 });
 
-test('pickup follows identical logical movement at every application scale and cleans up across mode and view changes', async ({page}) => {
+test('pickup and exact invalid return remain scale-correct and clean up across mode and view changes', async ({page}) => {
   const moveRequests = [];
   page.on('request', request => {
     const requestUrl = new URL(request.url());
@@ -644,7 +1560,7 @@ test('pickup follows identical logical movement at every application scale and c
   await loginWithLegacyGraphics(page);
   await installPassiveMatchFixture(page);
 
-  for (const scale of [1, 1.5, 2, 3]) {
+  for (const [scaleIndex, scale] of [1, 1.5, 2, 3].entries()) {
     await page.evaluate(nextScale => {
       gh.manager.setContentScale(nextScale, false);
       gh.manager.graphics.setMode('modern', false);
@@ -689,6 +1605,36 @@ test('pickup follows identical logical movement at every application scale and c
         surface.pendingFrameCount === 0
       );
     }, pointerTarget)).toBe(true);
+
+    await clickModernLogicalPoint(
+      page,
+      pointerTarget.x,
+      pointerTarget.y
+    );
+    await expect.poll(() => page.evaluate(
+      expectedCompletionCount => {
+        const surface =
+          gh.manager.graphics.getState().surface;
+        const returnedCard = surface.cards.find(
+          card => card.gameCardId === 'player-5'
+        );
+        return Boolean(
+          surface.heldCard === null &&
+          surface.completedInvalidReturns ===
+            expectedCompletionCount &&
+          surface.rafActive === false &&
+          surface.pendingFrameCount === 0 &&
+          returnedCard &&
+          returnedCard.currentPosition.x === 86.5 &&
+          returnedCard.currentPosition.y === 311 &&
+          returnedCard.currentPosition.z === 0 &&
+          returnedCard.rotationRadians.x === 0 &&
+          returnedCard.rotationRadians.y === 0 &&
+          returnedCard.rotationRadians.z === 0
+        );
+      },
+      scaleIndex + 1
+    )).toBe(true);
 
     await page.evaluate(() => {
       gh.manager.graphics.setMode('legacy', false);
@@ -749,7 +1695,7 @@ test('pickup follows identical logical movement at every application scale and c
   expect(moveRequests).toHaveLength(0);
 });
 
-test('reduced motion keeps click-to-carry functional without velocity tilt or a persistent frame', async ({page}) => {
+test('reduced motion keeps click-to-carry functional and settles a second-click return immediately', async ({page}) => {
   const moveRequests = [];
   page.on('request', request => {
     const requestUrl = new URL(request.url());
@@ -813,6 +1759,63 @@ test('reduced motion keeps click-to-carry functional without velocity tilt or a 
       surface.pendingFrameCount === 0
     );
   }, pointerTarget)).toBe(true);
+
+  await clickModernLogicalPoint(
+    page,
+    pointerTarget.x,
+    pointerTarget.y
+  );
+  const returned = await page.evaluate(() => {
+    const surface =
+      gh.manager.graphics.getState().surface;
+    return {
+      surface,
+      card: surface.cards.find(
+        item => item.gameCardId === 'player-5'
+      )
+    };
+  });
+  expect(returned.surface).toMatchObject({
+    reducedMotion: true,
+    heldCard: null,
+    acceptedInvalidReturns: 1,
+    completedInvalidReturns: 1,
+    rafActive: false,
+    pendingFrameCount: 0,
+    lastReturn: {
+      outcome: 'completed',
+      completion: 'reduced-motion',
+      gameCardId: 'player-5',
+      durationMs: 300,
+      easing: 'cubic-out',
+      screenDirection: 'clockwise',
+      reducedMotion: true,
+      finalPose: {
+        x: 86.5,
+        y: 311,
+        depth: 0,
+        projectedScale: 1,
+        rotationRadians: {
+          x: 0,
+          y: 0,
+          z: 0
+        }
+      }
+    }
+  });
+  expect(returned.card).toMatchObject({
+    currentPosition: {
+      x: 86.5,
+      y: 311,
+      z: 0
+    },
+    rotationRadians: {
+      x: 0,
+      y: 0,
+      z: 0
+    },
+    held: false
+  });
   expect(moveRequests).toHaveLength(0);
 });
 

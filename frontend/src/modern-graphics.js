@@ -95,6 +95,11 @@ const MATCH_PICKUP_VELOCITY_EPSILON = 0.5;
 const MATCH_PICKUP_TILT_EPSILON =
   0.02 * (Math.PI / 180);
 const MATCH_PICKUP_SHADOW_Z = -0.5;
+const MATCH_INVALID_RETURN_DURATION_MS = 300;
+const MATCH_INVALID_RETURN_ROTATION_Z =
+  -2 * Math.PI;
+const MATCH_INVALID_RETURN_EASING =
+  'cubic-out';
 const LOBBY_CARD_BACK_URL = '/images/cards/cardBack.png';
 const LOBBY_CAMERA_FOV = 40;
 const LOBBY_CAMERA_CENTER_X = LOBBY_LOGICAL_WIDTH / 2;
@@ -128,6 +133,10 @@ function clonePlain(value) {
   return value == null
     ? value
     : JSON.parse(JSON.stringify(value));
+}
+
+function easeOutCubic(progress) {
+  return 1 - Math.pow(1 - progress, 3);
 }
 
 function cardMotionDepthMetrics(
@@ -192,6 +201,7 @@ class ModernGraphicsSurface {
     this.raycaster = new Raycaster();
     this.pointerNdc = new Vector2();
     this.heldCard = null;
+    this.holdGeneration = 0;
     this.animationFrameId = null;
     this.pendingFrameCount = 0;
     this.peakPendingFrameCount = 0;
@@ -199,9 +209,14 @@ class ModernGraphicsSurface {
     this.inputHandlersAttached = false;
     this.acceptedPickups = 0;
     this.ignoredWhileHeld = 0;
+    this.acceptedInvalidReturns = 0;
+    this.completedInvalidReturns = 0;
+    this.ignoredUnarmedReturns = 0;
+    this.ignoredWhileReturning = 0;
     this.emptyClicks = 0;
     this.opponentClicks = 0;
     this.lastPick = null;
+    this.lastReturn = null;
     this.lastCancellation = null;
     this.textureLoadTimeoutMs =
       Number.isFinite(Number(this.options.textureLoadTimeoutMs)) &&
@@ -293,11 +308,18 @@ class ModernGraphicsSurface {
           return;
         }
         event.preventDefault();
+        if (this.heldCard) {
+          this.beginInvalidReturn(
+            performance.now()
+          );
+          return;
+        }
         this.pickUpAt(event.clientX, event.clientY);
       };
       this.handlePointerMove = (event) => {
         if (
           !this.heldCard ||
+          this.heldCard.phase === 'returning' ||
           this.suspended ||
           this.visibilitySuspended
         ) {
@@ -526,9 +548,18 @@ class ModernGraphicsSurface {
     depth,
     tiltX,
     tiltY,
-    grabPose
+    grabPose,
+    rotationZ
   ) {
-    entry.tilt.rotation.set(tiltX, tiltY, 0);
+    const resolvedRotationZ =
+      Number.isFinite(rotationZ)
+        ? rotationZ
+        : 0;
+    entry.tilt.rotation.set(
+      tiltX,
+      tiltY,
+      resolvedRotationZ
+    );
     const rootZ =
       depth - MATCH_CARD_FACE_OFFSET;
     let projectedCenterX = screenX;
@@ -586,7 +617,8 @@ class ModernGraphicsSurface {
     entry.currentPosition.z = depth;
     entry.rotationRadians.x = tiltX;
     entry.rotationRadians.y = tiltY;
-    entry.rotationRadians.z = 0;
+    entry.rotationRadians.z =
+      resolvedRotationZ;
 
     if (entry.held && depth > 0.1) {
       const liftRatio = Math.min(
@@ -625,6 +657,7 @@ class ModernGraphicsSurface {
       0
     );
     entry.shadowMesh.visible = false;
+    this.matchShadowMaterial.opacity = 0;
   }
 
   selectTopIntersection(intersections) {
@@ -720,12 +753,16 @@ class ModernGraphicsSurface {
       this.prefersReducedMotion();
     entry.held = true;
     this.setEntryRenderOrder(entry, true);
+    this.holdGeneration += 1;
     this.heldCard = {
+      generation: this.holdGeneration,
       entry,
       phase: reducedMotion
         ? 'held'
         : 'lifting',
       reducedMotion,
+      dropArmed: reducedMotion,
+      returnMotion: null,
       base: {
         x: entry.basePosition.x,
         y: entry.basePosition.y,
@@ -804,7 +841,11 @@ class ModernGraphicsSurface {
   moveHeldCard(clientX, clientY, now) {
     const held = this.heldCard;
     const point = this.clientPoint(clientX, clientY);
-    if (!held || !point) {
+    if (
+      !held ||
+      held.phase === 'returning' ||
+      !point
+    ) {
       return;
     }
 
@@ -886,6 +927,296 @@ class ModernGraphicsSurface {
     this.scheduleAnimationFrame();
   }
 
+  beginInvalidReturn(now) {
+    const held = this.heldCard;
+    if (
+      !held ||
+      this.disposed ||
+      this.contextLost ||
+      this.suspended ||
+      this.visibilitySuspended ||
+      this.status !== 'ready'
+    ) {
+      return false;
+    }
+    if (held.phase === 'returning') {
+      this.ignoredWhileHeld += 1;
+      this.ignoredWhileReturning += 1;
+      this.lastPick = {
+        outcome: 'return-already-running',
+        gameCardId: held.entry.card.gameCardId,
+        handIndex: held.entry.card.handIndex
+      };
+      return false;
+    }
+    if (
+      !held.dropArmed &&
+      !held.reducedMotion &&
+      now - held.liftStartedAt >=
+        MATCH_PICKUP_DURATION_MS
+    ) {
+      this.cancelAnimationFrame();
+      this.stepPickup(
+        now,
+        held.generation,
+        false
+      );
+    }
+    if (!held.dropArmed) {
+      this.ignoredWhileHeld += 1;
+      this.ignoredUnarmedReturns += 1;
+      this.lastPick = {
+        outcome: 'return-not-armed',
+        gameCardId: held.entry.card.gameCardId,
+        handIndex: held.entry.card.handIndex
+      };
+      return false;
+    }
+
+    this.cancelAnimationFrame();
+    const entry = held.entry;
+    const startProjectedScale =
+      MATCH_CAMERA_DISTANCE /
+      (MATCH_CAMERA_DISTANCE - held.depth);
+    const reducedMotion =
+      held.reducedMotion ||
+      this.prefersReducedMotion();
+    held.phase = 'returning';
+    held.dropArmed = false;
+    held.reducedMotion = reducedMotion;
+    held.velocity.x = 0;
+    held.velocity.y = 0;
+    held.targetVelocity.x = 0;
+    held.targetVelocity.y = 0;
+    held.lastFrameAt = null;
+    held.returnMotion = {
+      startedAt: now,
+      durationMs:
+        MATCH_INVALID_RETURN_DURATION_MS,
+      easing:
+        MATCH_INVALID_RETURN_EASING,
+      screenDirection: 'clockwise',
+      progress: 0,
+      easedProgress: 0,
+      start: {
+        x: entry.currentPosition.x,
+        y: entry.currentPosition.y,
+        depth: held.depth,
+        projectedScale: startProjectedScale,
+        tiltX: held.tiltX,
+        tiltY: held.tiltY,
+        rotationZ:
+          entry.rotationRadians.z
+      },
+      destination: {
+        x: entry.basePosition.x,
+        y: entry.basePosition.y,
+        depth: 0,
+        projectedScale: 1,
+        tiltX: 0,
+        tiltY: 0,
+        unwrappedRotationZ:
+          entry.rotationRadians.z +
+          MATCH_INVALID_RETURN_ROTATION_Z,
+        normalizedRotationZ: 0
+      },
+      current: {
+        x: entry.currentPosition.x,
+        y: entry.currentPosition.y,
+        depth: held.depth,
+        projectedScale: startProjectedScale,
+        tiltX: held.tiltX,
+        tiltY: held.tiltY,
+        rotationZ:
+          entry.rotationRadians.z
+      }
+    };
+    this.setEntryRenderOrder(entry, false);
+    this.acceptedInvalidReturns += 1;
+    this.lastPick = {
+      outcome: 'invalid-return-started',
+      gameCardId: entry.card.gameCardId,
+      handIndex: entry.card.handIndex
+    };
+    this.lastReturn = {
+      outcome: 'running',
+      gameCardId: entry.card.gameCardId,
+      handIndex: entry.card.handIndex,
+      startedAt: now,
+      durationMs:
+        MATCH_INVALID_RETURN_DURATION_MS,
+      easing:
+        MATCH_INVALID_RETURN_EASING,
+      screenDirection: 'clockwise',
+      reducedMotion
+    };
+    this.host.style.cursor = '';
+
+    if (reducedMotion) {
+      this.completeInvalidReturn(
+        now,
+        'reduced-motion'
+      );
+      return true;
+    }
+
+    this.render();
+    this.scheduleAnimationFrame();
+    return true;
+  }
+
+  stepInvalidReturn(timestamp, holdGeneration) {
+    const held = this.heldCard;
+    if (
+      !held ||
+      held.generation !== holdGeneration ||
+      held.phase !== 'returning' ||
+      !held.returnMotion
+    ) {
+      return;
+    }
+
+    const motion = held.returnMotion;
+    const progress = Math.min(
+      Math.max(
+        (
+          timestamp -
+          motion.startedAt
+        ) /
+        motion.durationMs,
+        0
+      ),
+      1
+    );
+    const easedProgress =
+      easeOutCubic(progress);
+    const inverseProgress =
+      1 - easedProgress;
+    const projectedScale =
+      motion.start.projectedScale +
+      (
+        motion.destination.projectedScale -
+        motion.start.projectedScale
+      ) *
+      easedProgress;
+    const depth =
+      MATCH_CAMERA_DISTANCE *
+      (1 - (1 / projectedScale));
+    const screenX =
+      motion.start.x +
+      (
+        motion.destination.x -
+        motion.start.x
+      ) *
+      easedProgress;
+    const screenY =
+      motion.start.y +
+      (
+        motion.destination.y -
+        motion.start.y
+      ) *
+      easedProgress;
+    const tiltX =
+      motion.start.tiltX *
+      inverseProgress;
+    const tiltY =
+      motion.start.tiltY *
+      inverseProgress;
+    const rotationZ =
+      motion.start.rotationZ +
+      (
+        MATCH_INVALID_RETURN_ROTATION_Z *
+        easedProgress
+      );
+
+    held.depth = depth;
+    held.tiltX = tiltX;
+    held.tiltY = tiltY;
+    motion.progress = progress;
+    motion.easedProgress = easedProgress;
+    motion.current = {
+      x: screenX,
+      y: screenY,
+      depth,
+      projectedScale,
+      tiltX,
+      tiltY,
+      rotationZ
+    };
+    this.applyEntryPose(
+      held.entry,
+      screenX,
+      screenY,
+      depth,
+      tiltX,
+      tiltY,
+      {
+        local: {x: 0, y: 0},
+        screen: {x: screenX, y: screenY}
+      },
+      rotationZ
+    );
+    this.frameCount += 1;
+    this.render();
+
+    if (progress >= 1) {
+      this.completeInvalidReturn(
+        timestamp,
+        'animation'
+      );
+      return;
+    }
+    this.scheduleAnimationFrame();
+  }
+
+  completeInvalidReturn(
+    completedAt,
+    completion
+  ) {
+    const held = this.heldCard;
+    if (
+      !held ||
+      held.phase !== 'returning'
+    ) {
+      return false;
+    }
+
+    const entry = held.entry;
+    const motion = held.returnMotion;
+    this.cancelAnimationFrame();
+    this.holdGeneration += 1;
+    this.heldCard = null;
+    this.resetEntryPose(entry);
+    this.host.style.cursor = '';
+    this.completedInvalidReturns += 1;
+    this.lastReturn = {
+      outcome: 'completed',
+      completion,
+      gameCardId: entry.card.gameCardId,
+      handIndex: entry.card.handIndex,
+      startedAt: motion.startedAt,
+      completedAt,
+      durationMs: motion.durationMs,
+      easing: motion.easing,
+      screenDirection:
+        motion.screenDirection,
+      reducedMotion: held.reducedMotion,
+      finalPose: {
+        x: entry.basePosition.x,
+        y: entry.basePosition.y,
+        depth: 0,
+        projectedScale: 1,
+        rotationRadians: {
+          x: 0,
+          y: 0,
+          z: 0
+        }
+      }
+    };
+    this.render();
+    return true;
+  }
+
   scheduleAnimationFrame() {
     if (
       this.animationFrameId !== null ||
@@ -904,24 +1235,53 @@ class ModernGraphicsSurface {
       this.peakPendingFrameCount,
       this.pendingFrameCount
     );
-    this.animationFrameId = window.requestAnimationFrame(
+    const holdGeneration =
+      this.heldCard.generation;
+    let frameId = null;
+    frameId = window.requestAnimationFrame(
       (timestamp) => {
+        if (this.animationFrameId !== frameId) {
+          return;
+        }
         this.animationFrameId = null;
         this.pendingFrameCount = 0;
-        this.stepPickup(timestamp);
+        if (
+          !this.heldCard ||
+          this.heldCard.generation !==
+            holdGeneration
+        ) {
+          return;
+        }
+        this.stepPickup(
+          timestamp,
+          holdGeneration
+        );
       }
     );
+    this.animationFrameId = frameId;
   }
 
-  stepPickup(timestamp) {
+  stepPickup(
+    timestamp,
+    holdGeneration,
+    shouldSchedule
+  ) {
     const held = this.heldCard;
     if (
       !held ||
+      held.generation !== holdGeneration ||
       this.disposed ||
       this.contextLost ||
       this.suspended ||
       this.visibilitySuspended
     ) {
+      return;
+    }
+    if (held.phase === 'returning') {
+      this.stepInvalidReturn(
+        timestamp,
+        holdGeneration
+      );
       return;
     }
 
@@ -958,9 +1318,12 @@ class ModernGraphicsSurface {
       1
     );
     const easedLift =
-      1 - Math.pow(1 - liftProgress, 3);
+      easeOutCubic(liftProgress);
     held.depth =
       MATCH_PICKUP_LIFT_Z * easedLift;
+    if (liftProgress >= 1) {
+      held.dropArmed = true;
+    }
 
     const pointerIsStale =
       timestamp - held.lastPointerAt >
@@ -1053,7 +1416,9 @@ class ModernGraphicsSurface {
       held.phase = liftUnsettled
         ? 'lifting'
         : 'following';
-      this.scheduleAnimationFrame();
+      if (shouldSchedule !== false) {
+        this.scheduleAnimationFrame();
+      }
       return;
     }
 
@@ -1067,6 +1432,7 @@ class ModernGraphicsSurface {
     held.tiltX = 0;
     held.tiltY = 0;
     held.phase = 'held';
+    held.dropArmed = true;
     this.applyEntryPose(
       held.entry,
       held.entry.currentPosition.x,
@@ -1095,15 +1461,44 @@ class ModernGraphicsSurface {
   cancelPickup(reason, shouldRender) {
     this.cancelAnimationFrame();
     if (!this.heldCard) {
+      this.holdGeneration += 1;
       return;
     }
 
-    const entry = this.heldCard.entry;
+    const held = this.heldCard;
+    const entry = held.entry;
     const cancellation = {
       reason,
       gameCardId: entry.card.gameCardId,
-      handIndex: entry.card.handIndex
+      handIndex: entry.card.handIndex,
+      phase: held.phase
     };
+    if (
+      held.phase === 'returning' &&
+      held.returnMotion
+    ) {
+      this.lastReturn = {
+        outcome: 'cancelled',
+        reason,
+        gameCardId: entry.card.gameCardId,
+        handIndex: entry.card.handIndex,
+        startedAt:
+          held.returnMotion.startedAt,
+        progress:
+          held.returnMotion.progress,
+        easedProgress:
+          held.returnMotion.easedProgress,
+        durationMs:
+          held.returnMotion.durationMs,
+        easing:
+          held.returnMotion.easing,
+        screenDirection:
+          held.returnMotion.screenDirection,
+        reducedMotion:
+          held.reducedMotion
+      };
+    }
+    this.holdGeneration += 1;
     this.heldCard = null;
     this.resetEntryPose(entry);
     this.host.style.cursor = '';
@@ -1517,11 +1912,19 @@ class ModernGraphicsSurface {
       !this.contextLost &&
       this.inputHandlersAttached;
     const heldTargetCenter = held
-      ? this.settledCenterForGrab(
-        held.entry,
-        held.targetPointer,
-        held.localGrab,
-        MATCH_PICKUP_LIFT_Z
+      ? (
+        held.phase === 'returning'
+          ? {
+              x: held.entry.basePosition.x,
+              y: held.entry.basePosition.y,
+              z: 0
+            }
+          : this.settledCenterForGrab(
+              held.entry,
+              held.targetPointer,
+              held.localGrab,
+              MATCH_PICKUP_LIFT_Z
+            )
       )
       : null;
     const heldCard = held
@@ -1529,8 +1932,11 @@ class ModernGraphicsSurface {
         gameCardId: held.entry.card.gameCardId,
         userCardId: held.entry.card.userCardId,
         handIndex: held.entry.card.handIndex,
+        generation: held.generation,
         phase: held.phase,
         reducedMotion: held.reducedMotion,
+        dropArmed: held.dropArmed,
+        liftStartedAt: held.liftStartedAt,
         base: {
           x: held.base.x,
           y: held.base.y,
@@ -1578,7 +1984,8 @@ class ModernGraphicsSurface {
         rotationRadians: {
           x: held.tiltX,
           y: held.tiltY,
-          z: 0
+          z:
+            held.entry.rotationRadians.z
         },
         velocity: {
           x: held.velocity.x,
@@ -1594,7 +2001,9 @@ class ModernGraphicsSurface {
           shadow: held.entry.shadowMesh.renderOrder,
           body: held.entry.bodyMesh.renderOrder,
           face: held.entry.mesh.renderOrder
-        }
+        },
+        returnMotion:
+          clonePlain(held.returnMotion)
       }
       : null;
 
@@ -1629,7 +2038,8 @@ class ModernGraphicsSurface {
         ),
         placement: 'legacy-exact-at-rest',
         table: 'flat-top-down',
-        interaction: 'pickup-only'
+        interaction:
+          'pickup-invalid-return'
       },
       pickupPolicy: {
         activation: 'click',
@@ -1642,8 +2052,20 @@ class ModernGraphicsSurface {
           (MATCH_CAMERA_DISTANCE - MATCH_PICKUP_LIFT_Z),
         maxTiltRadians: MATCH_PICKUP_MAX_TILT,
         follow: 'pointer-with-transient-velocity-tilt',
-        drop: 'not-implemented',
-        invalidReturn: 'not-implemented',
+        drop:
+          'second-click-always-invalid',
+        dropZoneCount: 0,
+        validPlacement: 'not-implemented',
+        invalidReturn: {
+          durationMs:
+            MATCH_INVALID_RETURN_DURATION_MS,
+          easing:
+            MATCH_INVALID_RETURN_EASING,
+          screenDirection: 'clockwise',
+          rotationRadians:
+            MATCH_INVALID_RETURN_ROTATION_Z,
+          exactHandSettlement: true
+        },
         gameplayAuthority: false
       },
       pixelRatio: this.renderer.getPixelRatio(),
@@ -1663,14 +2085,25 @@ class ModernGraphicsSurface {
       peakPendingFrameCount:
         this.peakPendingFrameCount,
       frameCount: this.frameCount,
+      holdGeneration: this.holdGeneration,
       heldCard,
       acceptedPickups: this.acceptedPickups,
       ignoredWhileHeld: this.ignoredWhileHeld,
+      acceptedInvalidReturns:
+        this.acceptedInvalidReturns,
+      completedInvalidReturns:
+        this.completedInvalidReturns,
+      ignoredUnarmedReturns:
+        this.ignoredUnarmedReturns,
+      ignoredWhileReturning:
+        this.ignoredWhileReturning,
       emptyClicks: this.emptyClicks,
       opponentClicks: this.opponentClicks,
       semanticActionCount: 0,
       requestCount: 0,
       lastPick: clonePlain(this.lastPick),
+      lastReturn:
+        clonePlain(this.lastReturn),
       lastCancellation:
         clonePlain(this.lastCancellation),
       playerCount: this.hands.player.length,

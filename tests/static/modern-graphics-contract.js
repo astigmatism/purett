@@ -57,14 +57,20 @@ try {
       modernBundle.includes('purett-card-motion-plan'),
     'generated modern graphics bundle omits the Motion Studio surface or card-motion recipe API'
   );
+  assert(
+    modernBundle.includes('pickup-invalid-return') &&
+      modernBundle.includes('second-click-always-invalid') &&
+      modernBundle.includes('cubic-out'),
+    'generated modern graphics bundle omits the active-match invalid-return implementation'
+  );
   assert(!/window\.THREE\s*=/.test(modernSource + modernBundle), 'modern bundle overwrites the legacy snow THREE global');
   assert(fs.existsSync(path.join(root, 'public/js/modern/THREE-LICENSE.txt')), 'distributed Three.js license is missing');
 
   assert(
     coordinator.includes(
-      '/js/modern/purett-modern-graphics.min.js?v=0.185.1-match-pickup.2'
+      '/js/modern/purett-modern-graphics.min.js?v=0.185.1-match-return.1'
     ),
-    'coordinator does not use the match-pickup bundle cache revision'
+    'coordinator does not use the match-return bundle cache revision'
   );
   assert(!/https?:\/\//.test(coordinator), 'coordinator references a third-party graphics URL');
   assert(coordinator.includes("this.storageKey = 'purett.graphicsMode.v1'"), 'graphics preference does not have a stable storage key');
@@ -131,10 +137,10 @@ try {
       activeSurfaceSource.includes('cancelPendingTextureLoads()') &&
       activeSurfaceSource.includes('canonicalTextureUrl.pathname === textureUrl') &&
       activeSurfaceSource.includes('.slice(0, 5)') &&
-      activeSurfaceSource.includes("interaction: 'pickup-only'") &&
+      activeSurfaceSource.includes("'pickup-invalid-return'") &&
       activeSurfaceSource.includes('inputHandlersAttached:') &&
       activeSurfaceSource.includes('rafActive:'),
-    'active match-hand texture deadline, path guard, five-card bound, or pickup-only diagnostics are incomplete'
+    'active match-hand texture deadline, path guard, five-card bound, or pickup/return diagnostics are incomplete'
   );
   assert(
     activeSurfaceSource.includes('new Raycaster()') &&
@@ -143,9 +149,15 @@ try {
       activeSurfaceSource.includes("card.side === 'player'") &&
       activeSurfaceSource.includes("activation: 'click'") &&
       activeSurfaceSource.includes('maxHeld: 1') &&
-      activeSurfaceSource.includes("drop: 'not-implemented'") &&
+      activeSurfaceSource.includes(
+        "'second-click-always-invalid'"
+      ) &&
+      activeSurfaceSource.includes('dropZoneCount: 0') &&
+      activeSurfaceSource.includes(
+        "validPlacement: 'not-implemented'"
+      ) &&
       activeSurfaceSource.includes('heldCard,'),
-    'active-match picking is not explicitly bounded to one renderer-local player card'
+    'active-match picking and invalid return are not explicitly bounded to one renderer-local player card without placement targets'
   );
   assert(
     /addEventListener\(\s*'click'/.test(
@@ -213,14 +225,271 @@ try {
       ),
     'active-match resistance tilt is not tuned to the reviewed pronounced response'
   );
+  const activePickupIndex =
+    activeSurfaceSource.indexOf('pickUpAt(clientX, clientY)');
+  const activePickupSource = activeSurfaceSource.slice(
+    activePickupIndex,
+    activeSurfaceSource.indexOf(
+      '\n  moveHeldCard(',
+      activePickupIndex
+    )
+  );
+  const activeBeginReturnIndex =
+    activeSurfaceSource.indexOf('beginInvalidReturn(now)');
+  const activeBeginReturnSource = activeSurfaceSource.slice(
+    activeBeginReturnIndex,
+    activeSurfaceSource.indexOf(
+      '\n  stepInvalidReturn(',
+      activeBeginReturnIndex
+    )
+  );
+  const activeStepReturnIndex =
+    activeSurfaceSource.indexOf(
+      'stepInvalidReturn(timestamp, holdGeneration)'
+    );
+  const activeStepReturnSource = activeSurfaceSource.slice(
+    activeStepReturnIndex,
+    activeSurfaceSource.indexOf(
+      '\n  completeInvalidReturn(',
+      activeStepReturnIndex
+    )
+  );
+  const activeCompleteReturnIndex =
+    activeSurfaceSource.indexOf(
+      '\n  completeInvalidReturn(\n'
+    );
+  const activeCompleteReturnSource = activeSurfaceSource.slice(
+    activeCompleteReturnIndex,
+    activeSurfaceSource.indexOf(
+      '\n  scheduleAnimationFrame()',
+      activeCompleteReturnIndex
+    )
+  );
+  const activeScheduleIndex =
+    activeSurfaceSource.indexOf(
+      '\n  scheduleAnimationFrame() {'
+    );
+  const activeScheduleSource = activeSurfaceSource.slice(
+    activeScheduleIndex,
+    activeSurfaceSource.indexOf(
+      '\n  stepPickup(',
+      activeScheduleIndex
+    )
+  );
+  const activeStepPickupIndex =
+    activeSurfaceSource.indexOf(
+      '\n  stepPickup(\n'
+    );
+  const activeStepPickupSource = activeSurfaceSource.slice(
+    activeStepPickupIndex,
+    activeSurfaceSource.indexOf(
+      '\n  cancelAnimationFrame()',
+      activeStepPickupIndex
+    )
+  );
+  const activeResetEntryIndex =
+    activeSurfaceSource.indexOf('resetEntryPose(entry)');
+  const activeResetEntrySource = activeSurfaceSource.slice(
+    activeResetEntryIndex,
+    activeSurfaceSource.indexOf(
+      '\n  selectTopIntersection(',
+      activeResetEntryIndex
+    )
+  );
+  const activeCancelPickupIndex =
+    activeSurfaceSource.indexOf(
+      'cancelPickup(reason, shouldRender)'
+    );
+  const activeCancelPickupSource = activeSurfaceSource.slice(
+    activeCancelPickupIndex,
+    activeSurfaceSource.indexOf(
+      '\n  suspend()',
+      activeCancelPickupIndex
+    )
+  );
+  assert(
+    modernSource.includes(
+      'const MATCH_INVALID_RETURN_DURATION_MS = 300;'
+    ) &&
+      /const MATCH_INVALID_RETURN_ROTATION_Z\s*=\s*-2 \* Math\.PI;/.test(
+        modernSource
+      ) &&
+      /const MATCH_INVALID_RETURN_EASING\s*=\s*'cubic-out';/.test(
+        modernSource
+      ) &&
+      /function easeOutCubic\(progress\)\s*\{\s*return 1 - Math\.pow\(1 - progress, 3\);\s*\}/.test(
+        modernSource
+      ),
+    'active-match invalid return does not preserve the Legacy 300 ms cubic-out clockwise-turn constants'
+  );
+  assert(
+    activeBeginReturnIndex > -1 &&
+      activeStepReturnIndex > -1 &&
+      activeCompleteReturnIndex > -1 &&
+      activeBeginReturnSource.includes(
+        'MATCH_INVALID_RETURN_DURATION_MS'
+      ) &&
+      activeBeginReturnSource.includes(
+        'MATCH_INVALID_RETURN_EASING'
+      ) &&
+      activeBeginReturnSource.includes(
+        "screenDirection: 'clockwise'"
+      ) &&
+      activeStepReturnSource.includes(
+        'easeOutCubic(progress)'
+      ) &&
+      /motion\.start\.rotationZ\s*\+\s*\(\s*MATCH_INVALID_RETURN_ROTATION_Z\s*\*\s*easedProgress\s*\)/.test(
+        activeStepReturnSource
+      ) &&
+      activeStepReturnSource.includes(
+        'MATCH_CAMERA_DISTANCE *'
+      ) &&
+      activeStepReturnSource.includes(
+        '(1 - (1 / projectedScale))'
+      ),
+    'active-match invalid return does not drive position, perspective scale, tilt, and one full clockwise turn from the Legacy cubic-out curve'
+  );
+  assert(
+    activePickupIndex > -1 &&
+      activeStepPickupIndex > -1 &&
+      modernSource.includes(
+        'const MATCH_PICKUP_DURATION_MS = 300;'
+      ) &&
+      activePickupSource.includes(
+        'dropArmed: reducedMotion'
+      ) &&
+      activeSurfaceSource.includes(
+        'this.beginInvalidReturn('
+      ) &&
+      activeBeginReturnSource.includes(
+        'if (!held.dropArmed)'
+      ) &&
+      activeBeginReturnSource.includes(
+        'this.ignoredUnarmedReturns += 1'
+      ) &&
+      /!held\.dropArmed\s*&&\s*!held\.reducedMotion\s*&&\s*now - held\.liftStartedAt >=\s*MATCH_PICKUP_DURATION_MS/.test(
+        activeBeginReturnSource
+      ) &&
+      /this\.cancelAnimationFrame\(\);\s*this\.stepPickup\(\s*now,\s*held\.generation,\s*false\s*\);/.test(
+        activeBeginReturnSource
+      ) &&
+      /if \(shouldSchedule !== false\)\s*\{\s*this\.scheduleAnimationFrame\(\);\s*\}/.test(
+        activeStepPickupSource
+      ) &&
+      /if \(liftProgress >= 1\)\s*\{\s*held\.dropArmed = true;/.test(
+        activeStepPickupSource
+      ) &&
+      activeStepPickupSource.includes(
+        'held.dropArmed = true;'
+      ),
+    'active-match second-click return does not synchronously finish an elapsed 300 ms pickup with its pending frame cancelled and rescheduling suppressed before checking the arm'
+  );
+  assert(
+    activeBeginReturnSource.includes(
+      "held.phase === 'returning'"
+    ) &&
+      activeBeginReturnSource.includes(
+        'this.ignoredWhileReturning += 1'
+      ) &&
+      activeBeginReturnSource.includes(
+        "held.phase = 'returning'"
+      ) &&
+      activeBeginReturnSource.includes(
+        'held.dropArmed = false'
+      ) &&
+      activeSurfaceSource.includes(
+        "this.heldCard.phase === 'returning'"
+      ) &&
+      activeSurfaceSource.includes(
+        "held.phase === 'returning'"
+      ),
+    'active-match invalid return does not lock pointer follow and repeated clicks without queueing another transition'
+  );
+  assert(
+    activeResetEntryIndex > -1 &&
+      activeCompleteReturnSource.includes(
+        'this.holdGeneration += 1'
+      ) &&
+      /this\.heldCard = null;\s*this\.resetEntryPose\(entry\);/.test(
+        activeCompleteReturnSource
+      ) &&
+      activeResetEntrySource.includes(
+        'this.setEntryRenderOrder(entry, false)'
+      ) &&
+      activeResetEntrySource.includes(
+        'entry.basePosition.x'
+      ) &&
+      activeResetEntrySource.includes(
+        'entry.basePosition.y'
+      ) &&
+      activeResetEntrySource.includes(
+        'entry.shadowMesh.visible = false'
+      ) &&
+      activeResetEntrySource.includes(
+        'this.matchShadowMaterial.opacity = 0'
+      ) &&
+      activeCompleteReturnSource.includes(
+        "outcome: 'completed'"
+      ) &&
+      activeCompleteReturnSource.includes(
+        'projectedScale: 1'
+      ) &&
+      activeCompleteReturnSource.includes(
+        'rotationRadians:'
+      ),
+    'active-match invalid return does not discard interpolation and restore the exact canonical hand pose, stack order, and hidden shadow'
+  );
+  assert(
+    /const reducedMotion\s*=\s*held\.reducedMotion\s*\|\|\s*this\.prefersReducedMotion\(\)/.test(
+      activeBeginReturnSource
+    ) &&
+      activeBeginReturnSource.includes(
+        "completeInvalidReturn(\n" +
+        "        now,\n" +
+        "        'reduced-motion'"
+      ) &&
+      activePickupSource.includes(
+        'dropArmed: reducedMotion'
+      ) &&
+      activeScheduleSource.includes(
+        'this.heldCard.reducedMotion'
+      ),
+    'active-match reduced motion does not arm immediately and settle an invalid return synchronously without a frame'
+  );
+  assert(
+    activeSurfaceSource.includes(
+      'this.holdGeneration = 0'
+    ) &&
+      activePickupSource.includes(
+        'generation: this.holdGeneration'
+      ) &&
+      activeScheduleSource.includes(
+        'const holdGeneration ='
+      ) &&
+      activeScheduleSource.includes(
+        'this.heldCard.generation !=='
+      ) &&
+      activeStepReturnSource.includes(
+        'held.generation !== holdGeneration'
+      ) &&
+      activeCompleteReturnSource.includes(
+        'this.holdGeneration += 1'
+      ) &&
+      activeCancelPickupIndex > -1 &&
+      activeCancelPickupSource.includes(
+        'this.holdGeneration += 1'
+      ),
+    'active-match hold and invalid-return frames are not protected from stale callbacks by a renderer-local generation token'
+  );
   assert(
     activeSurfaceSource.includes('window.requestAnimationFrame') &&
       activeSurfaceSource.includes('window.cancelAnimationFrame') &&
       activeSurfaceSource.includes('pendingFrameCount:') &&
       activeSurfaceSource.includes('peakPendingFrameCount:') &&
       activeSurfaceSource.includes('scheduleAnimationFrame()') &&
+      activeSurfaceSource.includes('stepInvalidReturn(') &&
       activeSurfaceSource.includes('cancelPickup('),
-    'active-match pickup does not use one inspectable cancellable demand scheduler'
+    'active-match pickup and invalid return do not share one inspectable cancellable demand scheduler'
   );
   assert(
     activeSurfaceSource.includes('suspend()') &&
@@ -228,11 +497,19 @@ try {
       activeSurfaceSource.includes('prefersReducedMotion()') &&
       activeSurfaceSource.includes('this.cancelPickup(') &&
       activeSurfaceSource.includes('this.detachInputHandlers()') &&
+      activeSurfaceSource.includes('dropZoneCount: 0') &&
+      activeSurfaceSource.includes(
+        "validPlacement: 'not-implemented'"
+      ) &&
+      activeSurfaceSource.includes(
+        'semanticActionCount: 0'
+      ) &&
+      activeSurfaceSource.includes('requestCount: 0') &&
       !activeSurfaceSource.includes('/index/me') &&
       !activeSurfaceSource.includes('$.ajax') &&
       !activeSurfaceSource.includes('game.grab') &&
       !activeSurfaceSource.includes('game.drop'),
-    'pickup cleanup, reduced motion, or renderer-local authority isolation is incomplete'
+    'pickup/return cleanup, reduced motion, or renderer-local no-placement authority isolation is incomplete'
   );
   const activeSetHandsIndex =
     activeSurfaceSource.indexOf('setHands(hands)');

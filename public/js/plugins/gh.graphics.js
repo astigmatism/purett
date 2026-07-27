@@ -15,7 +15,7 @@ gh.graphics.prototype = {
             'purett.lobbyMotionPlaybook.v1';
         this.threePackageVersion = '0.185.1';
         this.threeRevision = '185';
-        this.modernScriptUrl = '/js/modern/purett-modern-graphics.min.js?v=0.185.1-match-pickup.2';
+        this.modernScriptUrl = '/js/modern/purett-modern-graphics.min.js?v=0.185.1-match-return.1';
         this.requestedMode = 'legacy';
         this.effectiveMode = 'legacy';
         this.loadState = 'idle';
@@ -1170,7 +1170,7 @@ gh.graphics.prototype = {
                 ? this.surface.getDebugState()
                 : null;
             if (surfaceState && surfaceState.ready) {
-                this.setStatus('Three.js ' + this.threePackageVersion + ' match hands active. Click a player card to lift and move it; placement is not yet enabled.');
+                this.setStatus('Three.js ' + this.threePackageVersion + ' match hands active. Click a player card to lift and move it; click again to return it to the hand. Board placement is not yet enabled.');
             } else {
                 this.setStatus('Three.js ' + this.threePackageVersion + ' is preparing the Modern match hands\u2026');
             }

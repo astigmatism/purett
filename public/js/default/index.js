@@ -351,6 +351,10 @@ gh.load(['util', ['game'], 'cover', 'menu', ['dialog'], ['jquerytools'], 'audio'
         },
         gameearlyexit: function() {
             var me = this;
+
+            if (me.graphics && me.graphics.setActiveMatch) {
+                me.graphics.setActiveMatch(false);
+            }
             
             //audio
             gh.audio.crossfade(gh.audio.game, gh.audio.mainmenu);
@@ -426,6 +430,10 @@ gh.load(['util', ['game'], 'cover', 'menu', ['dialog'], ['jquerytools'], 'audio'
         gameover: function(options) {
             var me = this;
             gh.data.ingame = 0;
+
+            if (me.graphics && me.graphics.setActiveMatch) {
+                me.graphics.setActiveMatch(false);
+            }
             
             me.cover.close(function() {
                 $('#game-wrapper').hide();
@@ -505,6 +513,9 @@ gh.load(['util', ['game'], 'cover', 'menu', ['dialog'], ['jquerytools'], 'audio'
         },
         gomain: function() {
             var me = this;
+            if (me.graphics && me.graphics.setActiveMatch) {
+                me.graphics.setActiveMatch(false);
+            }
             me.startSnow(me.snowDelay); //screensaver :)
             me.menu.show(function() {
                 me.buildmain();

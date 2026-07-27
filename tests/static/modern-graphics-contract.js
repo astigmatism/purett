@@ -25,6 +25,10 @@ try {
   const application = read('public/js/default/index.js');
   const lobbyMenu = read('public/js/plugins/gh.menu.js');
   const modernSource = read('frontend/src/modern-graphics.js');
+  const activeSurfaceSource = modernSource.slice(
+    modernSource.indexOf('class ModernGraphicsSurface'),
+    modernSource.indexOf('class LobbyHandSurface')
+  );
   const arrivalSource = read('frontend/src/card-arrival-animations.js');
   const cardMotionSource = read('frontend/src/card-motion.js');
   const lobbyPlaybookSource = read(
@@ -56,7 +60,7 @@ try {
   assert(!/window\.THREE\s*=/.test(modernSource + modernBundle), 'modern bundle overwrites the legacy snow THREE global');
   assert(fs.existsSync(path.join(root, 'public/js/modern/THREE-LICENSE.txt')), 'distributed Three.js license is missing');
 
-  assert(coordinator.includes('/js/modern/purett-modern-graphics.min.js?v=0.185.1-lobby-playbook.2'), 'coordinator does not use the lobby-playbook bundle cache revision');
+  assert(coordinator.includes('/js/modern/purett-modern-graphics.min.js?v=0.185.1-match-hands.1'), 'coordinator does not use the match-hands bundle cache revision');
   assert(!/https?:\/\//.test(coordinator), 'coordinator references a third-party graphics URL');
   assert(coordinator.includes("this.storageKey = 'purett.graphicsMode.v1'"), 'graphics preference does not have a stable storage key');
   assert(coordinator.includes("this.requestedMode = 'legacy'"), 'Legacy is not the safe default');
@@ -79,6 +83,55 @@ try {
   );
   assert(game.includes('id="modernGraphics"'), 'game surface does not include a Modern host');
   assert(game.includes('setGraphicsMode: function(mode)'), 'game surface has no runtime graphics gate');
+  assert(
+    game.includes('setGraphicsCoordinator: function(graphics)') &&
+      game.includes('describeMatchHands: function()') &&
+      game.includes('notifyGraphicsHands: function()') &&
+      game.includes('visibleImage: item.lkjasdojwlkajsdkjdpakjkjs') &&
+      !game.slice(
+        game.indexOf('describeMatchHands: function()'),
+        game.indexOf('notifyGraphicsHands: function()')
+      ).includes('.card'),
+    'game does not expose a Raphael-independent current match-hand description'
+  );
+  assert(
+    coordinator.includes('this.game.setGraphicsCoordinator(this)') &&
+      coordinator.includes('this.activeMatchVisible = false') &&
+      coordinator.includes('setActiveMatch: function(active)') &&
+      coordinator.includes('updateMatchHands: function(hands)') &&
+      coordinator.includes('this.surface.setHands(this.matchHands)') &&
+      coordinator.includes("me.surfaceKind === 'active-match'") &&
+      game.includes('this.graphics.setActiveMatch(true)') &&
+      application.includes('me.graphics.setActiveMatch(false)'),
+    'graphics coordinator does not explicitly scope the match-hand bridge to an active match'
+  );
+  assert(
+    /new OrthographicCamera\(\s*0,\s*LOGICAL_WIDTH,\s*LOGICAL_HEIGHT,\s*0,\s*0\.1,\s*1000\s*\)/.test(activeSurfaceSource) &&
+      activeSurfaceSource.includes('setHands(hands)') &&
+      activeSurfaceSource.includes("surface: 'active-match-hands'") &&
+      activeSurfaceSource.includes("projection: 'orthographic'") &&
+      activeSurfaceSource.includes("placement: 'legacy-exact'"),
+    'active Modern surface does not provide a one-to-one passive match-hand projection'
+  );
+  assert(
+    activeSurfaceSource.includes('Promise.allSettled(') &&
+      activeSurfaceSource.includes('generation !== this.generation') &&
+      activeSurfaceSource.includes('MATCH_HAND_TEXTURE_TIMEOUT_MS') &&
+      activeSurfaceSource.includes('cancelPendingTextureLoads()') &&
+      activeSurfaceSource.includes('canonicalTextureUrl.pathname === textureUrl') &&
+      activeSurfaceSource.includes('.slice(0, 5)') &&
+      activeSurfaceSource.includes("interaction: 'none'") &&
+      activeSurfaceSource.includes('inputHandlersAttached: false') &&
+      activeSurfaceSource.includes('rafActive: false') &&
+      !activeSurfaceSource.includes('requestAnimationFrame') &&
+      !activeSurfaceSource.includes('new Raycaster'),
+    'active match-hand texture deadline, path guard, five-card bound, or passive diagnostics are incomplete'
+  );
+  assert(
+    boardCss.includes('#board.graphics-modern-hands-ready #modernGraphics .modern-graphics-message') &&
+      /#modernGraphics\s*\{[^}]*background:\s*transparent;/.test(boardCss),
+    'ready Modern match hands do not reveal the board through a transparent host'
+  );
   assert(boardCss.includes('#board.graphics-modern #svgBoard *'), 'Modern mode does not block descendant Raphael hit targets');
   assert(boardCss.includes('pointer-events: none !important'), 'Raphael pointer blocking is not authoritative');
   assert(

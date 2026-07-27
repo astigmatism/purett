@@ -6,12 +6,82 @@ gh.game.prototype = {
         var me = this;
         $(wrapper).append('<div id="game-wrapper" class="abs hide"><div id="board"><div id="svgBoard"></div><div id="svgRules"></div><div id="modernGraphics" aria-hidden="true"><div class="modern-graphics-message"><strong>Modern graphics engine active</strong><span class="modern-graphics-detail">Preparing Three.js\u2026</span></div></div><div class="overlay"></div></div></div>');
         this.ruleswrapper  = ruleswrapper;
+        this.graphics = null;
     },
     setGraphicsMode: function(mode) {
         var modern = mode === 'modern';
+        this.setModernMatchReady(false);
         $('#board').toggleClass('graphics-modern', modern);
         $('#svgBoard, #svgRules').attr('aria-hidden', modern ? 'true' : 'false');
         $('#modernGraphics').attr('aria-hidden', modern ? 'false' : 'true');
+    },
+    setModernMatchReady: function(ready) {
+        $('#board').toggleClass(
+            'graphics-modern-hands-ready',
+            ready === true
+        );
+    },
+    setGraphicsCoordinator: function(graphics) {
+        this.graphics = graphics || null;
+        this.notifyGraphicsHands();
+    },
+    describeMatchHands: function() {
+        var me = this;
+        var describe = function(items, positions, side) {
+            var descriptions = [];
+            if (!items || !positions) {
+                return descriptions;
+            }
+            $.each(items.slice(0, 5), function(index, item) {
+                var position = positions[index + 1];
+                var visibleArtKey = item.visibleImage;
+                if (!visibleArtKey &&
+                        side === 'opponent' &&
+                        me.rules &&
+                        me.rules[0] != null) {
+                    visibleArtKey = 'cardBack';
+                } else if (!visibleArtKey) {
+                    visibleArtKey = item.image;
+                }
+                if (!position || !visibleArtKey) {
+                    return;
+                }
+                descriptions.push({
+                    side: side,
+                    handIndex: index,
+                    gameCardId: item.gameCardId,
+                    userCardId: item.usercardid,
+                    owner: item.owner,
+                    purchased: item.purchased,
+                    visibleArtKey: visibleArtKey,
+                    face: visibleArtKey === 'cardBack'
+                        ? 'back'
+                        : 'front',
+                    textureUrl:
+                        '/images/cards/' + visibleArtKey + '.png',
+                    x: position.x,
+                    y: position.y,
+                    width: me.cW || 117,
+                    height: me.cH || 146,
+                    rotationDegrees: 0,
+                    zOrder: index
+                });
+            });
+            return descriptions;
+        };
+
+        return {
+            player: describe(this.p1h, this.p1p, 'player'),
+            opponent: describe(this.p2h, this.p2p, 'opponent')
+        };
+    },
+    notifyGraphicsHands: function() {
+        if (this.graphics &&
+                this.graphics.updateMatchHands) {
+            this.graphics.updateMatchHands(
+                this.describeMatchHands()
+            );
+        }
     },
     build: function(gameData, gameovercallback, earlyexit, options) {
         var me = this;
@@ -67,6 +137,11 @@ gh.game.prototype = {
         //places where there are cards:
         this.p1h = []; //player one hand. the object contains the properties: gamecardId, image, card (svg ref), x, y (current positions)
         this.p2h = []; //player two hand same properties as above
+        if (this.graphics &&
+                this.graphics.setActiveMatch) {
+            this.graphics.setActiveMatch(true);
+        }
+        this.notifyGraphicsHands();
         this.pb = []; //play board
         this.p1 = gameData.bdjiauhjhduqijshckjhaii;
         this.p2 = '1';
@@ -273,6 +348,7 @@ gh.game.prototype = {
             me.p1h.push({ 
                 gameCardId: item.jjkaooijslakjdiwjkalsjkkk, 
                 image: item.lkjasdojwlkajsdkjdpakjkjs, 
+                visibleImage: item.lkjasdojwlkajsdkjdpakjkjs,
                 card: null,
                 owner: item.ffjklaksjidlkmjaiwnnmnalk,          //in the case of sudden death, the opponents cards can be in this hand
                 usercardid: item.yoiasdknqowkjndlansihjwsd,
@@ -291,6 +367,7 @@ gh.game.prototype = {
             me.p2h.push({ 
                 gameCardId: item.jjkaooijslakjdiwjkalsjkkk,
                 image: item.lkjasdojwlkajsdkjdpakjkjs,
+                visibleImage: item.lkjasdojwlkajsdkjdpakjkjs,
                 usercardid: item.yoiasdknqowkjndlansihjwsd,
                 card: null,
                 owner: item.ffjklaksjidlkmjaiwnnmnalk, //sometimes the user's id (on sudden death)
@@ -327,6 +404,7 @@ gh.game.prototype = {
                 me.pb.push({
                     gameCardId: item.jjkaooijslakjdiwjkalsjkkk,
                     image: item.lkjasdojwlkajsdkjdpakjkjs,
+                    visibleImage: item.lkjasdojwlkajsdkjdpakjkjs,
                     captured: item.llkjasdoiuqwoiquweiiwiuie,
                     owner: item.ffjklaksjidlkmjaiwnnmnalk,
                     purchased: item.yyqweiuydhiiwoqijkwlkkjww,
@@ -346,6 +424,7 @@ gh.game.prototype = {
                 me.pb.push({
                     gameCardId: 0,
                     image: null,
+                    visibleImage: null,
                     captured: null,
                     owner: null,
                     usercardid: null,
@@ -475,6 +554,7 @@ gh.game.prototype = {
             item.x = me.p1p[index + 1].x;
             item.y = me.p1p[index + 1].y;
         });
+        me.notifyGraphicsHands();
     },
     playerOneCardClick: function(item) {
         var me = this;
@@ -505,6 +585,7 @@ gh.game.prototype = {
             item.x = me.p2p[index + 1].x;
             item.y = me.p2p[index + 1].y;
         });
+        me.notifyGraphicsHands();
     },
     drawPlayerScores: function() {
         var me = this;
@@ -692,6 +773,8 @@ gh.game.prototype = {
                             me.pb[playIndex].captured = me.p2;
                             me.pb[playIndex].owner = item.owner;
                             me.pb[playIndex].image = item.image;
+                            me.pb[playIndex].visibleImage =
+                                item.visibleImage || item.image;
                             
                             //show modifier if elemental game and position has element
                             if (me.rules[6]) {
@@ -741,6 +824,7 @@ gh.game.prototype = {
                     //reveal card
                     item.card.attr({ 'src': '/images/cards/' + x.z + '.png'});
                     item.image = x.z;
+                    item.visibleImage = x.z;
                     item.card.animate({ height: me.cH * 2, y: z }, 300 / 2, ">", function() {
                         y(x, item, playIndex);
                     });
@@ -877,6 +961,7 @@ gh.game.prototype = {
                                 it.card.animate(optionsA, speed / 4, function() {
                                     //change card color during flipping
                                     it.card.attr({ 'src': '/images/cards/' + item.i + '.png' });
+                                    it.visibleImage = item.i;
                                     it.card.animate(optionsB, speed / 4, function() {
                                         setTimeout(function() {
                                             it.card.animate({ scale: 1 }, "<", speed, function() {
@@ -1071,6 +1156,8 @@ gh.game.prototype = {
         me.pb[position].card = item.card;
         me.pb[position].gameCardId = item.gameCardId;
         me.pb[position].image = item.image;
+        me.pb[position].visibleImage =
+            item.visibleImage || item.image;
         me.pb[position].captured = me.p1;
         me.pb[position].owner = item.owner;
         
@@ -1193,6 +1280,7 @@ gh.game.prototype = {
             me.p2h = [];
             me.buildPlayerTwoHand(gameoverdetails.p2h);
             p2h = me.p2h; //for closed games we take p2h from the server
+            me.notifyGraphicsHands();
         }
         
         var details = {
@@ -1255,6 +1343,8 @@ gh.game.prototype = {
                     p[playerIndex].hand.push({ 
                         gameCardId: item.gameCardId,
                         image: item.image,
+                        visibleImage:
+                            item.visibleImage || item.image,
                         card: item.card,
                         owner: item.owner,
                         x: 0,
@@ -1275,6 +1365,8 @@ gh.game.prototype = {
                 }
             });
         });
+
+        me.notifyGraphicsHands();
         
         //show sudden death
         me.drawRule(8, 2000, function() {
@@ -1305,6 +1397,7 @@ gh.game.prototype = {
         $.each(me.pb, function(index, item){
             me.pb[index].gameCardId = 0;
             me.pb[index].image = null;
+            me.pb[index].visibleImage = null;
             me.pb[index].card = null;
             if (me.pb[index].bonusObject) {
                 me.pb[index].bonusObject[0].remove();
@@ -1451,6 +1544,8 @@ gh.game.prototype = {
                                     me.p1h.push({
                                         gameCardId: item.gameCardId, 
                                         image: item.image,
+                                        visibleImage:
+                                            item2.lkjasdojwlkajsdkjdpakjkjs,
                                         owner: item.owner, 
                                         card: item.card, 
                                         x: me.p1p[positionIndex].x, 
@@ -1475,6 +1570,8 @@ gh.game.prototype = {
                                     me.p2h.push({
                                         gameCardId: item.gameCardId,
                                         image: item.image, 
+                                        visibleImage:
+                                            item2.lkjasdojwlkajsdkjdpakjkjs,
                                         owner: item.owner,
                                         card: item.card, 
                                         x: me.p2p[positionIndex].x, 
@@ -1491,6 +1588,7 @@ gh.game.prototype = {
                             //the card HAD to be one of the player's cards, so clear the playboard of this card.
                             me.pb[index].gameCardId = 0;
                             me.pb[index].image = null;
+                            me.pb[index].visibleImage = null;
                             me.pb[index].card = null;
                             if (me.pb[index].bonusObject) {
                                 me.pb[index].bonusObject[0].remove();
@@ -1498,6 +1596,8 @@ gh.game.prototype = {
                             }
                             me.pb[index].bonusObject = null;
                         });
+
+                        me.notifyGraphicsHands();
                         
                         //reset the score
                         setTimeout(function() {

@@ -10,6 +10,7 @@ import {
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
+  OrthographicCamera,
   PerspectiveCamera,
   PlaneGeometry,
   Raycaster,
@@ -66,6 +67,7 @@ const LOGICAL_HEIGHT = 500;
 const LOBBY_LOGICAL_WIDTH = 755;
 const LOBBY_LOGICAL_HEIGHT = 562;
 const MAX_PIXEL_RATIO = 3;
+const MATCH_HAND_TEXTURE_TIMEOUT_MS = 6000;
 const LOBBY_CARD_BACK_URL = '/images/cards/cardBack.png';
 const LOBBY_CAMERA_FOV = 40;
 const LOBBY_CAMERA_CENTER_X = LOBBY_LOGICAL_WIDTH / 2;
@@ -146,11 +148,37 @@ class ModernGraphicsSurface {
     this.contextLost = false;
     this.renderer = null;
     this.canvas = null;
+    this.status = 'empty';
+    this.generation = 0;
+    this.hands = {
+      player: [],
+      opponent: []
+    };
+    this.handsKey = null;
+    this.cardEntries = [];
+    this.textures = new Map();
+    this.pendingTextureLoads = new Set();
+    this.textureLoadTimeoutMs =
+      Number.isFinite(Number(this.options.textureLoadTimeoutMs)) &&
+      Number(this.options.textureLoadTimeoutMs) > 0
+        ? Number(this.options.textureLoadTimeoutMs)
+        : MATCH_HAND_TEXTURE_TIMEOUT_MS;
 
     try {
       this.scene = new Scene();
-      this.camera = new PerspectiveCamera(45, LOGICAL_WIDTH / LOGICAL_HEIGHT, 0.1, 1000);
-      this.camera.position.z = 5;
+      this.camera = new OrthographicCamera(
+        0,
+        LOGICAL_WIDTH,
+        LOGICAL_HEIGHT,
+        0,
+        0.1,
+        1000
+      );
+      this.camera.position.z = 100;
+      this.cardGroup = new Group();
+      this.scene.add(this.cardGroup);
+      this.cardGeometry = new PlaneGeometry(117, 146);
+      this.textureLoader = new TextureLoader();
       this.renderer = new WebGLRenderer({
         alpha: true,
         antialias: true,
@@ -158,13 +186,17 @@ class ModernGraphicsSurface {
         preserveDrawingBuffer: false
       });
       this.renderer.setClearColor(0x000000, 0);
+      this.renderer.outputColorSpace = SRGBColorSpace;
+      this.renderer.shadowMap.enabled = false;
 
       this.canvas = this.renderer.domElement;
-      this.canvas.className = 'modern-graphics-canvas';
+      this.canvas.className =
+        'modern-graphics-canvas modern-match-hands-canvas';
       this.canvas.setAttribute('aria-hidden', 'true');
       this.canvas.setAttribute('tabindex', '-1');
       this.canvas.dataset.threePackageVersion = __PURETT_THREE_PACKAGE_VERSION__;
       this.canvas.dataset.threeRevision = REVISION;
+      this.canvas.dataset.modernSurface = 'active-match-hands';
 
       this.handleContextLost = (event) => {
         event.preventDefault();
@@ -196,14 +228,304 @@ class ModernGraphicsSurface {
     const devicePixelRatio = window.devicePixelRatio || 1;
     this.renderer.setPixelRatio(Math.min(Math.max(devicePixelRatio * scale, 1), MAX_PIXEL_RATIO));
     this.renderer.setSize(LOGICAL_WIDTH, LOGICAL_HEIGHT, false);
-    this.camera.aspect = LOGICAL_WIDTH / LOGICAL_HEIGHT;
     this.camera.updateProjectionMatrix();
     this.render();
+  }
+
+  normalizeCard(card, side, handIndex) {
+    const width = Number(card && card.width);
+    const height = Number(card && card.height);
+    const x = Number(card && card.x);
+    const y = Number(card && card.y);
+    const textureUrl = card && typeof card.textureUrl === 'string'
+      ? card.textureUrl
+      : '';
+    let safeTextureUrl = false;
+
+    try {
+      const canonicalTextureUrl = new URL(
+        textureUrl,
+        window.location.origin
+      );
+      safeTextureUrl =
+        canonicalTextureUrl.origin === window.location.origin &&
+        canonicalTextureUrl.search === '' &&
+        canonicalTextureUrl.hash === '' &&
+        canonicalTextureUrl.pathname === textureUrl &&
+        canonicalTextureUrl.pathname.startsWith('/images/cards/') &&
+        canonicalTextureUrl.pathname.endsWith('.png') &&
+        textureUrl.indexOf('%') === -1 &&
+        textureUrl.indexOf('\\') === -1 &&
+        textureUrl.indexOf('..') === -1;
+    } catch (error) {
+      safeTextureUrl = false;
+    }
+
+    if (
+      !safeTextureUrl ||
+      !Number.isFinite(x) ||
+      !Number.isFinite(y) ||
+      !Number.isFinite(width) ||
+      !Number.isFinite(height) ||
+      width <= 0 ||
+      height <= 0
+    ) {
+      return null;
+    }
+
+    return {
+      side,
+      handIndex,
+      gameCardId: card.gameCardId,
+      userCardId: card.userCardId,
+      owner: card.owner,
+      purchased: card.purchased,
+      visibleArtKey: card.visibleArtKey,
+      face: card.face === 'back' ? 'back' : 'front',
+      textureUrl,
+      x,
+      y,
+      width,
+      height,
+      rotationDegrees: 0,
+      zOrder: handIndex
+    };
+  }
+
+  normalizeHands(hands) {
+    const source = hands || {};
+    const normalizeSide = (cards, side) => (cards || [])
+      .slice(0, 5)
+      .map((card, handIndex) => {
+        const normalized = this.normalizeCard(
+          card,
+          side,
+          handIndex
+        );
+        if (!normalized) {
+          throw new Error(
+            'A match-hand card description is invalid.'
+          );
+        }
+        return normalized;
+      });
+
+    return {
+      player: normalizeSide(source.player, 'player'),
+      opponent: normalizeSide(source.opponent, 'opponent')
+    };
+  }
+
+  configureTexture(texture) {
+    texture.colorSpace = SRGBColorSpace;
+    texture.minFilter = LinearMipmapLinearFilter;
+    texture.magFilter = LinearFilter;
+    texture.generateMipmaps = true;
+    texture.anisotropy = Math.min(
+      4,
+      this.renderer.capabilities.getMaxAnisotropy()
+    );
+    texture.needsUpdate = true;
+    return texture;
+  }
+
+  loadTexture(textureUrl) {
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      let pendingTexture = null;
+      let timeoutId = null;
+      const settle = (error, texture) => {
+        if (settled) {
+          if (texture) {
+            texture.dispose();
+          }
+          return;
+        }
+
+        settled = true;
+        if (timeoutId !== null) {
+          window.clearTimeout(timeoutId);
+        }
+        this.pendingTextureLoads.delete(cancel);
+        if (error) {
+          if (pendingTexture) {
+            pendingTexture.dispose();
+          }
+          reject(
+            error instanceof Error
+              ? error
+              : new Error(
+                'A match-hand card texture could not be loaded.'
+              )
+          );
+          return;
+        }
+
+        resolve(this.configureTexture(texture));
+      };
+      const cancel = () => {
+        settle(
+          new Error('A match-hand card texture load was cancelled.')
+        );
+      };
+
+      this.pendingTextureLoads.add(cancel);
+      timeoutId = window.setTimeout(() => {
+        settle(
+          new Error('A match-hand card texture load timed out.')
+        );
+      }, this.textureLoadTimeoutMs);
+
+      try {
+        pendingTexture = this.textureLoader.load(
+          textureUrl,
+          (texture) => settle(null, texture),
+          undefined,
+          (error) => settle(error)
+        );
+      } catch (error) {
+        settle(error);
+      }
+    });
+  }
+
+  cancelPendingTextureLoads() {
+    const cancellations = Array.from(this.pendingTextureLoads);
+    this.pendingTextureLoads.clear();
+    cancellations.forEach((cancel) => cancel());
+  }
+
+  clearCommittedHands() {
+    this.cardEntries.forEach((entry) => {
+      this.cardGroup.remove(entry.mesh);
+      entry.material.dispose();
+    });
+    this.cardEntries = [];
+    this.textures.forEach((texture) => texture.dispose());
+    this.textures.clear();
+  }
+
+  commitHands(cards, textures) {
+    this.clearCommittedHands();
+    this.textures = textures;
+    this.cardEntries = cards.map((card) => {
+      const material = new MeshBasicMaterial({
+        map: textures.get(card.textureUrl),
+        color: 0xffffff,
+        transparent: true,
+        alphaTest: 0.01,
+        depthTest: true,
+        depthWrite: true,
+        side: FrontSide,
+        toneMapped: false
+      });
+      const mesh = new Mesh(this.cardGeometry, material);
+
+      mesh.position.set(
+        card.x + (card.width / 2),
+        LOGICAL_HEIGHT - card.y - (card.height / 2),
+        1 + (card.handIndex * 0.1)
+      );
+      mesh.scale.set(card.width / 117, card.height / 146, 1);
+      mesh.rotation.z = 0;
+      mesh.renderOrder = card.handIndex;
+      this.cardGroup.add(mesh);
+
+      return {
+        card,
+        material,
+        mesh
+      };
+    });
+  }
+
+  setHands(hands) {
+    if (this.disposed) {
+      return;
+    }
+
+    const normalized = this.normalizeHands(hands);
+    const cards = normalized.player.concat(normalized.opponent);
+    const nextKey = JSON.stringify(normalized);
+
+    this.hands = normalized;
+    if (
+      nextKey === this.handsKey &&
+      (this.status === 'loading' || this.status === 'ready')
+    ) {
+      if (this.status === 'ready') {
+        this.reportReady();
+      }
+      this.render();
+      return;
+    }
+
+    this.handsKey = nextKey;
+    this.generation += 1;
+    const generation = this.generation;
+    this.cancelPendingTextureLoads();
+    this.clearCommittedHands();
+
+    if (cards.length === 0) {
+      this.status = 'empty';
+      this.render();
+      return;
+    }
+
+    this.status = 'loading';
+    const textureUrls = Array.from(
+      new Set(cards.map((card) => card.textureUrl))
+    );
+
+    Promise.allSettled(
+      textureUrls.map((textureUrl) => this.loadTexture(textureUrl))
+    ).then((results) => {
+      const loadedTextures = new Map();
+      let loadError = null;
+
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+          loadedTextures.set(textureUrls[index], result.value);
+        } else if (!loadError) {
+          loadError = result.reason instanceof Error
+            ? result.reason
+            : new Error('A match-hand card texture could not be loaded.');
+        }
+      });
+
+      if (this.disposed || generation !== this.generation) {
+        loadedTextures.forEach((texture) => texture.dispose());
+        return;
+      }
+      if (loadError) {
+        loadedTextures.forEach((texture) => texture.dispose());
+        this.status = 'error';
+        this.reportError(loadError);
+        return;
+      }
+
+      this.commitHands(cards, loadedTextures);
+      this.status = 'ready';
+      this.render();
+      this.reportReady();
+    });
   }
 
   render() {
     if (!this.disposed && !this.contextLost) {
       this.renderer.render(this.scene, this.camera);
+    }
+  }
+
+  reportReady() {
+    if (typeof this.options.onReady === 'function') {
+      this.options.onReady(this.getDebugState());
+    }
+  }
+
+  reportError(error) {
+    if (typeof this.options.onError === 'function') {
+      this.options.onError(error);
     }
   }
 
@@ -215,11 +537,66 @@ class ModernGraphicsSurface {
       packageVersion: __PURETT_THREE_PACKAGE_VERSION__,
       revision: REVISION,
       contextType: isWebGL2 ? 'webgl2' : 'webgl',
+      surface: 'active-match-hands',
       logicalWidth: LOGICAL_WIDTH,
       logicalHeight: LOGICAL_HEIGHT,
+      camera: {
+        projection: 'orthographic',
+        left: this.camera.left,
+        right: this.camera.right,
+        top: this.camera.top,
+        bottom: this.camera.bottom,
+        position: {
+          x: this.camera.position.x,
+          y: this.camera.position.y,
+          z: this.camera.position.z
+        }
+      },
+      renderPolicy: {
+        faceMaterial: 'unlit',
+        faceToneMapped: false,
+        textureColorSpace: SRGBColorSpace,
+        outputColorSpace: this.renderer.outputColorSpace,
+        textureMipmaps: true,
+        textureAnisotropy: Math.min(
+          4,
+          this.renderer.capabilities.getMaxAnisotropy()
+        ),
+        placement: 'legacy-exact',
+        interaction: 'none'
+      },
       pixelRatio: this.renderer.getPixelRatio(),
       disposed: this.disposed,
-      contextLost: this.contextLost
+      contextLost: this.contextLost,
+      status: this.status,
+      ready: this.status === 'ready',
+      interactive: false,
+      inputHandlersAttached: false,
+      rafActive: false,
+      playerCount: this.hands.player.length,
+      opponentCount: this.hands.opponent.length,
+      meshCount: this.cardEntries.length,
+      textureCount: this.textures.size,
+      drawCalls: this.renderer.info.render.calls,
+      cards: this.hands.player.concat(this.hands.opponent).map((card) => ({
+        side: card.side,
+        handIndex: card.handIndex,
+        gameCardId: card.gameCardId,
+        userCardId: card.userCardId,
+        owner: card.owner,
+        visibleArtKey: card.visibleArtKey,
+        face: card.face,
+        textureUrl: card.textureUrl,
+        screenRect: {
+          x: card.x,
+          y: card.y,
+          width: card.width,
+          height: card.height
+        },
+        rotationDegrees: 0,
+        zOrder: card.zOrder,
+        visible: this.status === 'ready'
+      }))
     };
   }
 
@@ -229,6 +606,12 @@ class ModernGraphicsSurface {
     }
 
     this.disposed = true;
+    this.generation += 1;
+    this.cancelPendingTextureLoads();
+    this.clearCommittedHands();
+    if (this.cardGeometry) {
+      this.cardGeometry.dispose();
+    }
     if (this.canvas && this.handleContextLost) {
       this.canvas.removeEventListener('webglcontextlost', this.handleContextLost, false);
     }

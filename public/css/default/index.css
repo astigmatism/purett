@@ -1124,7 +1124,7 @@ ul.shopmenu li.selected {
     z-index: 1;
     overflow: hidden;
     pointer-events: auto;
-    background: radial-gradient(ellipse at center, rgba(63, 45, 32, 0.72) 0%, rgba(24, 18, 14, 0.9) 100%);
+    background: transparent;
 }
 #modernGraphics .modern-graphics-canvas {
     position: absolute;
@@ -1175,6 +1175,9 @@ ul.shopmenu li.selected {
 }
 #board.graphics-modern #modernGraphics {
     display: block;
+}
+#board.graphics-modern-hands-ready #modernGraphics .modern-graphics-message {
+    display: none;
 }
 #board .overlay {
     background-color: #000;

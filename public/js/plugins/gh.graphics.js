@@ -15,7 +15,7 @@ gh.graphics.prototype = {
             'purett.lobbyMotionPlaybook.v1';
         this.threePackageVersion = '0.185.1';
         this.threeRevision = '185';
-        this.modernScriptUrl = '/js/modern/purett-modern-graphics.min.js?v=0.185.1-lobby-playbook.2';
+        this.modernScriptUrl = '/js/modern/purett-modern-graphics.min.js?v=0.185.1-match-hands.1';
         this.requestedMode = 'legacy';
         this.effectiveMode = 'legacy';
         this.loadState = 'idle';
@@ -30,7 +30,12 @@ gh.graphics.prototype = {
         this.studioGeneration = 0;
         this.modernGraphics = null;
         this.lobbyVisible = false;
+        this.activeMatchVisible = false;
         this.lobbyCards = [];
+        this.matchHands = {
+            player: [],
+            opponent: []
+        };
         this.lobbyPresentation = null;
         this.lobbyPresentationDeliveredId = null;
         this.scriptElement = null;
@@ -90,6 +95,9 @@ gh.graphics.prototype = {
 
         if (this.menu && this.menu.setGraphicsCoordinator) {
             this.menu.setGraphicsCoordinator(this);
+        }
+        if (this.game && this.game.setGraphicsCoordinator) {
+            this.game.setGraphicsCoordinator(this);
         }
 
         this.setMode(storedMode, false);
@@ -225,6 +233,8 @@ gh.graphics.prototype = {
         });
     },
     activateModern: function(modernGraphics) {
+        var surfaceKind;
+
         try {
             if (this.surface && this.surface.getDebugState().contextLost) {
                 this.surface.dispose();
@@ -233,9 +243,24 @@ gh.graphics.prototype = {
             }
             this.modernGraphics = modernGraphics;
             this.ensureLobbyPlaybook(modernGraphics);
+            surfaceKind = this.lobbyVisible
+                ? 'lobby-hand'
+                : (this.activeMatchVisible
+                    ? 'active-match'
+                    : null);
             if (!this.studioOpen) {
-                this.ensureSurface(
-                    this.lobbyVisible ? 'lobby-hand' : 'active-match'
+                if (surfaceKind) {
+                    this.ensureSurface(surfaceKind);
+                } else {
+                    this.disposeSurface();
+                }
+            }
+            if (this.activeMatchVisible &&
+                    !this.lobbyVisible &&
+                    this.game &&
+                    this.game.describeMatchHands) {
+                this.updateMatchHands(
+                    this.game.describeMatchHands()
                 );
             }
         } catch (error) {
@@ -408,7 +433,54 @@ gh.graphics.prototype = {
             this.studioSurface.setContentScale(scale);
         }
     },
+    setActiveMatch: function(active) {
+        this.activeMatchVisible = active === true;
+        if (!this.activeMatchVisible) {
+            this.matchHands = {
+                player: [],
+                opponent: []
+            };
+            if (this.game && this.game.setModernMatchReady) {
+                this.game.setModernMatchReady(false);
+            }
+        }
+        if (this.studioOpen ||
+                this.effectiveMode !== 'modern' ||
+                !this.modernGraphics ||
+                this.lobbyVisible) {
+            this.updateModernStatus();
+            return;
+        }
+
+        try {
+            if (!this.activeMatchVisible) {
+                this.disposeSurface();
+            } else {
+                if (this.game &&
+                        this.game.describeMatchHands) {
+                    this.updateMatchHands(
+                        this.game.describeMatchHands()
+                    );
+                } else {
+                    this.ensureSurface('active-match');
+                    this.renderCurrentSurface();
+                }
+            }
+            this.updateModernStatus();
+        } catch (error) {
+            this.disposeSurface();
+            this.activateLegacy(error);
+        }
+    },
     showLobbyHand: function(cards, presentation) {
+        this.activeMatchVisible = false;
+        this.matchHands = {
+            player: [],
+            opponent: []
+        };
+        if (this.game && this.game.setModernMatchReady) {
+            this.game.setModernMatchReady(false);
+        }
         this.lobbyVisible = true;
         this.lobbyCards = (cards || []).slice(0);
         this.startStartupModernGateWatchdog();
@@ -441,12 +513,52 @@ gh.graphics.prototype = {
         this.releaseStartupModernGate();
         this.lobbyVisible = false;
         this.lobbyCards = [];
+        this.matchHands = {
+            player: [],
+            opponent: []
+        };
         this.lobbyPresentation = null;
         this.cancelLobbyPreview('cancelled-view-change');
+        if (this.game && this.game.setModernMatchReady) {
+            this.game.setModernMatchReady(false);
+        }
         if (!this.studioOpen &&
             this.effectiveMode === 'modern' &&
             this.modernGraphics) {
             try {
+                if (this.activeMatchVisible) {
+                    this.ensureSurface('active-match');
+                    this.renderCurrentSurface();
+                } else {
+                    this.disposeSurface();
+                }
+                this.updateModernStatus();
+            } catch (error) {
+                this.disposeSurface();
+                this.activateLegacy(error);
+            }
+        }
+    },
+    updateMatchHands: function(hands) {
+        var source = hands || {};
+        this.matchHands = {
+            player: this.clonePlain(
+                (source.player || []).slice(0, 5)
+            ),
+            opponent: this.clonePlain(
+                (source.opponent || []).slice(0, 5)
+            )
+        };
+        if (!this.studioOpen &&
+                this.activeMatchVisible &&
+                !this.lobbyVisible &&
+                this.effectiveMode === 'modern' &&
+                this.modernGraphics) {
+            try {
+                if (this.game &&
+                        this.game.setModernMatchReady) {
+                    this.game.setModernMatchReady(false);
+                }
                 this.ensureSurface('active-match');
                 this.renderCurrentSurface();
                 this.updateModernStatus();
@@ -510,8 +622,32 @@ gh.graphics.prototype = {
             host = document.getElementById('modernGraphics');
             createdSurface = modernGraphics.createSurface(host, {
                 contentScale: this.getContentScale(),
+                onReady: function() {
+                    if (me.surface === createdSurface &&
+                        me.surfaceKind === 'active-match' &&
+                        me.activeMatchVisible &&
+                        !me.lobbyVisible &&
+                        me.effectiveMode === 'modern') {
+                        if (me.game &&
+                                me.game.setModernMatchReady) {
+                            me.game.setModernMatchReady(true);
+                        }
+                        me.updateModernStatus();
+                    }
+                },
+                onError: function(error) {
+                    if (me.surface === createdSurface &&
+                        me.surfaceKind === 'active-match' &&
+                        me.activeMatchVisible &&
+                        !me.lobbyVisible &&
+                        me.effectiveMode === 'modern') {
+                        me.disposeSurface();
+                        me.activateLegacy(error);
+                    }
+                },
                 onContextLost: function(error) {
                     if (me.surface === createdSurface && me.effectiveMode === 'modern') {
+                        me.disposeSurface();
                         me.activateLegacy(error);
                     }
                 }
@@ -546,7 +682,7 @@ gh.graphics.prototype = {
                     String(playbookRequest.id);
             }
         } else {
-            this.surface.render();
+            this.surface.setHands(this.matchHands);
         }
     },
     disposeSurface: function() {
@@ -1030,8 +1166,19 @@ gh.graphics.prototype = {
         if (this.effectiveMode !== 'modern') {
             return;
         }
+        if (this.activeMatchVisible && !this.lobbyVisible) {
+            surfaceState = this.surface
+                ? this.surface.getDebugState()
+                : null;
+            if (surfaceState && surfaceState.ready) {
+                this.setStatus('Three.js ' + this.threePackageVersion + ' match hands active. Cards are display-only; select Legacy to play.');
+            } else {
+                this.setStatus('Three.js ' + this.threePackageVersion + ' is preparing the Modern match hands\u2026');
+            }
+            return;
+        }
         if (!this.lobbyVisible) {
-            this.setStatus('Three.js ' + this.threePackageVersion + ' match preview active. Match cards are not rendered yet; select Legacy to play.');
+            this.setStatus('Three.js ' + this.threePackageVersion + ' is ready. Modern match hands appear when a match starts.');
             return;
         }
 
@@ -1089,11 +1236,13 @@ gh.graphics.prototype = {
             revision: gh.modernGraphics ? String(gh.modernGraphics.revision) : null,
             surfaceKind: this.surfaceKind,
             lobbyVisible: this.lobbyVisible,
+            activeMatchVisible: this.activeMatchVisible,
             lobbyPresentation: this.lobbyPresentation
                 ? $.extend({}, this.lobbyPresentation)
                 : null,
             lobbyPresentationDeliveredId:
                 this.lobbyPresentationDeliveredId,
+            matchHands: this.clonePlain(this.matchHands),
             playbookRevision: this.playbookRevision,
             lobbyPlaybook: this.lobbyPlaybook
                 ? this.clonePlain(this.lobbyPlaybook)

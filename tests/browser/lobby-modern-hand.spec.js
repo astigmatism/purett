@@ -286,6 +286,7 @@ test('renders the five-card lobby hand with Three.js and preserves the Legacy lo
 
   await page.evaluate(() => {
     window.__disposedLobbySurface = gh.manager.graphics.surface;
+    gh.manager.graphics.setActiveMatch(true);
     gh.manager.menu.hide();
   });
   await expect.poll(() => page.evaluate(() => gh.manager.graphics.surfaceKind)).toBe('active-match');

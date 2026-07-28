@@ -34,6 +34,9 @@ try {
   const lobbyPlaybookSource = read(
     'frontend/src/lobby-motion-playbook.js'
   );
+  const turnMarkerMotionSource = read(
+    'frontend/src/turn-marker-motion.js'
+  );
   const motionStudioSurfaceSource = read(
     'frontend/src/motion-studio-surface.js'
   );
@@ -67,14 +70,26 @@ try {
       modernBundle.includes('cubic-out'),
     'generated modern graphics bundle omits active-match drop-zone placement or invalid return'
   );
+  assert(
+    modernBundle.includes(
+      'purett-turn-marker-motion-plan'
+    ) &&
+      modernBundle.includes(
+        'match-turn-coin-transition'
+      ) &&
+      modernBundle.includes(
+        'turnIndicatorPolicy'
+      ),
+    'generated modern graphics bundle omits the turn-coin planner, Studio subject, or active-match renderer'
+  );
   assert(!/window\.THREE\s*=/.test(modernSource + modernBundle), 'modern bundle overwrites the legacy snow THREE global');
   assert(fs.existsSync(path.join(root, 'public/js/modern/THREE-LICENSE.txt')), 'distributed Three.js license is missing');
 
   assert(
     coordinator.includes(
-      '/js/modern/purett-modern-graphics.min.js?v=0.185.1-match-placement.1'
+      '/js/modern/purett-modern-graphics.min.js?v=0.185.1-match-turn-coin.1'
     ),
-    'coordinator does not use the match-placement bundle cache revision'
+    'coordinator does not use the match-turn-coin bundle cache revision'
   );
   assert(!/https?:\/\//.test(coordinator), 'coordinator references a third-party graphics URL');
   assert(coordinator.includes("this.storageKey = 'purett.graphicsMode.v1'"), 'graphics preference does not have a stable storage key');
@@ -102,6 +117,7 @@ try {
       game.includes('setGraphicsCoordinator: function(graphics)') &&
       game.includes('describeMatchHands: function()') &&
       game.includes('describeMatchDropZones: function()') &&
+      game.includes('describeTurnIndicator: function()') &&
       game.includes('notifyGraphicsHands: function()') &&
       game.includes('visibleImage: item.lkjasdojwlkajsdkjdpakjkjs') &&
       game.includes('this.boardEnabled === true') &&
@@ -114,11 +130,32 @@ try {
     'game does not expose a Raphael-independent current match-hand description'
   );
   assert(
+    game.includes(
+      "side: 'initial'"
+    ) &&
+      game.includes(
+        "side: (myTurn) ? 'player' : 'opponent'"
+      ) &&
+      game.includes(
+        '(Number(currentIndicator.sequence) || 0) + 1'
+      ) &&
+      game.indexOf('me.notifyGraphicsHands();') <
+        game.indexOf(
+          'me.turnMarker.animate({ x: xpos'
+        ) &&
+      !game.slice(
+        game.indexOf('describeTurnIndicator: function()'),
+        game.indexOf('describeMatchDropZones: function()')
+      ).includes('.attr('),
+    'the game does not publish a sequence-based plain turn-indicator target before the unchanged Legacy animation'
+  );
+  assert(
     coordinator.includes('this.game.setGraphicsCoordinator(this)') &&
       coordinator.includes('this.activeMatchVisible = false') &&
       coordinator.includes('setActiveMatch: function(active)') &&
       coordinator.includes('updateMatchHands: function(hands)') &&
       coordinator.includes('this.matchDropZones = []') &&
+      coordinator.includes('this.matchTurnIndicator = null') &&
       coordinator.includes(
         '(source.dropZones || []).slice(0, 9)'
       ) &&
@@ -128,10 +165,29 @@ try {
         '                this.matchDropZones\n' +
         '            )'
       ) &&
+      coordinator.includes(
+        'this.surface.setTurnIndicator('
+      ) &&
       coordinator.includes("me.surfaceKind === 'active-match'") &&
       game.includes('this.graphics.setActiveMatch(true)') &&
       application.includes('me.graphics.setActiveMatch(false)'),
     'graphics coordinator does not explicitly scope the match-hand bridge to an active match'
+  );
+  assert(
+    coordinator.includes(
+      "this.turnMarkerMotionStorageKey =\n" +
+      "            'purett.turnMarkerMotion.v1'"
+    ) &&
+      coordinator.includes(
+        'ensureTurnMarkerMotionProfile: function('
+      ) &&
+      coordinator.includes(
+        'setTurnMarkerMotionProfile: function('
+      ) &&
+      coordinator.includes(
+        'turnMarkerMotionRevision:'
+      ),
+    'the turn-coin profile is not isolated, persisted, normalized, and inspectable'
   );
   assert(
     activeSurfaceSource.includes(
@@ -148,6 +204,61 @@ try {
         "placement: 'legacy-exact-at-rest'"
       ),
     'active Modern surface does not preserve exact settled hands through its pickup-capable perspective projection'
+  );
+  assert(
+    activeSurfaceSource.includes(
+      'setTurnIndicator(indicator, profile)'
+    ) &&
+      activeSurfaceSource.includes(
+        'new CylinderGeometry('
+      ) &&
+      activeSurfaceSource.includes(
+        'new CircleGeometry('
+      ) &&
+      activeSurfaceSource.includes(
+        'beginTurnIndicatorTransition('
+      ) &&
+      activeSurfaceSource.includes(
+        'sampleTurnMarkerMotion('
+      ) &&
+      activeSurfaceSource.includes(
+        'cancelTurnIndicatorMotion('
+      ) &&
+      activeSurfaceSource.includes(
+        'acceptedTurnIndicatorTransitions:'
+      ) &&
+      activeSurfaceSource.includes(
+        'normalized.sequence < previous.sequence'
+      ) &&
+      activeSurfaceSource.includes(
+        'gameplayAuthority: false'
+      ),
+    'the active Modern surface lacks a lifecycle-safe, stale-resistant double-faced 3D turn coin and diagnostics'
+  );
+  assert(
+    modernSource.includes(
+      '(MATCH_TURN_COIN_THICKNESS / 2) + 0.08'
+    ) &&
+      motionStudioSurfaceSource.includes(
+        'const STUDIO_COIN_FACE_CLEARANCE = 0.08'
+      ),
+    'the production and Motion Studio coin face clearances disagree'
+  );
+  assert(
+    activeSurfaceSource.includes(
+      'this.pendingTurnIndicatorTextureLoads'
+    ) &&
+      activeSurfaceSource.includes(
+        'cancelPendingTurnIndicatorTextureLoads()'
+      ) &&
+      activeSurfaceSource.includes(
+        "this.pendingTurnIndicatorTextureLoads,\n" +
+        "        'match turn-indicator'"
+      ) &&
+      activeSurfaceSource.includes(
+        'pendingTurnIndicatorTextureLoadCount:'
+      ),
+    'turn-coin texture loading is not isolated from replaceable hand snapshots'
   );
   assert(
     activeSurfaceSource.includes('Promise.allSettled(') &&
@@ -802,7 +913,13 @@ try {
       contextMenu.includes('class="motion-studio-scale-stage"') &&
       contextMenu.includes('class="motion-studio-shell"') &&
       contextMenu.includes('id="motionstudio-copy-target"') &&
-      contextMenu.includes('class="motion-studio-copy-intro"'),
+      contextMenu.includes('class="motion-studio-copy-intro"') &&
+      contextMenu.includes(
+        'value="match-turn-coin-transition"'
+      ) &&
+      contextMenu.includes(
+        'id="motionstudio-coin-direction"'
+      ),
     'the Motion Studio overlay is missing its dialog, preview, controls, timeline, or recipe editor'
   );
   assert(
@@ -917,9 +1034,43 @@ try {
     'the reusable card-motion facade is not a DOM-free, versioned recipe API'
   );
   assert(
+    turnMarkerMotionSource.includes(
+      'export const TURN_MARKER_MOTION_SCHEMA_VERSION = 1'
+    ) &&
+      turnMarkerMotionSource.includes(
+        'export const TURN_MARKER_MATCH_CENTERS'
+      ) &&
+      turnMarkerMotionSource.includes(
+        'export function createTurnMarkerMotionPlan'
+      ) &&
+      turnMarkerMotionSource.includes(
+        'export function sampleTurnMarkerMotion'
+      ) &&
+      turnMarkerMotionSource.includes(
+        'export function serializeTurnMarkerMotionProfile'
+      ) &&
+      turnMarkerMotionSource.includes(
+        'export function parseTurnMarkerMotionProfile'
+      ) &&
+      !/\b(?:window|document|HTMLElement|WebGLRenderer|from ['"]three['"])\b/.test(
+        turnMarkerMotionSource
+      ),
+    'the turn-coin profile is not a DOM-free, versioned motion API'
+  );
+  assert(
     motionStudioSurfaceSource.includes('export class MotionStudioSurface') &&
       motionStudioSurfaceSource.includes("surface: 'motion-studio'") &&
       motionStudioSurfaceSource.includes('getDebugState()') &&
+      motionStudioSurfaceSource.includes('setCoin(coin)') &&
+      motionStudioSurfaceSource.includes(
+        "subjectKind: this.subjectKind"
+      ) &&
+      motionStudioSurfaceSource.includes(
+        'STUDIO_MATCH_VIEWPORT_X'
+      ) &&
+      motionStudioSurfaceSource.includes(
+        'this.renderer.setScissor('
+      ) &&
       motionStudioSurfaceSource.includes('rafActive:') &&
       motionStudioSurfaceSource.includes('renderedScale:') &&
       motionStudioSurfaceSource.includes('dispose()'),
@@ -933,7 +1084,14 @@ try {
       modernSource.includes('createPlan(') &&
       modernSource.includes('samplePlan(') &&
       modernSource.includes('serializePreset(') &&
-      modernSource.includes('parsePreset('),
+      modernSource.includes('parsePreset(') &&
+      modernSource.includes('coin: Object.freeze({') &&
+      motionStudioController.includes(
+        'applyCoinPresetToSurface: function('
+      ) &&
+      motionStudioController.includes(
+        'this.graphics.setTurnMarkerMotionProfile('
+      ),
     'the Modern graphics facade does not expose the Motion Studio factory and reusable recipe API'
   );
   assert(

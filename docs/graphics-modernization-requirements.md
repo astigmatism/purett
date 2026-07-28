@@ -2,15 +2,17 @@
 
 | Field | Value |
 |---|---|
-| Status | Phase 0.13 renderer-local valid-zone hover and placement preview implemented; Phase 0.12 invalid return preserved as the historical fallback baseline; Phase 0.9 lobby playbook verification remains in progress; Phase 0.7 visual baseline rejected |
-| Version | 1.11 |
+| Status | Phase 0.14 renderer-local active-match turn-indicator coin and Motion Studio profile implemented; Phase 0.13 placement preview preserved as the current card-interaction baseline; Phase 0.9 lobby playbook verification remains in progress; Phase 0.7 visual baseline rejected |
+| Version | 1.12 |
 | Last updated | 2026-07-27 |
-| Scope | Active-match graphics roadmap plus renderer-local Modern player-card pickup/follow, invalid-return, valid-zone hover, and one-placement-preview studies, Modern match-hand rendering, Modern lobby-hand rendering, an application-bound lobby intro/exit playbook, Motion Studio authoring, renderer-neutral motion recipes, and bounded decorative card experiments |
+| Scope | Active-match graphics roadmap plus renderer-local Modern player-card pickup/follow, invalid-return, valid-zone hover, one-placement-preview, and turn-indicator-coin studies, Modern match-hand rendering, Modern lobby-hand rendering, an application-bound lobby intro/exit playbook, Motion Studio card and coin authoring, renderer-neutral motion recipes, and bounded decorative experiments |
 | Modern renderer | Three.js `0.185.1` (`r185`) with `WebGLRenderer`, selected for Phase 0 and provisional for the playable renderer |
 
 > **Implementation status — 2026-07-27:** Phase 0 established the runtime Graphics switch, safe Legacy fallback, and inert active-match Modern surface. Phase 0.5 rendered only the five lobby-hand cards beneath the Play, Shop, and Tutorials bar. Phase 0.6 added the calibrated flat-table Three.js card model and independent decorative double flips. Phase 0.7 deployed a deterministic `casual-drop-left` implementation with a pure planner, bounded lifecycle, table-clearance safeguards, and exact settlement. Its current visible motion does **not** convincingly resemble cards being dropped or scattered by a player: it reads primarily as flat cards sliding in from the left. It therefore failed the human visual acceptance requirement in `AC-P07-003` and is **not an approved visual baseline**. Its parameter values, named gestures, cadence, scale policy, and apparent motion must not be copied into the lobby, shop, active match, or another surface as an accepted design. Phase 0.8 introduced the isolated one-card Motion Studio and deterministic renderer-neutral recipes. Phase 0.9 binds that authoring loop to a browser-local application playbook: five independently editable lobby-card intro targets land on runtime-owned fixed anchors, and one shared Gentle Wind exit compiles into five deterministic seeded variants with distinct lower-left offscreen endpoints. Its authoring refinement presents the entire 755 by 562 lobby board at true logical size, visually inherits the selected application scale, keeps every HTML control outside that stage, and can copy one intro card's shared motion character to selected or all other intro cards while preserving each destination's delay and travel placement. `Apply & Preview in Lobby` exercises the same production path used by normal lobby presentation and command exit while preserving the stored Legacy/Modern preference. Modern lobby commands wait for the exit or a fail-open watchdog; Tutorials Back replays the intro. A valid saved Modern choice is read in the document head and masks only the retained Raphael lobby-card elements before first paint; the normal ready gate takes ownership after the first complete Three.js hand frame, while every failure path removes the startup mask and reveals Legacy. Phase 0.10 is the first active-match card projection: while Modern is effective, the current player and opponent hands are rendered as passive, flat, portrait Three.js cards at the exact Legacy stack coordinates. The bridge contains only plain visible presentation data, preserves Closed-hand secrecy, has no match input or animation loop, and falls back to the intact live Legacy surface on required texture or context failure. Phase 0.11 advanced only the player hand into a renderer-local pickup/follow motion study. A primary click on the visually topmost eligible player card lifts that one card to the Legacy-equivalent `1.075` projected scale, keeps the original grab offset while it follows the pointer through the scaled 693 by 500 host, and applies bounded velocity-driven local-X/local-Y tilt that trails movement and damps back to a stable lifted pose. Phase 0.11 deliberately ended with no second-click behavior. Phase 0.12 now supersedes only that historical no-drop boundary: after the 300-millisecond pickup has armed the hold, a second primary click always means an invalid renderer-local drop because no drop zones exist. The card returns to its original hand anchor over 300 milliseconds with the live Legacy `cubic-out` timing character and one clockwise screen-space turn, then normalizes exactly to its canonical position, projected scale, rotation, render order, and unlocked pickup state. Clicks before arming or during return are ignored, reduced motion settles immediately, and lifecycle generation guards make late frames inert. This return still owns no drop-zone test, legal target, gameplay intent, controller state, turn rule, game mutation, or network request. Board cards, slots, scores, turn state, rules, and effects remain intentionally unrendered. The current generated artifact and loader cache identity is `0.185.1-match-return.1`.
 
 > **Phase 0.13 supersession — 2026-07-27:** The preceding implementation paragraph is retained as the complete historical Phase 0.12 record. Phase 0.13 supersedes only its zero-drop-zone and always-invalid-location boundary. The temporary game bridge now describes the nine Legacy board rectangles as plain presentation data. While a player card is carried, exactly one empty and currently valid rectangle may appear as the Legacy-equivalent black shadow at `0.3` opacity under the pointer. An armed second click over that rectangle begins one renderer-local placement preview: the carried card reverses the pickup pose over 300 milliseconds with `cubic-out` timing, lands at the exact slot center and table depth, and retains only one once-sampled screen-space residual roll in `[-2°, 2°]`. There is no position jitter. A click anywhere else still follows the unchanged Phase 0.12 invalid-return path. The preview does not call or mirror the Legacy drop routine, mutate game, hand, board, turn, or controller state, or submit a request. At most one preview placement is accepted for one unchanged hand/drop-zone snapshot; the placed card remains visible and inert until a revision or lifecycle boundary restores the canonical renderer projection. Reduced motion commits the same sampled endpoint immediately. The current generated artifact and loader cache identity is `0.185.1-match-placement.1`.
+
+> **Phase 0.14 supersession — 2026-07-27:** The preceding paragraph is retained as the complete historical Phase 0.13 record. Phase 0.14 preserves every Phase 0.13 card-interaction behavior and supersedes only its absent-Modern-turn-indicator boundary and current delivery identity. The temporary bridge now adds one plain, monotonically sequenced description of the live Legacy turn marker. A newly mounted Modern surface snaps its first description to the described Legacy location without replaying history. Each later accepted sequence change animates one true 3D circular coin between the exact Legacy player and opponent targets through a deterministic arc, height, flip, tumble, spin, shadow, and settle profile. The current Legacy-selected 41 by 41 dime image is applied to both circular faces for this phase; a lit metallic cylindrical edge makes edge-on motion physically legible, but no new heads/tails outcome is invented. The coin is renderer-only presentation: it does not decide whose turn it is, delay or invoke the Legacy turn callback, gate card input, progress the match, or issue a request. Motion Studio adds one application target that previews the same coin geometry, active-match 693 by 500 coordinate space, endpoints, camera, planner, sampler, and profile used in production. Its normalized version-1 profile persists under the separate local key `purett.turnMarkerMotion.v1`, independent of the Graphics preference and lobby playbook. Reduced motion snaps each accepted transition to its latest endpoint, and lifecycle invalidation makes late frames inert. The current generated artifact and loader cache identity is `0.185.1-match-turn-coin.1`.
 
 ## Contents
 
@@ -35,6 +37,7 @@
   - [12.14 Phase 0.11: renderer-local active-match pickup/follow study](#1214-phase-011-renderer-local-active-match-pickupfollow-study)
   - [12.15 Phase 0.12: renderer-local second-click invalid return](#1215-phase-012-renderer-local-second-click-invalid-return)
   - [12.16 Phase 0.13: renderer-local valid-zone hover and placement preview](#1216-phase-013-renderer-local-valid-zone-hover-and-placement-preview)
+  - [12.17 Phase 0.14: renderer-local active-match turn-indicator coin](#1217-phase-014-renderer-local-active-match-turn-indicator-coin)
 - [13. Target renderer contract](#13-target-renderer-contract)
 - [14. Renderer-neutral view state](#14-renderer-neutral-view-state)
 - [15. Three.js implementation constraints](#15-threejs-implementation-constraints)
@@ -52,7 +55,7 @@
 
 ## 1. Purpose of this document
 
-This document defines the intended outcome, constraints, phased delivery plan, and acceptance criteria for modernizing the active-match graphics in Pure Triple Triad. It also defines the deliberately narrow Phase 0.5 lobby-hand preview, Phase 0.6 lobby-card double-flip spike, Phase 0.7 entrance experiment, Phase 0.8 one-card Motion Studio, Phase 0.9 application-bound lobby intro/exit playbook, Phase 0.10 passive match-hand projection, Phase 0.11 renderer-local pickup/follow motion study, Phase 0.12 renderer-local second-click invalid return, and Phase 0.13 renderer-local valid-zone hover and one-placement preview used to establish renderer seams and physical card language before any playable match surface is converted.
+This document defines the intended outcome, constraints, phased delivery plan, and acceptance criteria for modernizing the active-match graphics in Pure Triple Triad. It also defines the deliberately narrow Phase 0.5 lobby-hand preview, Phase 0.6 lobby-card double-flip spike, Phase 0.7 entrance experiment, Phase 0.8 one-card Motion Studio, Phase 0.9 application-bound lobby intro/exit playbook, Phase 0.10 passive match-hand projection, Phase 0.11 renderer-local pickup/follow motion study, Phase 0.12 renderer-local second-click invalid return, Phase 0.13 renderer-local valid-zone hover and one-placement preview, and Phase 0.14 renderer-local turn-indicator coin and Motion Studio profile used to establish renderer seams and physical-object language before any playable match surface is converted.
 
 It is deliberately more detailed than an implementation ticket. The modernization will cross a legacy rendering implementation, animation-driven control flow, input handling, tests, build and dependency delivery, accessibility, and failure recovery. Once reviewed and accepted, this document is intended to be the stable product and engineering reference for that work.
 
@@ -96,7 +99,7 @@ Server-approved match state and events
 
 After renderer extraction, exactly one active-match renderer must own the active-match mount, animation, and input at a time.
 
-The first implementation increment did **not** add functional Three.js card rendering. It added a persisted graphics-mode preference and immediate runtime selection, preserved fully functional Legacy behavior, and supplied an intentionally inert Modern preview. Phase 0.10 added passive active-match hand projection. Phase 0.11 added one deliberately non-authoritative player-card pickup/follow study. Phase 0.12 added a renderer-local always-invalid second-click return. Phase 0.13 adds one non-authoritative valid-zone hover and placement preview while still not adding playable Three.js match rendering. The Modern bundle remains isolated, pinned, self-hosted, and loaded only when Modern is requested.
+The first implementation increment did **not** add functional Three.js card rendering. It added a persisted graphics-mode preference and immediate runtime selection, preserved fully functional Legacy behavior, and supplied an intentionally inert Modern preview. Phase 0.10 added passive active-match hand projection. Phase 0.11 added one deliberately non-authoritative player-card pickup/follow study. Phase 0.12 added a renderer-local always-invalid second-click return. Phase 0.13 added one non-authoritative valid-zone hover and placement preview. Phase 0.14 adds the live turn-indicator projection and its local Motion Studio profile while still not adding playable Three.js match rendering. The Modern bundle remains isolated, pinned, self-hosted, and loaded only when Modern is requested.
 
 Phase 0 uses a presentation/input gate rather than a renderer reconstruction boundary. The active-match Raphael papers remain mounted, live, and synchronized while Modern is effective, but they are opacity-hidden, marked `aria-hidden`, and blocked from pointer input. Phase 0.10 evolves the initially blank, non-interactive Three.js surface to project only the two current hands. Phase 0.11 permits that Modern surface to own only card-bounded player-hand picking and pointer-follow presentation, with all resulting hold state confined to the renderer. Phase 0.12 permits the same renderer-local hold to consume one armed second click as an always-invalid return, without emitting a renderer-neutral or gameplay action. Selecting Legacy removes the gate and reveals the identical current Raphael state immediately, without a reload or renderer rebuild. This temporary coexistence must not be mistaken for the final architecture or a semantic gameplay-input boundary.
 
@@ -119,6 +122,8 @@ Phase 0.11 is the first active-match physical-motion study. It replaces the Phas
 Phase 0.12 is a narrow superseding interaction study over that retained Phase 0.11 implementation. It supersedes the no-second-click and no-return clauses in `DEC-052`, `FR-MATCH-PICKUP-011`, `FR-MATCH-PICKUP-012`, `AC-P011-006`, and Section 12.14 only for the ready Phase 0.12 Modern active-match surface. The first accepted pickup must finish its 300-millisecond lift before its return is armed. Thereafter any second primary click, regardless of pointer location, is classified locally as an invalid drop because Phase 0.12 defines zero Modern drop zones. The card follows a 300-millisecond cubic-out return to the captured canonical hand pose while making one clockwise screen-space turn, then becomes pickable again only after exact normalized settlement. This presentation action never calls the Legacy grab/drop path, resolves no target, changes no match or controller state, and emits no request. A lifecycle boundary cancels and resets the transient pose immediately rather than replaying the visible return.
 
 Phase 0.13 is a similarly narrow superseding study. It retains the complete Phase 0.12 invalid-return behavior for a second click outside a valid zone, but permits the Modern surface to consume plain descriptions of the nine currently live Legacy board rectangles and reveal one hover shadow for the carried card. This is not renderer-neutral legality or a playable move: the bridge supplies a fail-closed presentation validity bit, the surface accepts at most one local placement per unchanged snapshot, and no action crosses back into `gh.game`. A valid placement reverses the pickup pose to the exact Legacy slot center over 300 milliseconds with cubic-out timing and retains only a once-sampled `[-2°, 2°]` screen-space roll. Mode, view, visibility, hand/drop-zone revision, context, failure, replacement, and disposal boundaries discard the preview and restore the canonical renderer projection.
+
+Phase 0.14 extends that unchanged renderer-local card study with one renderer-local turn-indicator projection. The bridge clones the current Legacy marker's sequence, side, rectangle, selected dime texture, and visibility. The first description received by a surface establishes the settled coin directly; only a later sequence and target change starts motion. The 41-pixel circular marker uses two textured circular face meshes and a three-unit cylindrical edge under the existing calibrated active-match perspective camera. A pure versioned profile controls its deterministic quadratic screen path, physical height, three-axis rotations, landing settle, and analytic shadow. The same profile and production planner/sampler are exposed in Motion Studio against an exact 693 by 500 active-match inset with locked Legacy endpoints and a reversible direction selector. The profile may be saved only to its dedicated browser-local key. None of this makes the turn marker authoritative, changes Phase 0.13 card behavior, calls the Legacy turn continuation, or advances gameplay.
 
 Legacy remains the default until the Modern renderer reaches the documented playability, parity, reliability, and fallback gates.
 
@@ -237,18 +242,18 @@ The following existing contracts remain authoritative unless a later requirement
 | **Board frame** | The existing 755 by 562 CSS-backed `#board` element and its static background artwork. |
 | **Legacy renderer** | The current active-match implementation backed by the two Raphael papers. |
 | **Modern renderer** | The future active-match implementation backed by Three.js. |
-| **Modern preview** | The non-playable Phase 0 Modern mode. It began as an inert delivery and gating proof, gained passive active-match hands in Phase 0.10, renderer-local player-card pickup/follow presentation in Phase 0.11, an always-invalid renderer-local second-click return in Phase 0.12, and a renderer-local valid-zone hover plus one-placement preview in Phase 0.13. It still cannot emit a gameplay intent, mutate authoritative state, or submit a move. |
+| **Modern preview** | The non-playable Phase 0 Modern mode. It began as an inert delivery and gating proof, gained passive active-match hands in Phase 0.10, renderer-local player-card pickup/follow presentation in Phase 0.11, an always-invalid renderer-local second-click return in Phase 0.12, a renderer-local valid-zone hover plus one-placement preview in Phase 0.13, and a renderer-local sequenced turn-indicator coin in Phase 0.14. It still cannot emit a gameplay intent, mutate authoritative state, decide the turn, or submit a move. |
 | **Lobby/main-menu viewport** | The first application screen containing the Play, Shop, and Tutorials command bar, statistics/rules content, and the five-card hand preview. It is not an active match or game state. |
 | **Lobby-hand preview** | The five current-hand card faces displayed below the main command bar. Phase 0.5 renders them as a non-interactive Three.js preview; Phase 0.6 adds a decorative click-to-double-flip spike; Phase 0.7 records the rejected seeded entrance; Phase 0.9 supplies application-bound intro and exit sequences while all surrounding menu UI remains unchanged. |
 | **Lobby-hand host** | The dedicated, transparent 755 by 562 DOM mount used only for the Modern lobby-hand preview. It is pointer-inert in Phase 0.5; Phase 0.6 may accept pointer activation only over a settled Modern card without blocking the surrounding menu. |
 | **Lobby card re-entry lock** | The Phase 0.6 lock owned independently by each lobby card while that card animates. It rejects and does not queue a repeated activation of the same active card until exact settlement, but it does not block another settled card from starting its own concurrent animation. It is not a game, turn, card-selection, or server-request lock. |
 | **Lobby presentation token** | The one-use identifier and reveal timestamp created by each `gh.menu.show()` call and carried to the Modern surface so async readiness can present at most one caught-up matching arrival batch. |
 | **Card arrival profile** | A reusable seeded planner and sampler that accepts plain card dimensions and destinations. Phase 0.7 defines `casual-drop-left`; the profile contains no lobby slot coordinates or game authority. |
-| **Motion Studio** | The application-local workbench introduced in Phase 0.8 and bound to concrete lobby playbook targets in Phase 0.9. It previews one Three.js card, exposes motion controls and transport, applies or previews a complete local lobby playbook, and never changes authoritative game state or the stored Graphics preference. |
+| **Motion Studio** | The application-local workbench introduced in Phase 0.8 and bound to concrete lobby playbook targets in Phase 0.9. Phase 0.14 additionally provides one active-match turn-coin target that uses the production coin planner and a separate browser-local profile. The Studio previews one Three.js subject, exposes applicable motion controls and transport, applies only an explicitly authorized local target, and never changes authoritative game state or the stored Graphics preference. |
 | **Motion recipe** | A versioned plain-data description of a card transition. It contains validated values and stable semantic names, but no DOM node, Raphael element, Three.js object, callback, wall-clock timestamp, or application state reference. |
-| **Motion draft** | The mutable recipe currently being edited in the Motion Studio. Phase 0.8 drafts were unbound studies. In Phase 0.9 the draft belongs to one declared playbook target and may be applied to the browser-local Modern lobby playbook; it still cannot affect the shop, active match, account, server, or repository defaults. |
+| **Motion draft** | The mutable recipe currently being edited in the Motion Studio. Phase 0.8 drafts were unbound studies. In Phase 0.9 a card draft belongs to one declared lobby-playbook target. In Phase 0.14 a coin draft may belong only to the declared Modern match turn-coin transition and may update only its separate local profile. Neither kind can affect the shop, account, server, gameplay authority, or repository defaults. |
 | **Lobby motion playbook** | The versioned browser-local plain-data document that owns five independent intro entries, one shared Gentle Wind exit entry, its seed-lock policy, and no resolved card coordinates. It is the Phase 0.9 production input for Modern lobby intro/exit presentation in that browser. |
-| **Application-bound motion target** | A stable Studio selection whose semantic start or destination is owned by the application. Phase 0.9 defines `Lobby card 1–5 — Intro` and `Lobby hand — Gentle Wind Exit`. |
+| **Application-bound motion target** | A stable Studio selection whose semantic start or destination is owned by the application. Phase 0.9 defines `Lobby card 1–5 — Intro` and `Lobby hand — Gentle Wind Exit`; Phase 0.14 adds `Match turn coin — Transition` with locked Legacy endpoints and selectable preview direction. |
 | **Runtime-owned anchor** | The current renderer-supplied center and table position for one of the five lobby slots. Anchors are resolved from the live card layout when a sequence is compiled and are never serialized into the playbook. |
 | **Gentle Wind exit** | One shared outbound lobby sequence compiled into five deterministic per-slot variants. A shared gust keeps the cards coherent while bounded per-card variation gives each a distinct path, cadence, lift, rotation, speed, and fully offscreen lower-left endpoint. |
 | **Lobby command continuation** | The exactly-once callback held while a Modern Gentle Wind exit runs before Play, Shop, Tutorials, Replay, or Deck. Additional command clicks are ignored until it completes or fails open through its watchdog. |
@@ -261,6 +266,9 @@ The following existing contracts remain authoritative unless a later requirement
 | **Valid-zone hover shadow** | The single Phase 0.13 black rounded rectangle shown at `0.3` opacity only while a carried card's pointer is inside an empty, currently valid board rectangle. It is presentation feedback, not a semantic legal-target collection. |
 | **Renderer-local placement preview** | The Phase 0.13 visual result of an armed second click over the currently hovered valid zone. It settles one carried card at the exact slot center with a once-sampled `[-2°, 2°]` screen-space roll, remains private to the Modern surface, and is discarded on snapshot or lifecycle reset without submitting a move. |
 | **Placement preview lock** | The Phase 0.13 one-per-snapshot guard. Once one placement preview completes, that placed projection remains visible and inert and no additional preview pickup or placement may begin until hand/drop-zone presentation revision or another lifecycle boundary restores canonical projection. |
+| **Turn-indicator descriptor** | The plain cloned Phase 0.14 presentation record containing monotonic sequence, side, logical rectangle, approved Legacy dime texture URL, and visibility. It reports what Legacy currently presents; it is not turn authority, an animation command callback, or controller state. |
+| **Turn-coin motion profile** | The version-1 deterministic plain-data profile for the Modern 3D turn-indicator transition. It contains only profile identity plus path, rotation, landing, and shadow values; endpoints, direction, texture, current turn, and sequence remain application-owned. Its applied value persists separately under `purett.turnMarkerMotion.v1`. |
+| **Turn-coin transition** | The renderer-local Phase 0.14 motion accepted only after an already initialized surface receives a later descriptor sequence at a different Legacy endpoint. It moves the same circular marker through authored screen-space path, height, local-X/local-Y/local-Z rotation, shadow, and exact flat settlement without changing the Legacy marker or match. |
 | **Flat-table perspective calibration** | A constrained head-on perspective projection whose settled cards retain the established screen rectangles and centered, position-neutral silhouette. Outer cards must not fan, lean, shear, or appear to rest on a curved surface merely because they are away from camera center. |
 | **Approved visual baseline** | A named recipe and reference capture that passed real-time review at the actual application size in addition to deterministic, lifecycle, and geometry checks. Structural test success alone does not confer this status. |
 | **Requested mode** | The value selected and persisted by the user. |
@@ -352,6 +360,17 @@ These decisions are part of the baseline requirements.
 | DEC-069 | Phase 0.13 accepts at most one renderer-local placement preview for one unchanged hand/drop-zone presentation snapshot. Completion leaves that card visible, front-facing, inert, and settled above the slot at the exact center and sampled roll. Further pickup or placement input is ignored until a hand/drop-zone revision or lifecycle reset restores canonical hand projection. This constraint mirrors one card per turn without claiming or changing turn authority. |
 | DEC-070 | Phase 0.13 placement, hover, counters, and random sample remain disposable Modern-surface state. Mode/view change, visibility loss, hand or drop-zone revision, selected-card removal, context loss, suspension, replacement, fallback, and disposal clear the hover and placement preview atomically and generation-guard late frames. Reduced motion commits the same exact center, scale, depth, tilt, and sampled-roll endpoint immediately. No path calls or mirrors Legacy `grab`/`drop`, mutates game, board, hand, turn, or controller state, emits a semantic action, or submits a request. |
 | DEC-071 | The Phase 0.13 generated Modern artifact retains Three.js `0.185.1` (`r185`) and uses cache identity `0.185.1-match-placement.1`. Source, generated bundle, loader URL, DOM dataset, diagnostics, browser/static contracts, and deployment artifact must agree. Phase 0.12's `0.185.1-match-return.1` remains its historical identity. |
+| DEC-072 | Phase 0.14 preserves the full Phase 0.13 card pickup, follow, invalid-return, hover, placement-preview, and zero-authority behavior. It supersedes only Phase 0.13's absent-Modern-turn-indicator statement and current cache identity by adding one renderer-local turn-marker projection. |
+| DEC-073 | The turn-indicator bridge is an explicit plain descriptor `{sequence, side, x, y, width, height, textureUrl, visible}`. Legacy initializes sequence `0` at top-left `(327, 420)`, center `(347.5, 440.5)`, then targets player top-left `(33, 420)`, center `(53.5, 440.5)`, or opponent top-left `(621, 420)`, center `(641.5, 440.5)`. Every marker rectangle is exactly 41 by 41. |
+| DEC-074 | Legacy chooses `/images/dime-heads.png` when the player initially owns the turn and `/images/dime-tails.png` otherwise, then moves that same chosen image between sides. Phase 0.14 accepts only those two existing same-origin 41 by 41 assets and applies the descriptor-selected image to both 3D coin faces. It does not alternate artwork during flips or infer a heads/tails result. |
+| DEC-075 | A surface's first valid descriptor snaps directly to its described settled endpoint and never replays an earlier turn. A later transition requires a newer sequence and changed endpoint. Duplicate, stale, same-sequence, or same-target delivery cannot replay motion. A newer accepted sequence during motion supersedes from the currently rendered pose without a visual jump and makes the prior generation inert. |
+| DEC-076 | The Phase 0.14 marker is a true 3D circular object: two 41-diameter, 64-segment face circles separated around a three-unit, 64-segment open cylindrical edge. Face art is unlit sRGB; the metallic edge alone is lit. Deterministic local-X tumble, local-Y flip, local-Z spin, physical height, perspective, and a height-responsive analytic shadow must expose the edge during flight and settle on the table without a position-dependent curved-surface skew. |
+| DEC-077 | Turn-coin motion is produced by one versioned DOM-free and Three.js-free profile/planner/sampler. The profile contains exactly identity/label, path curve/apex/flight, flip/tumble/spin/contact tilt, settle duration, and shadow strength/spread. It contains no target coordinates, texture, direction, turn value, sequence, callback, renderer object, or gameplay authority. Planning is deterministic and horizontal direction is mirrored from application-owned endpoints; no random value is sampled. |
+| DEC-078 | Phase 0.14 is presentation only. The descriptor copies the already-decided Legacy turn display; Modern must not inspect or set `isMyTurn`, `turns`, board enablement, hand playability, opponent scheduling, Legacy marker attributes, callback timing, scores, rules, game state, requests, or navigation. Coin completion cannot gate or invoke the existing Legacy turn continuation. |
+| DEC-079 | Motion Studio adds only the application target `Match turn coin — Transition`. Its coin preview uses the exact active-match 693 by 500 logical viewport inset at `(30, 30)` within the 755 by 562 Studio stage, the same 40-degree perspective calibration, 41-by-41 coin, three-unit edge, approved face asset behavior, locked player/opponent centers, production profile normalization, planner, and sampler. The direction control may reverse preview travel but cannot edit or persist application endpoints. |
+| DEC-080 | The normalized applied turn-coin profile persists in `localStorage` under `purett.turnMarkerMotion.v1`, separate from `purett.graphicsMode.v1` and `purett.lobbyMotionPlaybook.v1`. Invalid, unsafe, or future-schema data falls back atomically to the application default without changing either other key. Studio session draft/view state may remain under its existing session key. No coin profile is account-synchronized, submitted, or promoted to source defaults implicitly. |
+| DEC-081 | Reduced motion snaps an accepted later sequence immediately to the same latest settled endpoint with no flight, rotation, or pending frame. Mode/view change, descriptor removal, visibility loss, context loss, suspension, replacement, fallback, and disposal cancel the current coin generation, settle or discard the latest descriptor as appropriate, detach ownership, and make every late callback inert. |
+| DEC-082 | The Phase 0.14 generated Modern artifact retains Three.js `0.185.1` (`r185`) and uses cache identity `0.185.1-match-turn-coin.1`. Source, generated bundle, loader URL, DOM dataset, diagnostics, browser/static contracts, Motion Studio contracts, deployment artifact, and this document must agree. Phase 0.13's `0.185.1-match-placement.1` remains historical evidence. |
 
 ## 7. Goals
 
@@ -363,8 +382,10 @@ These decisions are part of the baseline requirements.
 - Make the Modern experience materially more expressive through controlled 3D card motion.
 - Establish a convincing active-match card pickup, pointer-follow, invalid-return, valid-zone feedback, and humanly imperfect placement language before adding playable rule authority.
 - Establish a clear Legacy-character invalid-return motion, exact valid-zone geometry, and intentionally askew placement preview without conflating either outcome with a submitted move.
+- Add a physically legible Modern turn-indicator coin that mirrors the already-decided Legacy endpoint without conflating presentation with turn authority.
 - Give the user direct, repeatable control over one-card motion authoring before another five-card lobby entrance is promoted.
 - Let the user bind authored motion to visible lobby intro and exit consumers, evaluate it in finished application context, and retain the complete playbook locally.
+- Let the user tune the Modern turn-coin profile in the exact active-match coordinate space and apply it locally without altering the lobby playbook or Graphics preference.
 - Make visual approval an explicit gate rather than inferring it from deterministic or collision-safety tests.
 - Allow the renderer to evolve without rewriting the server-side game.
 - Keep a match resumable when the selected renderer is unavailable or fails.
@@ -377,6 +398,7 @@ These decisions are part of the baseline requirements.
 - Make renderer lifecycle explicit: mount, synchronize, activate, suspend, resize, and dispose.
 - Make all animation/transition completion deterministic and testable.
 - Represent authored card motion as versioned renderer-neutral data that can be sampled independently of Three.js and the authoring UI.
+- Represent authored turn-coin motion as a separate versioned deterministic profile/planner/sampler whose application endpoints and turn sequence remain outside the stored profile.
 - Compile application-owned lobby anchors and seeded five-card variance outside the stored recipes so layout and data remain authoritative.
 - Centralize coordinate conversion and hit testing.
 - Validate that one player card can preserve its grab point through every supported application scale while depth lift and velocity-driven tilt remain renderer-local.
@@ -411,12 +433,14 @@ The following are outside this initiative unless separately approved:
 - redesigning the board frame in the initial parity work;
 - adding physics simulation;
 - treating the current Phase 0.7 lobby scatter, its five gesture constants, or its 1.09 perspective limit as an approved visual baseline;
-- applying a Motion Studio draft beyond the explicitly approved Phase 0.9 lobby intro and Gentle Wind exit targets, including the shop or active match, without another approval and integration phase;
+- applying a Motion Studio draft beyond the explicitly approved Phase 0.9 lobby intro and Gentle Wind exit targets and the Phase 0.14 Modern match turn-coin profile, including any shop, card-gameplay, score, rule, or other active-match consumer, without another approval and integration phase;
 - treating the Phase 0.11 renderer-local hold as card selection, drag state, a legal move, or reusable game authority;
 - adding click-to-drop, board-slot hit testing, legal-target highlighting, invalid-drop return, card placement, or move submission to Phase 0.11;
 - treating the Phase 0.12 second click as a valid drop, cancellation intent, slot query, controller input, or placement; Phase 0.12 authorizes only the documented always-invalid renderer-local return;
 - treating the Phase 0.13 hover or settled placement preview as a semantic legal-target result, committed board occupancy, turn change, controller action, replay event, or submitted move;
 - adding position jitter to Phase 0.13 placement; its only human variance is the once-sampled `[-2°, 2°]` residual screen-space roll at the exact slot center;
+- treating the Phase 0.14 turn-indicator descriptor, coin endpoint, transition, or completion as turn authority, board enablement, opponent scheduling, callback sequencing, or a gameplay action;
+- generating a new coin design, swapping heads/tails during motion, or using different face textures in Phase 0.14; both faces use the one existing Legacy-selected descriptor texture;
 - storing Studio drafts in account, server, database, game, deck, shop, replay, analytics, or economy state;
 - allowing the Studio to rewrite the user's persisted Legacy/Modern Graphics preference;
 - building a freely navigable 3D room;
@@ -451,7 +475,7 @@ The five cards are flat and unshadowed before activation. The clicked card uses 
 
 ### 9.2.3 User authoring one-card motion
 
-From the existing application menu, the user opens Motion Studio without changing the current Legacy or Modern selection. The lobby remains intact behind an isolated workbench. The user chooses one of five left-to-right intro targets or the shared Gentle Wind exit, adjusts the editable motion values while its application anchor remains locked, and reviews the deterministic one-card study at several speeds. `Apply & Preview in Lobby` validates and locally persists the complete playbook, closes the Studio, and runs the selected production intro or exit in the actual five-card lobby before restoring the prior Graphics preference and reopening the Studio. The user may export or atomically import the whole playbook. No action promotes the playbook to the shop, active match, account, server, or repository defaults.
+From the existing application menu, the user opens Motion Studio without changing the current Legacy or Modern selection. The lobby remains intact behind an isolated workbench. The user chooses one of five left-to-right intro targets, the shared Gentle Wind exit, or the Phase 0.14 Match turn coin transition. Card targets retain their established lobby workflow. The coin target locks the exact player and opponent endpoints, lets the user choose only the direction being previewed, and exposes only the applicable path, physical-height, flip, tumble, spin, contact, settle, and shadow profile controls in an exact active-match-space inset. `Apply & Preview in Lobby` still applies only the complete lobby playbook; `Apply to Match Coin` saves only the separate local turn-coin profile and replays it in Studio. The user may export or atomically import the applicable versioned document. No action promotes either document to the shop, account, server, gameplay authority, or repository defaults.
 
 ### 9.2.4 Player leaving and re-entering the Modern lobby
 
@@ -479,9 +503,15 @@ After the hold is armed, the player clicks the visible shadow. The card stops fo
 
 The hover and settlement do not call Legacy `drop`, occupy the actual board, end a turn, remove a card from the live hand, dispatch a semantic action, or issue a request. Clicking outside a valid shadow continues to run the Phase 0.12 invalid return. Reduced motion commits the same exact zone center and sampled roll immediately.
 
+### 9.2.8 Player observing and tuning the Phase 0.14 turn coin
+
+With Modern effective in an active match, the player sees one circular 41-pixel turn marker at the exact location already selected by the live Legacy game. A newly opened or reconstructed Modern surface shows the current marker immediately without replaying how the turn arrived there. When a later Legacy turn-marker sequence changes sides, the coin visibly leaves the table, follows a curved path, exposes its metallic edge while flipping, tumbling, and spinning in true 3D, then settles flat at the opposite exact Legacy center. Both visible faces use the same dime image that Legacy selected for this match, so the physical turn never invents or communicates another heads/tails result.
+
+The user may open Motion Studio, choose `Match turn coin — Transition`, select Player → AI or AI → Player, and tune the transition against the exact 693 by 500 match coordinate space. Applying saves only the normalized local coin profile. Returning to the match uses that profile on the next described side change. The Studio and production motion do not change whose turn it is, invoke or delay the Legacy turn callback, enable a board, move a card, or issue a request. With reduced motion enabled, each accepted side change appears immediately at its latest target.
+
 ### 9.3 Player returning from the Phase 0 preview
 
-During the original Phase 0, the player selected Modern during an active match and saw a blank inert preview. Phase 0.10 replaces that blank frame with passive projections of the current player and opponent hands. Phase 0.11 permits the historical renderer-local player-card pickup/follow study. Phase 0.12 additionally permits only its always-invalid second-click return; there is still no controller selection, drop-zone interaction, valid placement, board projection, or move submission. The context menu and main-menu route remain usable. The player selects Legacy and immediately sees the same current Raphael match state that continued to synchronize while hidden. No reload, match resume, or renderer rebuild is required.
+During the original Phase 0, the player selected Modern during an active match and saw a blank inert preview. Phase 0.10 replaces that blank frame with projections of the current player and opponent hands. Phases 0.11 through 0.13 add only the documented renderer-local card studies. Phase 0.14 additionally projects the current sequenced turn marker, but there is still no controller selection, authoritative drop, board occupancy, score/rule projection, turn decision, or move submission. The context menu and main-menu route remain usable. The player selects Legacy and immediately sees the same current Raphael match state that continued to synchronize while hidden. No reload, match resume, or renderer rebuild is required.
 
 ### 9.4 Unsupported or failed Modern environment
 
@@ -544,12 +574,18 @@ The following invariants apply across every phase after the relevant seam exists
 43. A normal Phase 0.13 valid placement uses the exact 300-millisecond cubic-out reverse-pickup contract and ends at the exact slot center, projected scale `1`, table depth `0`, zero local-X/local-Y tilt, and one once-sampled `[-2°, 2°]` screen-space roll. Position jitter and per-frame randomness are prohibited.
 44. Phase 0.13 accepts no more than one renderer-local placement preview per unchanged hand/drop-zone snapshot. The preview cannot mutate live occupancy or turn state and cannot survive a snapshot or lifecycle boundary.
 45. Phase 0.13 hover, placement, and lifecycle paths preserve zero semantic actions, gameplay mutations, Legacy drop calls, and requests. Reduced motion commits the same sampled endpoint synchronously.
+46. Phase 0.14 may consume only one plain turn-indicator descriptor containing sequence, side, rectangle, approved dime texture URL, and visibility. It cannot inspect or derive turn authority beyond that already-presented data.
+47. The first valid turn-indicator description received by a Modern surface settles directly at the described endpoint. Only a later newer sequence with a changed target may begin motion; duplicate, stale, or same-target delivery cannot replay it.
+48. Every Phase 0.14 transition uses the same deterministic versioned profile/planner/sampler in production and Studio. Its endpoints, direction, texture, sequence, and turn decision remain application-owned and are never persisted in the profile.
+49. The Phase 0.14 coin remains a true circular two-face/one-edge 3D object throughout motion. Both faces use the one Legacy-selected descriptor texture for now; the renderer cannot switch art as a simulated coin-toss result.
+50. Turn-coin presentation cannot call, delay, complete, or replace the Legacy turn callback; gate player input; mutate game, board, hand, score, rule, or turn state; emit a semantic action; or issue a request.
+51. The applied turn-coin profile is browser-local under `purett.turnMarkerMotion.v1`, isolated from Graphics and lobby-playbook persistence. Reduced motion and every lifecycle boundary settle or discard only renderer-owned coin state and leave no pending frame or stale callback.
 
 ### 10.1 Phased applicability
 
 The invariants above describe the target architecture. Phase 0 is intentionally smaller and may retain the existing `gh.game` coupling behind the unchanged Legacy route.
 
-Phase 0.10 adds a deliberately shallow compatibility description and passive two-hand projection to that temporary bridge. Phase 0.11 adds one renderer-local pickup/follow study over the same plain presentation data. Phase 0.12 adds only a renderer-local always-invalid return over that hold. Phase 0.13 adds fail-closed drop-zone presentation and one renderer-local placement preview without move authority. None expands the playable boundary, authorizes Modern semantic gameplay input, or satisfies the complete renderer-neutral snapshot and renderer-extraction requirements deferred to Phase 1 and later.
+Phase 0.10 adds a deliberately shallow compatibility description and passive two-hand projection to that temporary bridge. Phase 0.11 adds one renderer-local pickup/follow study over the same plain presentation data. Phase 0.12 adds only a renderer-local always-invalid return over that hold. Phase 0.13 adds fail-closed drop-zone presentation and one renderer-local placement preview without move authority. Phase 0.14 adds only one plain sequenced turn-indicator description, one renderer-local 3D coin projection, and one separately persisted Studio profile. None expands the playable boundary, authorizes Modern semantic gameplay input or turn authority, or satisfies the complete renderer-neutral snapshot and renderer-extraction requirements deferred to Phase 1 and later.
 
 In particular, Phase 0 does **not** require:
 
@@ -560,7 +596,7 @@ In particular, Phase 0 does **not** require:
 - renderer-neutral replay or Sudden Death reconstruction;
 - replacement of existing renderer-specific tests.
 
-Phase 0 may use a shallow runtime presentation/input gate around the unchanged Legacy path and the inert Modern preview. Phase 0.5 may add a dedicated lobby-hand projection and a hand-element-only presentation gate without expanding the playable renderer boundary. Phase 0.6 may add only the documented decorative lobby-card click and bounded animation. Phase 0.7 may add only the documented seeded menu-presentation arrival. Phase 0.8 may add only the isolated one-card authoring workbench and renderer-neutral recipe facility. Phase 0.9 may bind those recipes only to the five Modern lobby intro slots and one shared Modern Gentle Wind exit, including the bounded command-continuation wait and Tutorials Back replay. Phase 0.10 may project the two current match hands. Phase 0.11 may add only the documented player-card pickup/follow motion study and may not treat its renderer-local hold as game input. Phase 0.12 may supersede only the Phase 0.11 no-second-click boundary with the documented always-invalid renderer-local return. Phase 0.13 may supersede only Phase 0.12's zero-zone boundary with nine plain presentation zones, one hover, and one renderer-local placement preview; it still may not create semantic game input. None of these decorative, authoring, presentation, or motion-study slices expands the playable active-match renderer boundary. Each phase must meet every requirement and acceptance criterion explicitly assigned to it.
+Phase 0 may use a shallow runtime presentation/input gate around the unchanged Legacy path and the inert Modern preview. Phase 0.5 may add a dedicated lobby-hand projection and a hand-element-only presentation gate without expanding the playable renderer boundary. Phase 0.6 may add only the documented decorative lobby-card click and bounded animation. Phase 0.7 may add only the documented seeded menu-presentation arrival. Phase 0.8 may add only the isolated one-card authoring workbench and renderer-neutral recipe facility. Phase 0.9 may bind those recipes only to the five Modern lobby intro slots and one shared Modern Gentle Wind exit, including the bounded command-continuation wait and Tutorials Back replay. Phase 0.10 may project the two current match hands. Phase 0.11 may add only the documented player-card pickup/follow motion study and may not treat its renderer-local hold as game input. Phase 0.12 may supersede only the Phase 0.11 no-second-click boundary with the documented always-invalid renderer-local return. Phase 0.13 may supersede only Phase 0.12's zero-zone boundary with nine plain presentation zones, one hover, and one renderer-local placement preview; it still may not create semantic game input. Phase 0.14 may supersede only the absent-turn-indicator boundary with the documented sequenced 3D coin and its isolated Motion Studio profile; it may not derive or control the turn. None of these decorative, authoring, presentation, or motion-study slices expands the playable active-match renderer boundary. Each phase must meet every requirement and acceptance criterion explicitly assigned to it.
 
 Requirements become mandatory according to this table:
 
@@ -590,6 +626,7 @@ Requirements become mandatory according to this table:
 | `FR-MATCH-PICKUP-*` | Phase 0.11 |
 | `FR-MATCH-RETURN-*` | Phase 0.12 |
 | `FR-MATCH-PLACEMENT-PREVIEW-*` | Phase 0.13 |
+| `FR-MATCH-TURN-COIN-*` | Phase 0.14 |
 
 ## 11. Functional requirements
 
@@ -1158,6 +1195,104 @@ Phase 0.13 retains all Phase 0.11 pickup/follow behavior and all Phase 0.12 inva
 
 **FR-MATCH-PLACEMENT-PREVIEW-017** — The Phase 0.13 source and generated bundle must retain Three.js `0.185.1` (`r185`) and share cache identity `0.185.1-match-placement.1`. The loader URL, source registration, generated artifact, DOM metadata, runtime diagnostics, static contract, browser contract, deployment artifact, and requirements must not disagree. `0.185.1-match-return.1` remains the historical Phase 0.12 identity.
 
+### 11.19 Phase 0.14 renderer-local active-match turn-indicator coin
+
+Phase 0.14 retains every Phase 0.13 requirement and acceptance criterion for cards, zones, invalid return, and placement preview. It supersedes only the statements that Modern renders no turn marker and the current cache identity in `FR-MATCH-PLACEMENT-PREVIEW-017`. The Phase 0.13 text remains its accurate historical record.
+
+**FR-MATCH-TURN-COIN-001** — The temporary game bridge must expose at most one cloned plain turn-indicator descriptor with exactly the presentation fields `sequence`, `side`, `x`, `y`, `width`, `height`, `textureUrl`, and `visible`. It must contain no Raphael element, Three.js object, callback, timer, function, game object, or request primitive. `sequence` must be a nonnegative integer; `side` must be `initial`, `player`, or `opponent`; and `visible` must be boolean-equivalent presentation data.
+
+**FR-MATCH-TURN-COIN-002** — Legacy marker geometry is normative. The initial rectangle is top-left `(327, 420)`, size 41 by 41, center `(347.5, 440.5)`. The player rectangle is top-left `(33, 420)`, center `(53.5, 440.5)`. The opponent rectangle is top-left `(621, 420)`, center `(641.5, 440.5)`. All coordinates are in the existing 693 by 500 logical active-match space and remain invariant under application scale, browser zoom, device-pixel ratio, and drawing-buffer ratio.
+
+**FR-MATCH-TURN-COIN-003** — Legacy initializes `sequence` to `0` and increments it once before each described side transition. The descriptor must identify the already-decided destination; it must not ask Modern to choose a side. A newly created or reconstructed Modern surface must snap its first valid descriptor directly to that descriptor's center, table depth, flat orientation, and visibility without replaying a transition from `initial` or another earlier side.
+
+**FR-MATCH-TURN-COIN-004** — After first-snapshot settlement, a transition may begin only when a valid descriptor carries both a sequence strictly greater than the accepted sequence and a changed target key. A duplicate, stale, same-sequence, same-target, or visibility-only notification must not replay a completed transition. If a newer valid sequence arrives while motion is active, the old generation must be cancelled and the new deterministic plan must begin from the exact currently rendered screen position, height, rotations, and shadow values without a first-frame jump.
+
+**FR-MATCH-TURN-COIN-005** — The only accepted marker textures are the existing same-origin 41 by 41 assets `/images/dime-heads.png` and `/images/dime-tails.png`. Legacy selects heads when `isMyTurn` is true at marker construction and tails otherwise, then retains that selected image while moving the marker between sides. Modern must consume the descriptor-selected URL and must not recompute the choice from turn state.
+
+**FR-MATCH-TURN-COIN-006** — Phase 0.14 must apply the same selected texture to separate front and back circular face meshes. The reverse face may be oriented so the image reads correctly when visible, but it must not substitute, synthesize, tint, mirror as a semantic result, or alternate to the other dime asset. Distinct face artwork, an actual randomized coin toss, and a face-dependent turn meaning require a later decision.
+
+**FR-MATCH-TURN-COIN-007** — The production marker must be a true 3D circular object with logical diameter `41`, thickness `3`, two 64-segment face circles, and one 64-segment open cylindrical edge. The face planes must be separated sufficiently from the edge to prevent z-fighting without changing the 41-pixel settled silhouette. The edge must become visibly edge-on during authored pitch/yaw motion; a square plane, card rectangle, billboard-only pseudo-flip, CSS transform, or flat image translation does not satisfy this requirement.
+
+**FR-MATCH-TURN-COIN-008** — Face materials must be unlit, white, tone-map-independent, and use sRGB texture handling so the approved dime art is not darkened by scene lighting. The cylindrical edge may use restrained lit metallic material to communicate thickness. Hardware shadow mapping remains disabled. A bounded analytic contact shadow may respond to height using the profile, but it must be owned by this marker, must not alter card materials, and must settle without shimmer, grid artifacts, or residual activity.
+
+**FR-MATCH-TURN-COIN-009** — The renderer-neutral turn-coin profile schema version is `1`. Its canonical shape is:
+
+```text
+{
+  schemaVersion,
+  id,
+  label,
+  path: {curvePx, apexHeight, flightMs},
+  rotation: {
+    flipTurns,
+    tumbleTurns,
+    spinTurns,
+    contactTiltDeg
+  },
+  landing: {settleMs},
+  shadow: {strength, spread}
+}
+```
+
+The profile must not contain source, destination, side, sequence, direction, texture URL, current turn, callback, timestamp, DOM node, renderer object, request, or game state. Normalization returns finite bounded plain data without mutating its source. Canonical serialization and strict parsing must be stable and reject unknown keys, non-finite values, and unsupported future schema versions atomically.
+
+**FR-MATCH-TURN-COIN-010** — Profile values must remain within these safety limits:
+
+| Field | Minimum | Maximum |
+|---|---:|---:|
+| `path.curvePx` | -240 | 240 |
+| `path.apexHeight` | 0 | 300 |
+| `path.flightMs` | 200 | 2,000 |
+| `rotation.flipTurns` | -8 | 8 |
+| `rotation.tumbleTurns` | -8 | 8 |
+| `rotation.spinTurns` | -4 | 4 |
+| `rotation.contactTiltDeg` | -45 | 45 |
+| `landing.settleMs` | 0 | 600 |
+| `shadow.strength` | 0 | 1 |
+| `shadow.spread` | 0.25 | 4 |
+
+The Phase 0.14 application default is `id: "turn-marker-toss"`, label `Turn Marker Toss`, curve `-54`, apex `92`, flight `650` milliseconds, `2.5` flip turns, `0.5` tumble turns, `0.125` spin turns, contact tilt `8` degrees, settle `110` milliseconds, shadow strength `0.34`, and shadow spread `1`. Its nominal motion duration is therefore 760 milliseconds.
+
+An optional plan-instance `delayMs` is not part of the persisted profile. When the shared planner is invoked, it must default to `0`, accept only a finite value from `0` through `10,000` milliseconds, and reject an invalid value before returning a plan. Phase 0.14 production transitions and the Motion Studio coin target must both supply or resolve `0`; a nonzero live delay requires an explicit later requirement.
+
+**FR-MATCH-TURN-COIN-011** — Planning and sampling must be pure, deterministic, DOM-free, and Three.js-free. The application supplies the source/destination centers and optional current interrupted pose. Horizontal travel determines a direction sign so the player-to-opponent and opponent-to-player plans are mirror counterparts. The screen path must be a quadratic Bézier whose control x is the endpoint midpoint and whose control y is the endpoint midpoint plus `curvePx`. The physical height during flight must follow:
+
+```text
+height =
+  sourceHeight × (1 - flightProgress)
+  + apexHeight × 4 × flightProgress × (1 - flightProgress)
+```
+
+No random value may be sampled during planning, animation, Studio replay, or production transition.
+
+**FR-MATCH-TURN-COIN-012** — During flight, local-X tumble, local-Y flip, and local-Z spin must interpolate continuously from the captured source rotations toward their profile turn counts with the travel-direction sign; contact tilt is added only to local X with the same sign. Height must be real camera-relative depth, not scale-only simulation. Shadow opacity must decrease and shadow spread increase as height rises. The default profile must visibly expose the circular edge during both directions.
+
+**FR-MATCH-TURN-COIN-013** — At flight contact, screen center must equal the exact described destination and height must equal `0`. During `settleMs`, screen position and height remain fixed while a bounded smooth-step settle moves local-X/local-Y to their nearest flat half-turn multiples and local-Z to its nearest full-turn multiple. The terminal pose must be finite, flat, stable, at authored scale `1`, and preserve the same selected texture. Later motion may retain equivalent unwrapped rotation history, but the rendered marker cannot wobble, drift, penetrate the table, or own an idle frame.
+
+**FR-MATCH-TURN-COIN-014** — The marker must use a demand-driven scheduler with at most one pending turn-coin animation-frame callback. Its frame and motion generation must both match before a callback can mutate pose. Coin motion may coexist with the retained card-study scheduler without blocking pickup, return, placement, or Legacy control flow. Completion must cancel or consume its frame exactly once, record one completed transition, and return the coin pending-frame count to zero.
+
+**FR-MATCH-TURN-COIN-015** — With `prefers-reduced-motion: reduce`, a later accepted sequence must synchronously commit the same exact destination center, table depth, flat orientation, selected texture, visibility, and stable shadow endpoint. It must record the accepted and completed transition as reduced motion without continuous path, height, flip, tumble, spin, or a pending frame.
+
+**FR-MATCH-TURN-COIN-016** — Mode or view change, active-match deactivation, early exit, game over, lobby presentation, descriptor removal, page visibility loss, context loss, suspension, surface replacement, initialization fallback, renderer failure, reconstruction, and disposal must invalidate the active coin generation and release its frame atomically. A reusable surface may settle the latest valid descriptor directly; disposal must discard the coin and its texture/material ownership. A stale texture completion, event, or captured animation callback must not recreate or move a coin after invalidation.
+
+**FR-MATCH-TURN-COIN-017** — The turn coin is strictly non-authoritative and non-blocking. Creation, first-snapshot settlement, transition, supersession, completion, cancellation, profile update, and Studio preview must not read to derive or write `isMyTurn`, `turns`, board enablement, `dragging`, `isDroppable`, hand playability, opponent scheduling, score, rules, review/replay/dialog state, game-over state, Legacy marker attributes, or a request payload. They must not call or delay the Legacy `drawTurnMarker` continuation, dispatch a semantic action, submit HTTP, navigate, or alter the Phase 0.13 card-interaction state.
+
+**FR-MATCH-TURN-COIN-018** — The applied normalized profile must persist under the dedicated browser-origin key `purett.turnMarkerMotion.v1`. It must not be embedded in or overwrite `purett.graphicsMode.v1`, `purett.lobbyMotionPlaybook.v1`, authoritative match state, an account, or repository defaults. Storage unavailability or malformed, unsafe, or future-schema data must fall back atomically to the application default while leaving Graphics and lobby-playbook values unchanged. Profile reads and writes issue no network request.
+
+**FR-MATCH-TURN-COIN-019** — Motion Studio must register the application target `match-turn-coin-transition`, labeled `Match turn coin — Transition`. Selecting it must retain the existing 755 by 562 Studio stage but render the coin through an exact 693 by 500 active-match viewport inset at stage offset `(30, 30)`. Its camera must use the production 40-degree field of view, logical center `(346.5, 250)`, and distance `(500 / 2) / tan(20°)`. The production and Studio coin must use the same diameter, thickness, face/edge structure, flat-table convention, normalized profile, planner, sampler, and safety validation.
+
+**FR-MATCH-TURN-COIN-020** — Studio coin endpoints are application-locked to player center `(53.5, 440.5)` and opponent center `(641.5, 440.5)`. A visible direction selector may preview Player → AI or AI → Player, but direct manipulation, JSON import, or profile edits cannot move or persist those endpoints. The Studio may use `/images/dime-heads.png` as its representative preview texture, applied identically to both faces; production continues to use the current descriptor texture.
+
+**FR-MATCH-TURN-COIN-021** — The Studio coin target must expose only shared transport plus applicable path curve, apex height, flight duration, flip turns, tumble turns, spin turns, contact tilt, settle duration, shadow strength, and shadow spread controls. Card-only scale, skid, contact, start-position, lobby preset, intro-copy, and wind tools must be hidden or disabled. Replay, pause, step, rate, loop, timeline, scrubbing, helper path, live phase/height/perspective/face readout, reset, canonical profile export, and atomic profile import remain available and use the same sampled plan shown in diagnostics.
+
+**FR-MATCH-TURN-COIN-022** — `Apply to Match Coin` must normalize and persist only the applied profile, increment one local profile revision, update a live Modern surface's future profile safely, and replay the Studio study for confirmation. It must not manufacture a turn transition for an unchanged sequence, close or reopen match input, change the Graphics mode, write the lobby playbook, or advance the game. The Studio's unsaved coin draft, selected preview direction, and view controls may be retained separately in the existing guarded session document.
+
+**FR-MATCH-TURN-COIN-023** — Plain cloned active-match diagnostics must expose the turn-indicator policy, exact endpoints, descriptor, texture-face policy, geometry/material policy, normalized profile, status, current pose, active plan, motion generation, sequence, from/to sides, progress, duration, reduced-motion flag, pending-frame state, accepted/completed/cancelled/ignored counters, last outcome, and `gameplayAuthority: false`. Coordinator diagnostics must expose the applied profile and its revision. Studio diagnostics must expose `subjectKind: "coin"`, active-match coordinate space and stage offset, descriptor, profile, plan, pose, resources, playback state, and pending-frame state. No diagnostic may expose a renderer object, texture object, Legacy handle, callback, concealed card value, event, or request primitive.
+
+**FR-MATCH-TURN-COIN-024** — User-facing status may say that Modern now previews the live turn coin and its authored 3D transition. It must still state that Modern is incomplete/non-playable and that the coin mirrors, rather than decides, the turn. Legacy remains available immediately.
+
+**FR-MATCH-TURN-COIN-025** — The Phase 0.14 source and generated bundle must retain Three.js `0.185.1` (`r185`) and share cache identity `0.185.1-match-turn-coin.1`. The loader URL, source registration, generated artifact, DOM metadata, active-match and Studio diagnostics, static contract, browser contract, deployment artifact, and requirements must not disagree. `0.185.1-match-placement.1` remains the historical Phase 0.13 identity.
+
 ## 12. Phase 0: graphics preference and inert Modern preview
 
 ### 12.1 Objective
@@ -1188,7 +1323,7 @@ Phase 0 must deliver:
 
 ### 12.3 Exact Phase 0 runtime bridge
 
-The Phase 0 bridge deliberately maintains both implementations in the DOM after Modern first initializes. Only one is presented as effective and neither the Modern presentation surface nor a hidden Legacy surface may submit gameplay input. Beginning in Phase 0.10, that Modern surface may project the two current hands. Through Phase 0.10 it remains pointer-inert; beginning in Phase 0.11 it may own the renderer-local player-card pickup/follow study, Phase 0.12 may add the always-invalid second-click return, and Phase 0.13 may add only the documented valid-zone hover and one-placement preview over that hold. It still cannot emit semantic gameplay input.
+The Phase 0 bridge deliberately maintains both implementations in the DOM after Modern first initializes. Only one is presented as effective and neither the Modern presentation surface nor a hidden Legacy surface may submit gameplay input. Beginning in Phase 0.10, that Modern surface may project the two current hands. Through Phase 0.10 it remains pointer-inert; beginning in Phase 0.11 it may own the renderer-local player-card pickup/follow study, Phase 0.12 may add the always-invalid second-click return, Phase 0.13 may add only the documented valid-zone hover and one-placement preview over that hold, and Phase 0.14 may additionally mirror the plain sequenced turn indicator as a renderer-local 3D coin. It still cannot emit semantic gameplay input or derive turn authority.
 
 When Legacy is effective:
 
@@ -1216,11 +1351,11 @@ When Modern preview is effective:
 - Hidden Legacy slot targets or delegated handlers cannot receive a pointer initiated over the active-match region.
 - A Modern host occupies the same 693 by 500 logical bounds, inset 30 pixels from the top and left of the board frame.
 - The Modern host contains one real Three.js WebGL canvas and may contain a renderer-neutral explanatory DOM message.
-- In the Phase 0.10 through Phase 0.13 active-match exception, the Three.js scene renders the current player and opponent hand cards. Phase 0.13 may additionally render only the one hovered valid-zone shadow and one settled renderer-local preview card; it renders no authoritative board occupancy, scores, turn marker, rules, elements, bonuses, or gameplay effects.
+- In the Phase 0.10 through Phase 0.14 active-match exception, the Three.js scene renders the current player and opponent hand cards. Phase 0.13 may additionally render only the one hovered valid-zone shadow and one settled renderer-local preview card. Phase 0.14 may additionally render the one plain-described sequenced turn coin. It renders no authoritative board occupancy, scores, rules, elements, bonuses, capture effects, or gameplay authority.
 - Through Phase 0.10 the Modern cards and canvas are non-interactive. In Phase 0.11 the host may accept only card-bounded player pickup and pointer-follow presentation. Phase 0.12 may accept an armed second click as renderer-local invalid return. Phase 0.13 may instead preview placement when that click is inside a currently valid plain-described rectangle while continuing to shield the blocked retained surface; neither surface can submit a human move.
 - The CSS board background and HTML dialog overlay retain their existing stacking roles.
 - The title, context menu, and route back to the main menu remain usable.
-- The Modern surface requests frames only when initialized, resized, updated, or advancing bounded Phase 0.11 lift/follow settling or Phase 0.12 invalid return and has no unconditional animation loop.
+- The Modern surface requests frames only when initialized, resized, updated, advancing bounded Phase 0.11 through Phase 0.13 card motion, or advancing one bounded Phase 0.14 turn-coin transition and has no unconditional animation loop.
 - At most one active-match WebGL context is owned by the application.
 
 When Legacy becomes effective again:
@@ -3241,9 +3376,294 @@ Phase 0.13 requires:
 
 Phase 0.13 is complete only when all `AC-P013-*` criteria and required evidence pass and a normal-speed review accepts both the Legacy-equivalent target cue and the physical placement character. Completion does not authorize semantic target discovery, move submission, board-state ownership, turn progression, capture rules, scores, rule banners, effects, keyboard play, or promotion of Modern as playable.
 
+### 12.17 Phase 0.14: renderer-local active-match turn-indicator coin
+
+#### 12.17.1 Intent, historical boundary, and supersession
+
+Phase 0.14 asks whether Modern can project one familiar piece of live match information—the current turn marker—and use Three.js to give its side-to-side transition convincing circular thickness, lift, and three-axis motion without taking ownership of turn sequencing.
+
+Phase 0.13 remains the complete historical card-interaction baseline. Its statement that scores, turn indicators, rules, elements, and effects were unrendered was correct for that completed phase. Phase 0.14 supersedes only the turn-indicator part of that absence and the current bundle identity. Every Phase 0.13 card requirement remains unchanged:
+
+- pickup, grab-offset follow, velocity resistance, arming, invalid return, zone hover, placement preview, and one-preview guard retain their existing behavior;
+- the nine zones remain fail-closed presentation data;
+- scores, rule banners, elements, bonuses, board cards, capture effects, and playable authority remain unimplemented;
+- the live Legacy match remains mounted, synchronized, and immediately recoverable;
+- no Modern action or visual result is a submitted move.
+
+The coin is not input. It is a renderer-local projection and motion study driven by a plain description of what the existing game already chose.
+
+#### 12.17.2 Exact Legacy source, targets, assets, and sequence descriptor
+
+The Legacy marker is one Raphael image created by `buildTurnMarker()` and moved by `drawTurnMarker()`. Its exact logical geometry is:
+
+| Descriptor side | Top-left x | Top-left y | Width | Height | Center x | Center y |
+|---|---:|---:|---:|---:|---:|---:|
+| `initial` | 327 | 420 | 41 | 41 | 347.5 | 440.5 |
+| `player` | 33 | 420 | 41 | 41 | 53.5 | 440.5 |
+| `opponent` | 621 | 420 | 41 | 41 | 641.5 | 440.5 |
+
+The y position does not change between targets. These values are measured in the same 693 by 500 logical coordinate system used by the active-match camera and card study.
+
+Legacy chooses its one marker image at construction:
+
+```text
+isMyTurn at marker construction
+  ? /images/dime-heads.png
+  : /images/dime-tails.png
+```
+
+Both source files are existing same-origin 41 by 41 RGBA PNGs. Legacy does not exchange the image when the marker crosses the table. Phase 0.14 preserves that behavior: the descriptor carries the currently selected URL, and both Three.js faces use that same URL. A visible reverse face is therefore the reverse side of the same approved design, not a newly selected tails/heads outcome. The Modern implementation may not infer image selection from `isMyTurn`, randomize it, or alternate it during motion.
+
+The bridge record is explicitly:
+
+```ts
+interface Phase014TurnIndicatorDescriptor {
+  sequence: number; // nonnegative integer
+  side: "initial" | "player" | "opponent";
+  x: number;        // Legacy logical top-left
+  y: number;
+  width: 41;
+  height: 41;
+  textureUrl:
+    | "/images/dime-heads.png"
+    | "/images/dime-tails.png";
+  visible: boolean;
+}
+```
+
+`sequence` begins at `0`. Legacy increments it before each side-change notification. The descriptor contains no callback and does not ask Modern to decide the turn. A Modern surface accepts only the normalized center, texture, visibility, and sequence for presentation.
+
+First-snapshot behavior is intentionally different from later updates. The first descriptor received by a newly mounted, resumed, or reconstructed surface is snapped directly to the described flat endpoint. It never replays movement from the center or from a side remembered by another surface. Once initialized:
+
+```text
+newer sequence && changed target key
+  → transition from the currently rendered pose
+
+duplicate, stale, same sequence, or same target
+  → no replay
+```
+
+A newer sequence that arrives during motion supersedes the old plan from the exact current visible pose. The prior generation is cancelled and cannot complete later.
+
+#### 12.17.3 Circular Three.js representation and material policy
+
+The Phase 0.14 marker is not a square image plane. It consists of:
+
+- one front `CircleGeometry` with diameter `41` and 64 radial segments;
+- one back `CircleGeometry` with the same dimensions and segmentation;
+- one open `CylinderGeometry` edge with radius `20.5`, thickness `3`, and 64 radial segments;
+- face offsets just beyond the cylindrical side to prevent coplanar artifacts;
+- one bounded analytic shadow mesh below the coin;
+- one orientation hierarchy that applies local-X tumble, local-Y flip, and local-Z spin as actual 3D rotations.
+
+The face material is unlit sRGB white and tone-map-independent. Texture filtering must remain stable during foreshortening. Both face meshes use the descriptor's same texture. The reverse face is oriented to remain visible from the reverse normal. The edge uses restrained metallic lighting to make thickness readable, especially near edge-on rotation, without darkening the face art. Hardware shadow maps remain off.
+
+The same head-on 40-degree active-match perspective camera and flat-table position neutralization used by the Phase 0.11 through Phase 0.13 card study apply. At rest, the coin center and circular 41-pixel silhouette match the descriptor. During motion, height changes real perspective depth. The off-axis endpoints must not create a radial lean or imply that the table is curved.
+
+#### 12.17.4 Deterministic profile, plan, and sampled motion
+
+The source of truth is the version-1 turn-coin profile in `FR-MATCH-TURN-COIN-009`. Its application default is:
+
+```json
+{
+  "schemaVersion": 1,
+  "id": "turn-marker-toss",
+  "label": "Turn Marker Toss",
+  "path": {
+    "curvePx": -54,
+    "apexHeight": 92,
+    "flightMs": 650
+  },
+  "rotation": {
+    "flipTurns": 2.5,
+    "tumbleTurns": 0.5,
+    "spinTurns": 0.125,
+    "contactTiltDeg": 8
+  },
+  "landing": {
+    "settleMs": 110
+  },
+  "shadow": {
+    "strength": 0.34,
+    "spread": 1
+  }
+}
+```
+
+The profile is normalized and frozen plain data. The application provides the source, destination, optional delay, and optional current source pose only when constructing a plan. The plan resolves:
+
+- nominal source and destination centers;
+- horizontal direction sign;
+- quadratic screen-space control point;
+- physical apex;
+- flight, settle, motion, and total durations;
+- source, contact, and terminal rotations;
+- source and authored shadow values.
+
+For ordinary endpoint-to-endpoint motion, reversing direction must mirror screen x and rotation signs while preserving screen y, height, duration, and shadow samples. Screen translation is a quadratic Bézier. Height is the analytic parabola in `FR-MATCH-TURN-COIN-011`. Rotation advances continuously throughout flight; the viewer must see the real circular edge rather than a flat x-scale collapse. Shadow opacity falls and spread rises with height. There is no randomness, frame-dependent integration, physics-engine dependency, or application-state lookup in the sampler.
+
+At contact, the coin reaches the exact destination center and height `0`. During the 110-millisecond default settle it remains at that center while smooth-step interpolation removes the eight-degree contact lean and resolves pitch/yaw to the nearest flat half-turn multiples and roll to the nearest full turn. A complete pose is stable at authored scale `1`, with finite values and a profile-authored contact shadow. The object may be geometrically reversed by half-turn parity, which is visually harmless in this phase because both faces deliberately share the same image.
+
+#### 12.17.5 Scheduler, supersession, lifecycle, failure, and reduced motion
+
+Turn-coin motion owns one demand-driven scheduler distinct from, and non-blocking to, the existing card-study scheduler. It may own at most one pending coin frame. Every callback captures its frame identity and monotonic coin-motion generation. Both must still match before sampling or rendering.
+
+Normal completion:
+
+- samples the canonical terminal pose exactly;
+- clears the active motion;
+- records one accepted and one completed transition;
+- leaves no pending coin frame;
+- does not call an application continuation;
+- leaves card interaction and Legacy objects unchanged.
+
+The following events cancel coin motion and invalidate its generation:
+
+- explicit Legacy selection or automatic Legacy fallback;
+- active-match deactivation, early exit, game over, or lobby presentation;
+- descriptor removal, an invalid descriptor, or a non-transition replacement that does not qualify as a valid newer target sequence;
+- page visibility loss;
+- surface suspension, replacement, reconstruction, or disposal;
+- initialization, required-texture, renderer, or WebGL context failure.
+
+When a reusable current surface is merely suspended or hidden, it may snap to the latest valid descriptor before later presentation. When it is disposed, it releases face texture, face material, edge, geometry, light target, shadow, listener, frame, and context ownership under the existing surface lifecycle. A late texture result or frame from an invalidated generation is inert. A required live marker texture failure before readiness follows the existing active-match fail-open path to intact Legacy. Failure to read or write the optional local profile instead uses the validated application default and does not make the match unavailable.
+
+A valid newer target sequence delivered during motion is not a lifecycle replacement under the cancellation rule above. It follows the exact-pose supersession contract in Sections 12.17.2 and 12.17.4 and leaves only the superseded generation inert.
+
+With reduced motion, every accepted later sequence snaps to the same latest endpoint and flat stable pose immediately. It changes no path or endpoint semantics, records the transition exactly once, and owns no animation frame.
+
+#### 12.17.6 Motion Studio application target and isolated persistence
+
+Motion Studio adds one target:
+
+```text
+id    = match-turn-coin-transition
+label = Match turn coin — Transition
+kind  = coin
+domain = active-match
+```
+
+When selected, the 755 by 562 Studio stage contains one exact 693 by 500 active-match viewport at offset `(30, 30)`. The coin uses:
+
+- logical camera center `(346.5, 250)`;
+- field of view `40°`;
+- camera distance `(500 / 2) / tan(20°)`;
+- player center `(53.5, 440.5)`;
+- opponent center `(641.5, 440.5)`;
+- the same 41-diameter, three-thick circular representation;
+- the same face/edge material policy and flat-table projection;
+- the same profile normalizer, planner, sampler, safety limits, and deterministic poses as production.
+
+The visible preview direction selects Player → AI or AI → Player. It is Studio view state, not a profile field or a turn command. Both endpoint helpers are locked. The user cannot drag them, place them in JSON, or persist alternative match coordinates. `/images/dime-heads.png` is the representative Studio art; it appears on both faces just as one production descriptor asset appears on both faces.
+
+Only coin-relevant controls are shown: curve, apex, flight, flip, tumble, spin, contact tilt, settle, shadow strength, and shadow spread, plus common transport/readout controls. Card-specific scale, skid, contact, intro copy, wind, lobby starting-preset, and draggable-start controls are hidden or disabled.
+
+The applied profile is canonical versioned JSON stored under:
+
+```text
+purett.turnMarkerMotion.v1
+```
+
+This key is separate from:
+
+```text
+purett.graphicsMode.v1
+purett.lobbyMotionPlaybook.v1
+```
+
+`Apply to Match Coin` validates and writes only the coin profile, increments its local coordinator revision, updates the current renderer's profile for a future accepted sequence, and replays the Studio preview. It does not fabricate a new sequence or move an unchanged live coin. Export returns only canonical coin-profile JSON; strict import applies atomically to the Studio draft. The existing guarded Motion Studio session document may separately retain the unsaved draft, selected preview direction, target, and UI state. Neither persistence route changes Graphics selection, lobby choreography, account data, or the repository default.
+
+#### 12.17.7 Non-authoritative boundary, diagnostics, communication, and delivery
+
+The descriptor and coin must not:
+
+- decide or infer who plays next;
+- read turn state except as already-redacted descriptor presentation;
+- enable or disable the board or either hand;
+- call, wrap, defer, replace, or await the Legacy `drawTurnMarker()` callback;
+- alter the live Raphael marker, its attributes, or its z-order;
+- change score, rule, review, replay, dialog, opponent delay, game-over, or timer state;
+- create a semantic action, move result, placement, request token, or payload;
+- submit HTTP, navigate, log external telemetry, or write account state.
+
+Active-match diagnostics expose the normalized descriptor and policy, geometry, materials, endpoints, applied profile, current pose, active plan, sequence transition, generation, progress, duration, outcome, reduced-motion state, pending-frame state, and accepted/completed/cancelled/ignored counts. Coordinator diagnostics expose the applied normalized profile and local profile revision. Studio diagnostics expose coin subject, active-match coordinate-space inset, descriptor, profile, plan, pose, playback, resources, and scheduler state. All are cloned plain data and carry `gameplayAuthority: false`; none may expose live renderer or Legacy objects.
+
+User-facing status must say that Modern now mirrors the turn marker and previews its 3D transition while remaining incomplete and non-playable. It cannot imply that the coin controls the turn.
+
+The generated artifact remains pinned to Three.js `0.185.1` (`r185`) and uses:
+
+```text
+0.185.1-match-turn-coin.1
+```
+
+Source registration, generated bundle, coordinator URL, canvas/DOM metadata, diagnostics, static and browser contracts, deployment artifact, and this requirement must agree. Phase 0.13's `0.185.1-match-placement.1` remains historical evidence.
+
+#### 12.17.8 Acceptance criteria
+
+**AC-P014-001 — Exact Legacy descriptor, targets, and asset behavior**
+
+A controlled Legacy fixture produces sequence `0`, the exact initial/player/opponent rectangles and centers in Section 12.17.2, and only the two approved texture URLs. A player-start fixture selects heads; an opponent-start fixture selects tails. Later side changes retain the originally selected URL. The cloned descriptor contains no function, Raphael object, game object, or request primitive.
+
+**AC-P014-002 — First-snapshot snap and replay guard**
+
+Mounting a new Modern surface independently while the descriptor is `initial`, `player`, and `opponent` produces one immediate exact flat settled marker at that descriptor with zero accepted motion and no pending frame. Repeating the descriptor, changing only visibility, sending the same sequence, or sending a same-target later sequence cannot replay flight. A later sequence with the opposite target begins exactly one transition.
+
+**AC-P014-003 — True 3D circular representation and color**
+
+Static and runtime evidence shows two 64-segment 41-diameter circles, one 64-segment three-unit open cylindrical edge, and distinct face/edge material treatment. Both faces reference the descriptor-selected texture. Actual-size captures in both directions visibly expose the lit edge during pitch/yaw while face art retains the source asset's expected sRGB brightness. No square silhouette, alternate face art, z-fighting, grid flash, darkened face, curved-table skew, or hardware shadow pass appears.
+
+**AC-P014-004 — Deterministic default plan and mirror symmetry**
+
+The default profile normalizes to every exact value in Section 12.17.4 and yields 650 milliseconds of flight, 110 milliseconds of settle, and 760 milliseconds total. At no fewer than 121 controlled flight samples, forward and reverse x positions sum to `695`, while y, height, progress, duration, and shadow samples match and X/Y/Z rotations carry the expected mirrored signs. Repeated plans and irregular frame schedules produce identical poses. No source contains or invokes random sampling.
+
+**AC-P014-005 — Physical flight, edge passage, shadow, and settlement**
+
+Controlled samples prove positive height during flight, an apex consistent with profile height, strong edge exposure under the default flip, height-responsive lower-opacity/wider shadow, exact destination and height `0` at contact, and a non-oscillating flat terminal pose. The completed marker is centered at exactly `(53.5, 440.5)` or `(641.5, 440.5)`, uses authored scale `1`, retains its selected texture, and owns zero idle frames.
+
+**AC-P014-006 — Mid-flight supersession and lifecycle rejection**
+
+When a newer sequence arrives at representative early, apex, contact, and settle samples, the replacement plan's elapsed-zero pose exactly equals the prior rendered position, height, rotations, and shadow. Only the latest sequence completes. Every lifecycle cause in Section 12.17.5 cancels the generation, releases the coin frame, and settles or disposes once. Manually invoking captured old frames and late texture completions after replacement cannot change the latest pose, counters, card state, Legacy marker, or requests.
+
+**AC-P014-007 — Reduced motion and scheduler bounds**
+
+Normal motion owns at most one pending coin frame, including when a Phase 0.13 card motion is active concurrently, and returns to zero after completion, cancellation, or failure. Reduced motion accepts the same later sequence and commits the exact latest endpoint synchronously with no flight or pending frame while recording one reduced-motion completion.
+
+**AC-P014-008 — Zero authority and unchanged Phase 0.13 behavior**
+
+Before, during, and after initial settlement, normal transition, supersession, reduced motion, Studio apply, and lifecycle reset, `isMyTurn`, `turns`, board enablement, hand arrays, card hold/placement state, scores, rules, opponent scheduling, callback invocation count/timing, Raphael marker identity/attributes, semantic-action count, request count, payloads, and navigation remain unchanged except for Legacy's independently executing existing flow. The complete Phase 0.13 card regression suite produces the same results.
+
+**AC-P014-009 — Isolated profile persistence and strict interchange**
+
+Applying a valid Studio profile writes canonical schema-version-1 JSON only to `purett.turnMarkerMotion.v1`, increments one profile revision, and leaves Graphics and lobby-playbook storage byte-for-byte unchanged. Reload restores the normalized profile. Storage denial, malformed JSON, unknown keys, non-finite values, out-of-range normalization cases, and a future schema fall back or fail atomically as specified without affecting match readiness or another key. Export/import round-trips without sampled-pose drift and emits no network request.
+
+**AC-P014-010 — Exact Motion Studio production parity**
+
+Studio diagnostics report `subjectKind: "coin"`, a 693 by 500 active-match coordinate space inset at `(30, 30)`, the production 40-degree camera, exact locked centers, production coin geometry, and the same normalized profile and plan. Player → AI and AI → Player preview samples equal direct production planner/sampler results at start, quarter, apex/midpoint, three-quarter, contact, and completion within numeric tolerance. Coin controls are visible; prohibited card/lobby controls and endpoint dragging are unavailable. `Apply to Match Coin` does not fabricate live motion for an unchanged sequence.
+
+**AC-P014-011 — Diagnostics, failure, communication, and cache identity**
+
+Active surface, coordinator, and Studio diagnostics contain every permitted plain field in Section 12.17.7, show bounded scheduler state and `gameplayAuthority: false`, and expose no renderer, Legacy, concealed card, callback, or request object. Status copy says the turn coin mirrors rather than controls the turn and Modern remains non-playable. Forced required-texture, initialization, and context failures restore intact Legacy once. Source, bundle, loader, registration, diagnostics, static/browser contracts, and deployment agree on `0.185.1-match-turn-coin.1`.
+
+#### 12.17.9 Required evidence and definition of done
+
+Phase 0.14 requires:
+
+- static contracts for the explicit Legacy descriptor and increment-before-animation ordering, exact target geometry, approved texture allowlist, no renderer object in the bridge, first-snapshot snap, duplicate guard, zero authority, separate storage key, Studio registry, and cache identity;
+- pure unit coverage for schema normalization, bounds, deep immutability, strict canonical import/export, default profile, plan totals, both direction signs, mirror symmetry, interrupted source poses, non-finite rejection, and deterministic sampled path/height/rotation/shadow/settlement;
+- generated-bundle evidence for the two circular faces, real cylindrical edge, same texture on both faces, sRGB face policy, lit edge, analytic shadow, scheduler/generation guards, diagnostics, and absence of a runtime random dependency;
+- browser or controlled-harness evidence for each first-snapshot side, later sequence transitions in both directions, duplicate/stale/same-target delivery, visibility, mid-flight supersession, normal and reduced motion, simultaneous card/coin motion, texture failure, context loss, Legacy switching, active-match/lobby transitions, reconstruction, and disposal;
+- unchanged Legacy marker, callback timing, controller, card-study, hand, board, score, rule, turn, semantic-action, and request snapshots;
+- Motion Studio coverage for target selection, exact match inset/camera/endpoints, direction selection, applicable-control visibility, transport/scrub/readout, profile reset, session draft, apply, reload, storage isolation, import/export, invalid import, reduced motion, context loss, and cleanup;
+- actual-size normal-speed and slowed captures in both directions proving circular silhouette, real edge exposure, lift, three-axis motion, shadow response, exact landing, and no face darkening or curved-table appearance;
+- fifty-cycle resource evidence for coin transitions and Studio coin sessions;
+- current Graphics persistence, Phase 0.10 secrecy/fallback, Phases 0.11 through 0.13 card studies, lobby, existing Motion Studio card targets, and applicable Legacy regressions;
+- a generated Modern artifact matching reviewed source and pinned Three.js `0.185.1` with cache identity `0.185.1-match-turn-coin.1`.
+
+Phase 0.14 is complete only when all `AC-P014-*` criteria and required evidence pass and a normal-speed actual-size review accepts that the marker reads as a circular coin leaving a flat table, exposing real thickness, and settling cleanly at the exact opposite Legacy target. Completion does not authorize turn authority, callback sequencing, score/rule rendering, board occupancy, capture effects, semantic match input, network requests, distinct face art, randomized coin outcomes, or promotion of Modern as playable.
+
 ## 13. Target renderer contract
 
-This is a target-state contract beginning in Phase 1. It is not a Phase 0 deliverable; the first increment may use the documented shallow runtime presentation/input gate, Phase 0.10 hand description, Phase 0.11 renderer-local pickup/follow exception, Phase 0.12 always-invalid renderer-local return, and Phase 0.13 renderer-local valid-zone/placement preview without claiming this semantic contract.
+This is a target-state contract beginning in Phase 1. It is not a Phase 0 deliverable; the first increment may use the documented shallow runtime presentation/input gate, Phase 0.10 hand description, Phase 0.11 renderer-local pickup/follow exception, Phase 0.12 always-invalid renderer-local return, Phase 0.13 renderer-local valid-zone/placement preview, and Phase 0.14 renderer-local turn-indicator coin without claiming this semantic contract.
 
 The exact syntax may change to match the legacy JavaScript environment, but the responsibility boundary should be semantic and comparable to:
 
@@ -3351,7 +3771,7 @@ The permanent contract must not imitate Raphael's `image`, `rect`, `attr`, `anim
 
 ## 14. Renderer-neutral view state
 
-The complete renderer-neutral snapshot becomes mandatory in Phase 1 and expands as later parity work exposes additional state. Phase 0.10 adds one deliberately shallow compatibility description containing only current hand presentation data. Phase 0.11 consumes that same description and adds no hold, pointer, selection, or motion field to it; all pickup/follow state remains disposable inside the Modern surface. Phase 0.12 keeps arming, invalid-return motion, counters, and generation state equally private. Phase 0.13 permits nine cloned drop-zone presentation rectangles and validity bits while keeping hover, random roll, placement, and counters private. None satisfies the complete snapshot contract below.
+The complete renderer-neutral snapshot becomes mandatory in Phase 1 and expands as later parity work exposes additional state. Phase 0.10 adds one deliberately shallow compatibility description containing only current hand presentation data. Phase 0.11 consumes that same description and adds no hold, pointer, selection, or motion field to it; all pickup/follow state remains disposable inside the Modern surface. Phase 0.12 keeps arming, invalid-return motion, counters, and generation state equally private. Phase 0.13 permits nine cloned drop-zone presentation rectangles and validity bits while keeping hover, random roll, placement, and counters private. Phase 0.14 permits one cloned sequenced turn-indicator presentation descriptor while keeping the coin mesh, pose, plan, scheduler, counters, and local profile revision private. None satisfies the complete snapshot contract below, and the descriptor's `side` cannot replace the future authoritative `activePlayerId`.
 
 A renderer-neutral snapshot should be plain data and should contain enough information to rebuild a settled scene:
 
@@ -3427,7 +3847,7 @@ This is illustrative rather than a mandated field-for-field schema. The implemen
 - Modern code must be lazy-loaded or otherwise excluded from the forced-Legacy startup path.
 - A fresh page load with Legacy forced must issue no Modern resource request, import, or preload and must evaluate zero Modern bytes. Switching back to Legacy after Modern was explicitly loaded on that page may retain the idle cached surface.
 - Phase 0 originally rendered one blank transparent frame with the pinned Three.js `WebGLRenderer`, without card geometry, texture assets, picking targets, or a continuous animation loop.
-- Phase 0.5 adds the first pre-Phase-2 exception to that blank-frame rule: the dedicated lobby-hand factory may create shared 117 by 146 card geometry, up to five card objects, and only the current lobby hand's same-origin face textures. Phase 0.6 additionally permits the shared canonical card-back texture, a side-only lit shared card slab, unlit mipmapped/anisotropic face materials, a calibrated perspective lobby camera, shared analytic-shadow geometry/texture with one independently controlled mesh/material per lobby card, hardware shadow mapping disabled, card-bounded hit testing, and one re-entry lock per active card. Phase 0.7 permits the same bounded shared animation-frame scheduler while at least one entrance or double flip is active, plus the pure seeded destination-driven arrival planner and sampler; its current entrance is implemented but not visually approved. Phase 0.8 permits a separate one-card study factory, deterministic renderer-neutral recipe planner/sampler, and one isolated demand-driven Studio scheduler. Phase 0.9 permits a pure application playbook compiler, five destination-locked intro entries, one origin-locked Gentle Wind exit compiled into five deterministic variants, and reuse of the lobby surface's existing sole scheduler. Phase 0.10 permits the active-match factory to create one shared plane geometry, zero to ten passive current-hand meshes, current visible same-origin hand textures, and a demand-rendered orthographic projection, with no active-match picking target, input listener, or motion scheduler. Phase 0.11 supersedes that last camera/input clause only: it permits a calibrated active-match perspective camera, player-card-bounded picking, one renderer-local hold, pointer-follow state, and one demand-driven frame request while lift/follow settling is active. Phase 0.12 permits arming state, one renderer-local always-invalid return, a local-Z turn, return diagnostics, and generation checks while reusing that same sole pending frame. It still permits no opponent pickup, slot target, card back, semantic action, gameplay request, or unconditional animation loop.
+- Phase 0.5 adds the first pre-Phase-2 exception to that blank-frame rule: the dedicated lobby-hand factory may create shared 117 by 146 card geometry, up to five card objects, and only the current lobby hand's same-origin face textures. Phase 0.6 additionally permits the shared canonical card-back texture, a side-only lit shared card slab, unlit mipmapped/anisotropic face materials, a calibrated perspective lobby camera, shared analytic-shadow geometry/texture with one independently controlled mesh/material per lobby card, hardware shadow mapping disabled, card-bounded hit testing, and one re-entry lock per active card. Phase 0.7 permits the same bounded shared animation-frame scheduler while at least one entrance or double flip is active, plus the pure seeded destination-driven arrival planner and sampler; its current entrance is implemented but not visually approved. Phase 0.8 permits a separate one-card study factory, deterministic renderer-neutral recipe planner/sampler, and one isolated demand-driven Studio scheduler. Phase 0.9 permits a pure application playbook compiler, five destination-locked intro entries, one origin-locked Gentle Wind exit compiled into five deterministic variants, and reuse of the lobby surface's existing sole scheduler. Phase 0.10 permits the active-match factory to create one shared plane geometry, zero to ten passive current-hand meshes, current visible same-origin hand textures, and a demand-rendered orthographic projection, with no active-match picking target, input listener, or motion scheduler. Phase 0.11 supersedes that last camera/input clause only: it permits a calibrated active-match perspective camera, player-card-bounded picking, one renderer-local hold, pointer-follow state, and one demand-driven frame request while lift/follow settling is active. Phase 0.12 permits arming state, one renderer-local always-invalid return, a local-Z turn, return diagnostics, and generation checks while reusing that same sole pending card frame. Phase 0.13 permits nine plain slot descriptions, one hover-shadow mesh, and one local placement preview. Phase 0.14 additionally permits two circular coin faces, one cylindrical edge, one approved current marker texture, restrained edge lights, one analytic coin shadow, one independent bounded coin frame, one pure turn-coin profile/planner/sampler, and the corresponding exact-space Studio subject. It still permits no opponent pickup, semantic action, gameplay request, turn authority, or unconditional animation loop.
 - Lazy-load failure before input ownership must follow the initialization-fallback policy.
 - Source-map publication, generated-file review, and third-party license-notice policy must be explicit.
 - A lockfile, upgrade procedure, and license record must accompany the dependency.
@@ -3474,10 +3894,13 @@ Phase 0.11 separately calibrates a constrained perspective camera for the 693 by
 
 Phase 0.12 reuses that camera and transform hierarchy. Its return interpolates the visible logical center, inverse-projects the authored projected scale into depth, damps local-X/local-Y tilt, and applies only the approved clockwise local-Z turn before canonical normalization. It must not move the camera, add a card back, introduce a slot raycast, retain a residual roll, or perturb another card.
 
+Phase 0.13 reuses the same flat-table calibration for the hover plane and placement endpoint. Phase 0.14 adds a separate circular coin hierarchy under that exact active-match camera. Its two face circles and cylindrical edge rotate physically around local X, Y, and Z while analytic height supplies perspective depth. A face-anchored off-axis neutralizer may preserve the same position-neutral flat table, but it must not erase the coin's own foreshortening, edge exposure, or shadow response. The Studio coin inset must use the same active-match camera and coordinate mapping rather than the lobby camera.
+
 ### 15.4 Texture policy
 
 - Only textures needed by the current lobby hand or current match, its card backs, board elements, and immediate effects should be loaded.
 - The Phase 0.6 lobby card back is exactly `/images/cards/cardBack.png`. It is shared by all five lobby cards and has no player-color, opponent-color, ownership, captured-state, or purchased-card path variant.
+- The Phase 0.14 turn-coin texture is exactly the current descriptor-selected `/images/dime-heads.png` or `/images/dime-tails.png`. The same one texture is used on both coin faces. The renderer must not request a catalog, ownership, player-color, or generated reverse-face variant.
 - Texture color-space handling must preserve card-art appearance.
 - Phase 0.6 front and back orientation must be tested at both same-direction local-X edge passages, at the `-π` upright-back milestone, at the `-2π` upright-front endpoint, and after exact normalization to zero.
 - Phase 0.6 lobby card textures must generate mipmaps, use trilinear minification and linear magnification, and set anisotropy to the lesser of four and the renderer capability.
@@ -3513,6 +3936,10 @@ The mapping must be tested at:
 For Phase 0.11, the same matrix must additionally test at least one exposed point on every player-hand card, one overlapped topmost-card boundary, the accepted local grab point, the lifted-card plane, pointer departure and re-entry, and stationary convergence. Device-pixel ratio and drawing-buffer scale must not be applied a second time to logical pointer coordinates.
 
 For Phase 0.12, the matrix must additionally carry an armed card from at least one near-hand and one far-board pose back to its exact anchor at application scales `1`, `1.5`, `2`, and `3`. Second-click pointer location must not change the result because no drop-zone mapping occurs. Controlled samples at return elapsed `0`, `150`, and `300` milliseconds must remain identical in logical space across scale and device-pixel-ratio changes.
+
+For Phase 0.13, the matrix must additionally probe just inside and outside all nine half-open slot rectangles and verify exact center settlement at every supported scale.
+
+For Phase 0.14, the matrix must additionally project the initial, player, and opponent coin centers; sample both mirrored endpoint directions; and compare production with the Studio's 693 by 500 inset at application scales `1`, `1.5`, `2`, and `3`. CSS stage offset `(30, 30)`, device-pixel ratio, drawing-buffer ratio, and Studio application scale must not alter logical endpoints, path samples, height, rotations, or settlement.
 
 The logical coordinate space remains 693 by 500 regardless of CSS application scale. `#content-wrapper` remains the owner of the application scale.
 
@@ -3569,6 +3996,8 @@ Performance evidence must use two named deterministic fixtures:
 
 **NFR-PERF-018** — Phase 0.12 invalid return must reuse the Phase 0.11 active-match scheduler and own at most one pending callback during its fixed 300-millisecond interval. It must allocate no geometry, material, texture, raycaster, listener, drop target, or scheduler per second click or frame. Normal completion, reduced-motion completion, ignored input, cancellation, failure, and disposal must return pending-frame count to zero.
 
+**NFR-PERF-019** — Phase 0.14 turn-coin motion may own at most one pending coin animation-frame callback in addition to the retained bounded card scheduler. It must allocate no geometry, material, texture, light, shadow, listener, or planner per sampled frame. The default transition lasts 760 milliseconds; every normalized profile is bounded to 2,600 milliseconds before any separately validated instance delay. Normal completion, reduced-motion completion, duplicate rejection, supersession, cancellation, failure, suspension, and disposal must return the coin pending-frame count to zero. Paused or settled Studio coin preview and a settled production marker must own no frame.
+
 ### 16.2 Reliability and cleanup
 
 **NFR-REL-001** — No renderer exception may terminate the match controller without a controlled error or fallback path.
@@ -3599,6 +4028,8 @@ Performance evidence must use two named deterministic fixtures:
 
 **NFR-REL-014** — Fifty Phase 0.12 cycles spanning unarmed second clicks, every armed second-click location class, repeated input during return, ordinary and reduced motion, all supported application scales, exact completion, immediate repick, hand revision, selected-card removal, visibility loss, Legacy toggles, context loss, surface replacement, and disposal must return hold generations, return records, input locks, pending frames, transient transforms, shadows, render order, canvases, textures, materials, geometry, and WebGL-context ownership to baseline. At least one cycle must manually invoke a cancelled callback after a newer hold exists and prove it inert. Every cycle must show zero drop zones, semantic actions, gameplay/Legacy mutations, and requests.
 
+**NFR-REL-015** — Fifty Phase 0.14 cycles spanning first snapshots at all three descriptor sides, both transition directions, duplicates, stale/same-target notifications, normal and reduced motion, mid-flight supersession, simultaneous card/coin motion, visibility loss, Legacy toggles, descriptor removal, texture failure, context loss, surface replacement, Studio open/edit/apply/import/export/reset/close, storage denial, and disposal must return coin plans, generations, frames, textures, face/edge/shadow materials, geometry references, Studio subject state, listeners, canvases, and WebGL-context ownership to baseline. At least one cycle must invoke a cancelled frame and late texture completion after a newer sequence and prove both inert. Every cycle must show unchanged Phase 0.13 card behavior, Graphics/lobby storage identity, Legacy marker/callback behavior, game state, semantic-action count, and request count.
+
 ### 16.3 Security and privacy
 
 **NFR-SEC-001** — Modern assets and scripts must be same-origin.
@@ -3612,6 +4043,8 @@ Performance evidence must use two named deterministic fixtures:
 **NFR-SEC-005** — Renderer diagnostics must not transmit card or match data externally.
 
 **NFR-SEC-006** — External telemetry requires a separate privacy and product decision.
+
+**NFR-SEC-007** — The turn-indicator descriptor and local profile must remain same-origin presentation data. The applied profile and Studio draft must not be transmitted, attached to an account, or used to expose turn, card, or match information beyond what the current user can already see.
 
 ### 16.4 Compatibility
 
@@ -3641,21 +4074,23 @@ Performance evidence must use two named deterministic fixtures:
 
 **NFR-MAINT-006** — Temporary Raphael-compatibility shims must be identified and assigned a removal phase.
 
+**NFR-MAINT-007** — The Phase 0.14 turn-coin profile, planner, and sampler must remain in a renderer-neutral module with no DOM, jQuery, Raphael, Three.js, storage, game-controller, or network dependency. Production and Studio must import the same API rather than duplicate motion math.
+
 ## 17. Behavior and parity matrix
 
-In the Phase 0 through Phase 0.13 column, “not rendered” or “disabled” means not rendered or operable by Three.js on the active-match surface except for the explicitly identified Phase 0.11 renderer-local pickup/follow study, Phase 0.12 always-invalid renderer-local return, and Phase 0.13 valid-zone/placement preview. The corresponding Legacy match objects remain live and synchronized behind the opacity and pointer gate so they can be revealed immediately. Lobby motion remains decorative rather than playable input. Phase 0.13 may describe and hover the nine empty/currently valid rectangles and place one local projection, but still has no semantic selection, committed board state, turn progression, or move submission.
+In the Phase 0 through Phase 0.14 column, “not rendered” or “disabled” means not rendered or operable by Three.js on the active-match surface except for the explicitly identified Phase 0.11 renderer-local pickup/follow study, Phase 0.12 always-invalid renderer-local return, Phase 0.13 valid-zone/placement preview, and Phase 0.14 turn-indicator projection. The corresponding Legacy match objects remain live and synchronized behind the opacity and pointer gate so they can be revealed immediately. Lobby motion remains decorative rather than playable input. Phase 0.13 may describe and hover the nine empty/currently valid rectangles and place one local projection; Phase 0.14 may mirror one already-decided turn-marker sequence as a local 3D coin. Modern still has no semantic selection, committed board state, turn authority, turn progression, or move submission.
 
-| Capability | Legacy requirement | Phase 0 through 0.13 Modern preview | Playable Modern requirement |
+| Capability | Legacy requirement | Phase 0 through 0.14 Modern preview | Playable Modern requirement |
 |---|---|---|---|
 | Lobby/main-menu hand | Five non-interactive Raphael card faces beneath the command bar; commands remain immediate | Phase 0.5 renders up to five Three.js card faces; Phase 0.6 permits per-card lift/back/front/settle effects; Phase 0.7's entrance remains rejected; Phase 0.9 provides five fixed-anchor intros, one seeded five-instance Gentle Wind exit, command waits with fail-open continuation, and Tutorials Back intro replay | Remains a separate decorative menu projection |
-| Motion Studio | Not present; Legacy state remains unchanged beneath it | Phase 0.8 provides one isolated, non-authoritative card authoring surface; Phase 0.9 binds it to a local six-target lobby playbook and production preview without changing stored Graphics preference | May remain an internal authoring tool; it is not match input |
+| Motion Studio | Not present; Legacy state remains unchanged beneath it | Phase 0.8 provides one isolated, non-authoritative authoring surface; Phase 0.9 binds six lobby targets to one local playbook; Phase 0.14 adds one exact-match-space turn-coin target backed by a separate local profile, without changing stored Graphics preference | May remain an internal authoring tool; it is not match input |
 | Board frame | Unchanged | Visible | Preserved or deliberately redesigned later |
 | Player hand | Fully functional | Phase 0.10 renders the current zero-to-five-card hand at exact Legacy coordinates; Phase 0.11 permits one renderer-local player card to lift and follow the pointer; Phase 0.12 can return it; Phase 0.13 can leave one inert local projection over a valid slot until reset | Rendered and interactive |
 | Opponent hand | Fully functional | Phase 0.10 renders the current zero-to-five-card hand at exact Legacy coordinates and preserves the server-resolved Open/Closed art; display-only | Correct open/closed state |
 | Existing board cards | Fully functional | Not rendered | Rendered from snapshot |
 | Nine board slots | Fully functional | Phase 0.13 consumes exact plain rectangle descriptions and shows only one currently hovered valid slot as a 30-percent black shadow; it renders no persistent grid or authoritative occupancy | Correct layout and hit testing |
 | Scores | Fully functional | Not rendered | Semantically identical values |
-| Turn marker | Fully functional | Not rendered | Clear active-player state |
+| Turn marker | Fully functional | Phase 0.14 mirrors the explicit Legacy sequence, target, visibility, and selected 41-pixel dime asset as one renderer-local circular 3D coin; first snapshot snaps, later target sequences animate, and no result controls the turn | Clear active-player state from renderer-neutral authority |
 | Rule banner | Fully functional | Not rendered | Equivalent information and sequencing |
 | Element icons/bonus | Fully functional | Not rendered | Equivalent state and readable feedback |
 | Card selection | Fully functional | No semantic selection; Phases 0.11 through 0.13 use only disposable renderer-local hold, return, hover, and placement-preview state | Semantic input and lift |
@@ -3671,8 +4106,8 @@ In the Phase 0 through Phase 0.13 column, “not rendered” or “disabled” m
 | Review/replay | Fully functional | Modern is non-playable; hidden Legacy state may continue synchronizing | Renderer-neutral reconstruction |
 | Tutorials | Fully functional | Modern is non-playable; hidden Legacy state may continue synchronizing | Same selection and parity contract |
 | Dialog dimming | Fully functional | Remains DOM-owned | Remains DOM-owned |
-| Application scaling | Fully functional | Host remains aligned; pickup/follow, invalid return, Phase 0.13 slot hit testing, and exact placement use the same logical coordinates at scales 1, 1.5, 2, and 3 | Full interaction and visual parity |
-| Reduced motion | No new regression | Phase 0.6 uses a bounded back/front proof with no lift or continuous rotation; Phase 0.7 commits arrivals directly at their destinations; Phase 0.8 opens paused and requires explicit full-motion preview; Phase 0.9 commits intro/exit terminal states and releases command flow exactly once; Phase 0.11 immediately enters the held pose and follows without velocity tilt; Phase 0.12 commits return immediately; Phase 0.13 commits the exact sampled placement endpoint immediately | Required before default |
+| Application scaling | Fully functional | Host remains aligned; pickup/follow, invalid return, Phase 0.13 slot hit testing and exact placement, and Phase 0.14 coin endpoints/path use the same logical coordinates at scales 1, 1.5, 2, and 3; Studio coin preview uses the exact match inset | Full interaction and visual parity |
+| Reduced motion | No new regression | Phase 0.6 uses a bounded back/front proof with no lift or continuous rotation; Phase 0.7 commits arrivals directly at their destinations; Phase 0.8 opens paused and requires explicit full-motion preview; Phase 0.9 commits intro/exit terminal states and releases command flow exactly once; Phase 0.11 immediately enters the held pose and follows without velocity tilt; Phase 0.12 commits return immediately; Phase 0.13 commits the exact sampled placement endpoint immediately; Phase 0.14 snaps an accepted turn sequence to its latest exact endpoint | Required before default |
 | Context loss | Not applicable | Restore effective Legacy and explain the reason | Recover or fall back |
 | Main-menu escape | Fully functional | Must remain available | Must remain available |
 
@@ -3843,6 +4278,25 @@ Exit gate:
 - Legacy `grab`/`drop`, live hand/board occupancy, board enablement, turn, scores, rules, controller state, semantic actions, callbacks, and requests remain unchanged.
 - Diagnostics, status communication, source, generated bundle, loader, static/browser contracts, and deployment agree on `0.185.1-match-placement.1`.
 - Static, controlled-clock/randomness, exact-geometry, all-scale, reduced-motion, lifecycle/stale-frame, actual-size visual, Phase 0.12 fallback, Graphics persistence, lobby, and applicable Legacy regressions pass.
+
+### Phase 0.14 — Renderer-local active-match turn-indicator coin
+
+Deliver the exact scope and acceptance criteria in Section 12.17.
+
+Exit gate:
+
+- The temporary bridge emits one plain explicit `{sequence, side, x, y, width, height, textureUrl, visible}` marker descriptor with the exact Legacy center/player/opponent geometry, approved heads/tails allowlist, and no authority-bearing reference.
+- A newly mounted or reconstructed surface snaps its first descriptor directly to the current target. Only a later newer sequence at a changed target begins motion; duplicate, stale, same-target, and visibility-only delivery cannot replay it.
+- Modern renders a true 41-diameter, three-unit-thick 3D circular coin with two 64-segment faces, one 64-segment cylindrical edge, unlit sRGB face art, restrained lit metallic thickness, one analytic shadow, and the same descriptor texture on both faces.
+- The version-1 pure deterministic profile/planner/sampler produces the documented quadratic path, physical height, flip, tumble, spin, contact tilt, shadow response, and exact flat settlement in both mirrored directions with no randomness or idle loop.
+- Coin motion owns at most one pending frame, supersedes from the current visible pose without a jump, rejects stale generations, and may coexist with the unchanged Phase 0.13 card scheduler.
+- Reduced motion snaps each accepted later sequence to the same exact latest endpoint with no continuous motion or pending frame.
+- The coin mirrors but never decides the turn, calls or delays no Legacy continuation, changes no board/hand/card/score/rule/controller state, emits no semantic action, and issues no request.
+- Motion Studio exposes `Match turn coin — Transition` through the exact 693 by 500 active-match inset, locked Legacy endpoints, both preview directions, production coin/camera/profile/planner/sampler, coin-only controls, deterministic transport, canonical strict import/export, and representative same-face dime art.
+- `Apply to Match Coin` persists only `purett.turnMarkerMotion.v1`, leaves Graphics and lobby-playbook values unchanged, and cannot fabricate a live transition for an unchanged sequence.
+- Lifecycle, descriptor, texture, context, visibility, mode, view, replacement, and disposal boundaries settle or discard renderer-owned coin state atomically and make late frames/loads inert.
+- Diagnostics, status communication, source, generated bundle, loader, active-match and Studio contracts, and deployment agree on `0.185.1-match-turn-coin.1`.
+- Pure unit, static, browser/harness, storage-isolation, Studio parity, all-scale, reduced-motion, supersession, lifecycle/resource, actual-size visual, Phase 0.13, Graphics persistence, lobby, and Legacy regressions pass.
 
 ### Phase 1 — Characterization and Legacy renderer boundary
 
@@ -4027,10 +4481,11 @@ Ongoing gate:
 | Surface | lobby-hand preview, active-match preview, transition between those surface kinds |
 | Preference | unset, Legacy, Modern, invalid value, unavailable storage, kill switch, active/expired failure backoff, explicit retry |
 | Lobby hand | zero through five cards, purchased and standard image paths, delayed texture, failed texture, hand replacement while loading, repeated show/hide |
-| Motion Studio | open from Legacy and Modern, every built-in preset, control endpoints, synchronized drag/numeric edits, play/pause/rate/loop/frame-step/scrub, Auto Replay, valid/invalid import, export round trip, session restore, reduced-motion entry, close and context loss |
+| Motion Studio | open from Legacy and Modern, every built-in card preset plus `match-turn-coin-transition`, exact match-space inset/camera/locked endpoints in both coin directions, target-applicable controls, synchronized drag/numeric edits, play/pause/rate/loop/frame-step/scrub, Auto Replay, strict valid/invalid import, export round trip, isolated Apply behavior, session restore, reduced-motion entry, close and context loss |
 | Motion recipe | fixed seed and canonical times, irregular frame cadence, every supported schema version, prohibited renderer objects, invalid/non-finite values, deterministic export/import equality |
 | Match state | initial hand, resumed match, occupied board, Open, Closed, Elemental, final turn |
 | Match pickup study | every player-card index, exposed and overlapped hit, opponent/empty rejection, lift midpoint/endpoint, horizontal/vertical/diagonal follow, stationary convergence, repeated ignored click, pointer departure/re-entry, hand revision, selected-card removal |
+| Match turn coin | exact initial/player/opponent descriptors and approved assets, first-snapshot snap, duplicate/stale/same-target suppression, controlled canonical samples in both mirrored directions, visible circular edge and same-face art, mid-flight supersession, exact settlement, reduced motion, profile normalization/import/export, storage isolation, descriptor removal, view/mode/context/disposal cancellation, zero authority/callback/request effects |
 | Capture | Basic, Same, Same Wall, Plus, Combo, multiple simultaneous captures |
 | Flow | normal play, invalid drop, request pending, dialog, endgame, Sudden Death, review, replay, tutorial |
 | Scale | 1, 1.5, 2, 3 |
@@ -4073,12 +4528,13 @@ SVG node order and Three.js mesh identity may be inspected in renderer-specific 
 - Phase 0.11 calibrated-camera snapshot, controlled pickup/follow traces, actual-size normal/reduced-motion captures, zero-authority/request evidence, lifecycle cleanup report, and `0.185.1-match-pickup.2` source/bundle/cache-identity proof;
 - Phase 0.12 controlled invalid-return samples at elapsed 0/150/300 milliseconds, arming and return-lock traces, all-scale exact-settlement evidence, reduced-motion and stale-generation lifecycle proof, unchanged Legacy/controller/request snapshots, actual-size captures, and `0.185.1-match-return.1` source/bundle/cache-identity proof;
 - Phase 0.13 exact nine-zone geometry and validity-gate fixtures, hover-only shadow captures, controlled 0/150/300-millisecond and `-2°`/`0°`/`2°` placement samples, all-scale hit-test evidence, one-preview and invalid-fallback traces, reduced-motion/lifecycle proof, unchanged Legacy/controller/hand/board/turn/request snapshots, actual-size captures, and `0.185.1-match-placement.1` source/bundle/cache-identity proof;
+- Phase 0.14 exact descriptor/sequence/target/asset fixtures; pure profile normalization, limit, deterministic-sampling, terminal-settlement, and bidirectional mirror tests; first-snapshot, duplicate-suppression, controlled-clock, mid-flight-supersession, reduced-motion, and stale-generation traces; true-circle/edge/same-face/sRGB actual-size captures; exact Motion Studio match-space/camera/endpoint parity and strict import/export evidence; `purett.turnMarkerMotion.v1` storage-isolation and malformed/future-schema fallback proof; repeated lifecycle/resource cleanup; unchanged Legacy callback/controller/hand/board/turn/request snapshots; and `0.185.1-match-turn-coin.1` source/bundle/loader/diagnostic/deployment identity proof;
 - tested Modern-default environment matrix;
 - current known limitations.
 
 ### 19.4 Requirements-to-phase traceability
 
-Phase 0 through Phase 0.13 requirements and acceptance criteria are the authorized engineering baseline as of 2026-07-27. Phase 0.7's deployed implementation has not passed its visual acceptance gate and is not an approved motion baseline. Phase 0.8 established the authoring workbench; Phase 0.9 established the authorized application-bound lobby integration; Phase 0.10 established passive active-match hand projection; Phase 0.11 remains the historical renderer-local player-card pickup/follow study; Phase 0.12 remains the historical always-invalid second-click baseline; Phase 0.13 is the current authorized renderer-local valid-zone hover and one-placement preview. Later requirements describe the intended target and gates; each later phase must begin with a short entry review that resolves its open questions, confirms its fixtures, and converts any remaining provisional numerical budget into an accepted measurement contract.
+Phase 0 through Phase 0.14 requirements and acceptance criteria are the authorized engineering baseline as of 2026-07-27. Phase 0.7's deployed implementation has not passed its visual acceptance gate and is not an approved motion baseline. Phase 0.8 established the authoring workbench; Phase 0.9 established the authorized application-bound lobby integration; Phase 0.10 established passive active-match hand projection; Phase 0.11 remains the historical renderer-local player-card pickup/follow study; Phase 0.12 remains the historical always-invalid second-click baseline; and Phase 0.13 remains the preserved renderer-local valid-zone hover and one-placement-preview baseline. Phase 0.14 is the current authorized renderer-local active-match turn-indicator coin and exact Motion Studio profile target; it supersedes only Phase 0.13's absent-Modern-turn-indicator boundary and does not expand Modern game authority. Later requirements describe the intended target and gates; each later phase must begin with a short entry review that resolves its open questions, confirms its fixtures, and converts any remaining provisional numerical budget into an accepted measurement contract.
 
 | Requirement family | First owning phase | Primary owner | Required evidence | Blocks Modern default |
 |---|---|---|---|---|
@@ -4101,11 +4557,16 @@ Phase 0 through Phase 0.13 requirements and acceptance criteria are the authoriz
 | `FR-MATCH-PICKUP-*` / `AC-P011-*` | Phase 0.11 | Modern active-match surface and graphics coordinator; temporary game bridge remains presentation-only | Calibrated perspective flat-table geometry, topmost player-only picking, one renderer-local hold, `1.075` projected lift, scale-correct grab-offset follow, bounded velocity tilt and zero-idle settlement, absent drop/game/network authority, reduced motion, lifecycle reset, Legacy identity, diagnostics, visual review, and `0.185.1-match-pickup.2` bundle evidence | Yes |
 | `FR-MATCH-RETURN-*` / `AC-P012-*` | Phase 0.12 | Modern active-match surface and graphics coordinator; temporary game bridge remains presentation-only | Arming and early-click rejection, location-independent always-invalid return with zero drop zones, controlled 300-millisecond cubic-out clockwise-turn samples, exact canonical settlement, input lock, all-scale mapping, reduced motion, lifecycle generation/stale-frame rejection, unchanged Legacy/controller/request state, diagnostics, visual review, and `0.185.1-match-return.1` bundle evidence | Yes |
 | `FR-MATCH-PLACEMENT-PREVIEW-*` / `AC-P013-*` | Phase 0.13 | Modern active-match surface and graphics coordinator; temporary game bridge remains presentation-only | Exact nine-zone geometry, fail-closed validity, hover-only 30-percent Legacy shadow, armed valid/invalid branching, controlled 300-millisecond cubic-out reverse-pickup samples, exact slot-center settlement, once-sampled `[-2°, 2°]` roll, one-preview guard, reduced motion, lifecycle/stale-frame rejection, unchanged Legacy/controller/hand/board/turn/request state, diagnostics, visual review, and `0.185.1-match-placement.1` bundle evidence | Yes |
-| `NFR-PERF-*` | Phase 2 | Modern build and renderer | GM-P100/GM-P200 performance and bundle report | Yes |
-| `NFR-REL-*` | Phase 1/5 | Both renderers and controller | Repeated lifecycle, heap/resource, stale-revision, and severity report | Yes |
-| `NFR-SEC-*` | Phase 2 | Build/deployment boundary | CSP, same-origin, dependency, and network audit | Yes |
+| `FR-MATCH-TURN-COIN-*` / `AC-P014-*` | Phase 0.14 | Modern active-match surface, renderer-neutral turn-coin motion module, graphics coordinator, and Motion Studio; temporary game bridge remains presentation-only | Exact descriptor/sequence/Legacy targets and selected asset, first-snapshot snap and replay guards, true circular same-face 3D geometry, deterministic profile/planner/sampler and mirrored paths, exact settlement and bounded scheduler, mid-flight supersession, reduced motion, lifecycle/resource cleanup, storage isolation, exact Studio-production coordinate/camera/endpoint parity, unchanged Legacy callback/controller/turn/request state, diagnostics, actual-size visual review, and `0.185.1-match-turn-coin.1` identity proof | Yes |
+| `NFR-PERF-019` | Phase 0.14 | Modern active-match and Motion Studio surfaces | Default/max-duration, no-per-frame-allocation, one-coin-frame, coexistence, reduced-motion, cancellation, failure, and zero-idle-frame evidence | Yes |
+| Remaining `NFR-PERF-*` | Phase 2 | Modern build and renderer | GM-P100/GM-P200 performance and bundle report | Yes |
+| `NFR-REL-015` | Phase 0.14 | Modern active-match surface, Motion Studio, and graphics coordinator | Fifty-cycle coin/Studio lifecycle, stale-frame/load rejection, resource-baseline, storage-isolation, and zero-authority report | Yes |
+| Remaining `NFR-REL-*` | Phase 1/5 | Both renderers and controller | Repeated lifecycle, heap/resource, stale-revision, and severity report | Yes |
+| `NFR-SEC-007` | Phase 0.14 | Graphics coordinator and same-origin storage boundary | Same-origin descriptor/profile, no-account/no-network, and visible-information-only audit | Yes |
+| Remaining `NFR-SEC-*` | Phase 2 | Build/deployment boundary | CSP, same-origin, dependency, and network audit | Yes |
 | `NFR-COMP-*` | Phase 2/6 | Browser test matrix | Tested Modern-default matrix | Yes |
-| `NFR-MAINT-*` | Phase 1 | Renderer contract owners | Boundary review, upgrade procedure, shared tests | Yes |
+| `NFR-MAINT-007` | Phase 0.14 | Renderer-neutral turn-coin motion module owners | Dependency-boundary audit and identical production/Studio planner-sampler contract | Yes |
+| Remaining `NFR-MAINT-*` | Phase 1 | Renderer contract owners | Boundary review, upgrade procedure, shared tests | Yes |
 
 ## 20. Rollout and preference precedence
 
@@ -4189,7 +4650,7 @@ The preference should survive browser restarts. It is intentionally browser/orig
 | Animation callbacks currently advance control flow | A missing callback can stall or corrupt a match | Revisioned renderer-application contract that settles exactly once, plus fast-forward/cancel tests |
 | Visual state is read as model state | Modern cannot reproduce or recover correctly | Explicit snapshot fields for face, zone, position, ownership, lock, and order |
 | Z-order is functional | Wrong card is selected or capture/hand overlap is incorrect | Canonical semantic depth and deterministic raycast sorting |
-| Phase 0 suppresses the complete Legacy match presentation | Scores, rules, targets, and turn state remain intentionally absent even after hands and the pickup study appear | Keep Raphael live and synchronized behind a complete opacity, accessibility, and pointer gate; label Modern non-playable and provide immediate Legacy return |
+| Phase 0 suppresses the complete Legacy match presentation | Scores, rules, targets, and authoritative turn state remain intentionally absent even after hands and the renderer-local studies appear; Phase 0.14's coin is only a mirror of Legacy presentation | Keep Raphael live and synchronized behind a complete opacity, accessibility, and pointer gate; label Modern non-playable, identify the coin as non-authoritative, and provide immediate Legacy return |
 | Two renderers remain supported | Behavior can drift and maintenance cost can grow | One conformance suite, one snapshot/action contract, documented ownership |
 | CSS application scaling conflicts with camera picking | Pointer and cards diverge | One tested client-to-world coordinate pipeline |
 | Texture orientation, color, or minification is wrong | Mirrored backs, darkened art, seams, or motion shimmer | Use unlit sRGB faces, mipmaps, trilinear minification, bounded anisotropy, and both same-direction edge-on tests |
@@ -4229,6 +4690,11 @@ The preference should survive browser restarts. It is intentionally browser/orig
 | A held card survives mode, hand, view, or context replacement | A stale event moves the wrong card, a hidden scheduler leaks, or Legacy appears to inherit a Modern drag | Generation-token every hold and frame; cancel on every documented lifecycle/revision boundary; detach ownership before reveal/disposal; prove late events inert |
 | The Phase 0.12 always-invalid return is mistaken for drop-zone or gameplay input | Scope expands into target legality, placement, controller mutation, or move authority before the controller seam exists | Keep the drop-zone count exactly zero; perform no slot raycast or validity query; emit no semantic action; and assert unchanged controller, game, Legacy, turn, request, and network state across the return |
 | A pre-arm or returning click, stale frame, or lifecycle callback escapes the hold generation lock | The card returns twice, settles at a noncanonical pose, unlocks early, or mutates a replacement surface | Ignore and never queue clicks before arming or during return; keep one scheduler; validate both frame identity and hold generation on every callback; cancel on every documented lifecycle boundary; and require exact canonical settlement before pickup unlock |
+| Turn-indicator descriptors replay, arrive stale, or supersede an in-flight generation incorrectly | The coin visibly tosses on mount, repeats an old turn, jumps on interruption, or settles on the wrong side | Snap the first valid descriptor; require a newer sequence and changed target thereafter; ignore duplicate/stale/same-target delivery; capture the exact current pose for supersession; guard every frame by identity and generation; and assert the three exact Legacy targets |
+| The Modern marker becomes a flat square, a darkened texture, or a semantic heads/tails invention | Edge-on motion collapses, the dime art no longer matches Legacy, or presentation falsely implies a new turn result | Use two unlit sRGB 64-segment circular faces, one visibly lit open cylindrical edge, the descriptor-selected approved asset on both faces, disabled hardware shadows, and actual-size front/edge/back visual evidence in both directions |
+| Turn-coin presentation leaks into Legacy callback or game authority | Motion delays turn progression, changes input eligibility, fabricates a turn, or issues a duplicate request | Notify Modern with a cloned descriptor only; never pass or invoke the Legacy continuation; keep `isMyTurn`, board/hand/card/controller state, semantic actions, and requests outside the coin module; and compare authority snapshots before, during, and after motion |
+| Motion Studio and production coin behavior drift or their storage collides | An approved profile moves differently in the match, locked endpoints change, or applying a coin profile overwrites Graphics/lobby settings | Share one renderer-neutral normalizer, planner, and sampler; use the exact production 693 by 500 inset, camera, geometry, and endpoints; persist only `purett.turnMarkerMotion.v1`; and test all relevant storage keys byte-for-byte around Apply/import/fallback |
+| Turn-coin frames, textures, or resources survive lifecycle invalidation | A hidden or replaced surface moves later, recreates the coin, leaks a frame, or corrupts a newer scene | Invalidate frame and motion generations atomically on every documented boundary; make late frames and texture completions inert; dispose owned coin resources; and require zero pending coin frames after completion, cancellation, replacement, context loss, and repeated lifecycle cycles |
 | Remote dependency delivery violates self-contained design | Startup, CSP, and archival failure | Pin, bundle, and serve all Modern code locally |
 
 ## 22. Open design questions
@@ -4244,7 +4710,7 @@ These questions do not block Phase 0 unless noted, but each must be resolved in 
 | OQ-005 | Thin box or paired planes for an active-match card | Phase 0.6 resolves only the lobby experiment as a three-unit side-only lit slab, hidden slab caps, distinct unlit face planes, and 0.2 units of clearance. Decide the active-match representation through edge, orientation, depth-stability, and draw-cost measurements. | Phase 2 |
 | OQ-006 | Per-card textures or atlas | Phase 0.5 uses per-card current-lobby-hand textures; begin the active match with cached current-match textures and add an atlas only if profiling justifies it | Phase 2 |
 | OQ-007 | Exact active-match shadows and lighting | Phase 0.6 lights only the lobby slab sides, keeps face art unlit, disables hardware shadow maps, and uses one independently controlled lift-only analytic contact shadow per card over shared geometry/texture. Treat that artifact-free concurrent result as evidence; select the active-match treatment in Phase 2. | Phase 2 |
-| OQ-008 | Score/rule/turn UI in WebGL or DOM | Prefer DOM where it improves accessibility and reduces texture/glyph work | Phase 3 |
+| OQ-008 | Score/rule/turn UI in WebGL or DOM | Phase 0.14 resolves only the provisional moving turn-indicator coin as renderer-local WebGL presentation so its 3D motion can be studied. It does not resolve score/rule rendering or the final accessible/semantic turn UI; prefer DOM for those Phase 3 surfaces where it improves accessibility and reduces texture/glyph work. | Phase 3 |
 | OQ-009 | Playable-renderer switching after full decoupling | Phase 0's non-playable presentation gate does not decide this; keep later renderer reconstruction at safe boundaries unless a clear user need justifies playable hot swap | Phase 6 or later |
 | OQ-010 | Touch and pen support window | Design with Pointer Events, schedule after desktop parity | Phase 5+ |
 | OQ-011 | Exact reference hardware and performance budgets | Record representative current and modest hardware during the spike | Phase 2 |
@@ -4284,15 +4750,17 @@ Changes to any of the following require an explicit update to this document or a
 - weakening same-origin or Content Security Policy requirements;
 - adding external telemetry;
 - making the WebGL canvas the sole accessible interaction surface;
-- expanding the initiative to application Raphael surfaces beyond the explicitly approved lobby-hand exception;
-- promoting a Motion Studio draft or playbook beyond the five Phase 0.9 lobby intro targets and shared Gentle Wind exit, including into the shop or active match;
-- changing the Motion Studio recipe or lobby-playbook schema, changing the six-target registry, serializing application anchors, or moving persistence from browser-local state to account/server state;
+- expanding the initiative to application Raphael surfaces beyond the explicitly approved lobby-hand projection and Phase 0.14 renderer-only turn-indicator projection;
+- promoting a Motion Studio draft or playbook beyond the five Phase 0.9 lobby intro targets, shared Gentle Wind exit, and exact Phase 0.14 `match-turn-coin-transition` target, including into the shop or any other active-match subject;
+- changing the Motion Studio recipe, lobby-playbook, or turn-coin profile schema; changing the six lobby-target entries plus one locked coin-target entry; serializing application anchors; or moving persistence from browser-local state to account/server state;
 - expanding the historical Phase 0.11 scope beyond one renderer-local player-card hold, except for the explicit second-click supersession defined by Phase 0.12;
 - changing the Phase 0.11 projected lift target, velocity-tilt bound, perspective flat-table calibration, or historical cache identity without corresponding visual, coordinate, lifecycle, and bundle evidence;
 - expanding the historical Phase 0.12 scope beyond one renderer-local, always-invalid second-click return, except for the explicit valid-zone/placement-preview supersession defined by Phase 0.13; Phase 0.12 itself contains no drop zone, pointer-location validity query, valid placement, opponent interaction, semantic action dispatch, controller/game/Legacy/turn-state mutation, or network request;
 - changing the Phase 0.12 300-millisecond duration, `cubic-out` curve, one clockwise `-2π` turn, exact canonical endpoint, arming/input-lock rules, reduced-motion settlement, generation guard, diagnostics, or `0.185.1-match-return.1` cache identity without corresponding visual, timing, authority, lifecycle, and bundle evidence;
 - expanding Phase 0.13 beyond the documented nine plain Legacy rectangle descriptions, one hover shadow, one renderer-local placement preview per unchanged snapshot, and Phase 0.12 invalid fallback, including semantic target discovery, committed board occupancy, turn progression, capture resolution, controller dispatch, or move submission;
 - changing Phase 0.13's exact slot geometry, black opacity-`0.3` hover-only cue, fail-closed validity gates, 300-millisecond cubic-out reverse-pickup motion, exact-center/no-position-jitter endpoint, once-sampled `[-2°, 2°]` screen-roll range, one-preview guard, lifecycle reset, reduced-motion endpoint, authority boundary, diagnostics, or `0.185.1-match-placement.1` cache identity without corresponding visual, geometry, timing, authority, lifecycle, and bundle evidence;
+- expanding Phase 0.14 beyond one renderer-local active-match turn-indicator coin and one exact Motion Studio coin target, including deciding whose turn it is, delaying or invoking the Legacy continuation, gating card input, progressing the match, mutating score/rule/controller state, emitting a semantic action, issuing a request, selecting a random coin outcome, or introducing distinct semantic face art;
+- changing Phase 0.14's descriptor fields or sequence semantics; exact initial/player/opponent targets; approved 41 by 41 asset behavior; same-texture-on-both-faces policy; diameter, thickness, segment counts, material/color policy, flat-table camera convention, profile schema/defaults/limits, deterministic planner/sampler equations, first-snapshot/replay/supersession rules, settle/reduced-motion/lifecycle behavior, exact Studio viewport/camera/endpoints, `purett.turnMarkerMotion.v1` isolation, diagnostics, or `0.185.1-match-turn-coin.1` cache identity without corresponding geometry, timing, visual, authority, storage, lifecycle, Studio-parity, and bundle evidence;
 
 Each revision should record:
 
@@ -4317,6 +4785,7 @@ Each revision should record:
 - Modern active-match and lobby-hand source: `frontend/src/modern-graphics.js`
 - Renderer-neutral Motion Studio recipe/planner source: `frontend/src/card-motion.js`
 - Renderer-neutral application lobby playbook, seeded batch compiler, and sampler: `frontend/src/lobby-motion-playbook.js`
+- Renderer-neutral active-match turn-coin profile, planner, and sampler: `frontend/src/turn-marker-motion.js`
 - Isolated Motion Studio Three.js surface source: `frontend/src/motion-studio-surface.js`
 - Legacy-shell Motion Studio coordinator/UI: `public/js/plugins/gh.motionstudio.js`
 - Application manager and scaling: `public/js/default/index.js`
@@ -4327,8 +4796,9 @@ Each revision should record:
 - Container asset delivery: `docker/php56-apache.Dockerfile` and `.dockerignore`
 - Browser-suite configuration: `tests/browser/playwright.config.js`
 - Modern build/runtime static contract: `tests/static/modern-graphics-contract.js`
-- Modern active-match hand, pickup, invalid-return, valid-zone hover, and renderer-local placement-preview browser coverage: `tests/browser/active-match-modern-hands.spec.js`
+- Modern active-match hand, pickup, invalid-return, valid-zone hover, renderer-local placement-preview, and turn-indicator-coin browser coverage: `tests/browser/active-match-modern-hands.spec.js`
 - Motion and application-playbook static contracts: `tests/static/card-motion-contract.mjs` and the Phase 0.9 lobby-playbook contract
+- Active-match turn-coin profile/planner/sampler static contract: `tests/static/turn-marker-motion-contract.mjs`
 - Modern lobby and Motion Studio browser coverage: `tests/browser/lobby-modern-hand.spec.js` and `tests/browser/motion-studio.spec.js`
 - Legacy browser coverage: `tests/browser/smoke.spec.js`, `tests/browser/scale-interactions.spec.js`, `tests/browser/dialog-scale.spec.js`, and `tests/browser/endgame-protection.spec.js`
 

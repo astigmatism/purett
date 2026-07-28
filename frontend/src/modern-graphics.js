@@ -1,6 +1,8 @@
 import {
   BoxGeometry,
   CanvasTexture,
+  CircleGeometry,
+  CylinderGeometry,
   DirectionalLight,
   FrontSide,
   Group,
@@ -57,6 +59,17 @@ import {
   updateLobbyWindSeed
 } from './lobby-motion-playbook.js';
 import {
+  DEFAULT_TURN_MARKER_MOTION_PROFILE,
+  TURN_MARKER_MATCH_CENTERS,
+  TURN_MARKER_MOTION_LIMITS,
+  TURN_MARKER_MOTION_SCHEMA_VERSION,
+  createTurnMarkerMotionPlan,
+  normalizeTurnMarkerMotionProfile,
+  parseTurnMarkerMotionProfile,
+  sampleTurnMarkerMotion,
+  serializeTurnMarkerMotionProfile
+} from './turn-marker-motion.js';
+import {
   MOTION_STUDIO_CAMERA,
   MotionStudioSurface,
   validateMotionStudioPreset
@@ -108,6 +121,16 @@ const MATCH_DROP_ZONE_OPACITY = 0.3;
 const MATCH_DROP_ZONE_CORNER_RADIUS = 10;
 const MATCH_DROP_ZONE_RENDER_ORDER = 50;
 const MATCH_PLACED_CARD_RENDER_ORDER = 200;
+const MATCH_TURN_COIN_DIAMETER = 41;
+const MATCH_TURN_COIN_RADIUS =
+  MATCH_TURN_COIN_DIAMETER / 2;
+const MATCH_TURN_COIN_THICKNESS = 3;
+const MATCH_TURN_COIN_FACE_OFFSET =
+  (MATCH_TURN_COIN_THICKNESS / 2) + 0.08;
+const MATCH_TURN_COIN_RENDER_ORDER = 5000;
+const MATCH_TURN_COIN_SHADOW_Z = -0.75;
+const MATCH_TURN_COIN_SHADOW_SIZE = 54;
+const MATCH_TURN_COIN_SHADOW_SCALE = 0.9;
 const LOBBY_CARD_BACK_URL = '/images/cards/cardBack.png';
 const LOBBY_CAMERA_FOV = 40;
 const LOBBY_CAMERA_CENTER_X = LOBBY_LOGICAL_WIDTH / 2;
@@ -176,6 +199,8 @@ function cardMotionDepthMetrics(
   return {
     minimum: -halfDepthSpan * scale,
     maximum: halfDepthSpan * scale,
+    visibleCenter:
+      Math.abs(depthZ * faceOffset) * scale,
     normalDepth: depthZ
   };
 }
@@ -203,11 +228,36 @@ class ModernGraphicsSurface {
     this.handsKey = null;
     this.dropZones = [];
     this.dropZonesKey = null;
+    this.turnIndicator = null;
+    this.turnIndicatorKey = null;
+    this.turnIndicatorProfile =
+      DEFAULT_TURN_MARKER_MOTION_PROFILE;
+    this.turnIndicatorEntry = null;
+    this.turnIndicatorTexture = null;
+    this.turnIndicatorTextureUrl = null;
+    this.turnIndicatorStatus = 'empty';
+    this.turnIndicatorLoadGeneration = 0;
+    this.turnIndicatorMotion = null;
+    this.turnIndicatorMotionGeneration = 0;
+    this.turnIndicatorAnimationFrameId = null;
+    this.turnIndicatorPendingFrameCount = 0;
+    this.turnIndicatorPeakPendingFrameCount = 0;
+    this.turnIndicatorFrameCount = 0;
+    this.snapNextTurnIndicatorUpdate = false;
+    this.acceptedTurnIndicatorTransitions = 0;
+    this.completedTurnIndicatorTransitions = 0;
+    this.cancelledTurnIndicatorTransitions = 0;
+    this.ignoredTurnIndicatorNotifications = 0;
+    this.ignoredStaleTurnIndicatorNotifications = 0;
+    this.snappedTurnIndicatorUpdates = 0;
+    this.lastTurnIndicatorTransition = null;
     this.cardEntries = [];
     this.playerPickMeshes = [];
     this.opponentPickMeshes = [];
     this.textures = new Map();
     this.pendingTextureLoads = new Set();
+    this.pendingTurnIndicatorTextureLoads =
+      new Set();
     this.raycaster = new Raycaster();
     this.pointerNdc = new Vector2();
     this.heldCard = null;
@@ -268,6 +318,8 @@ class ModernGraphicsSurface {
       );
       this.cardGroup = new Group();
       this.scene.add(this.cardGroup);
+      this.turnIndicatorGroup = new Group();
+      this.scene.add(this.turnIndicatorGroup);
       this.cardGeometry = new PlaneGeometry(
         MATCH_CARD_WIDTH,
         MATCH_CARD_HEIGHT
@@ -322,6 +374,67 @@ class ModernGraphicsSurface {
       this.dropZoneHighlight.renderOrder =
         MATCH_DROP_ZONE_RENDER_ORDER;
       this.cardGroup.add(this.dropZoneHighlight);
+      this.turnIndicatorFaceGeometry =
+        new CircleGeometry(
+          MATCH_TURN_COIN_RADIUS,
+          64
+        );
+      this.turnIndicatorEdgeGeometry =
+        new CylinderGeometry(
+          MATCH_TURN_COIN_RADIUS,
+          MATCH_TURN_COIN_RADIUS,
+          MATCH_TURN_COIN_THICKNESS,
+          64,
+          1,
+          true
+        );
+      this.turnIndicatorShadowGeometry =
+        new PlaneGeometry(
+          MATCH_TURN_COIN_SHADOW_SIZE,
+          MATCH_TURN_COIN_SHADOW_SIZE
+        );
+      this.turnIndicatorShadowMaterial =
+        new MeshBasicMaterial({
+          map: this.matchShadowTexture,
+          color: 0x000000,
+          transparent: true,
+          opacity: 0,
+          depthTest: false,
+          depthWrite: false,
+          toneMapped: false
+        });
+      this.turnIndicatorEdgeMaterial =
+        new MeshStandardMaterial({
+          color: 0xbebcb6,
+          roughness: 0.38,
+          metalness: 0.72,
+          depthTest: true,
+          depthWrite: true,
+          toneMapped: false
+        });
+      this.turnIndicatorHemisphereLight =
+        new HemisphereLight(
+          0xfff7df,
+          0x302a28,
+          0.88
+        );
+      this.turnIndicatorKeyLight =
+        new DirectionalLight(0xfff2d5, 1.25);
+      this.turnIndicatorKeyLight.position.set(
+        150,
+        470,
+        600
+      );
+      this.turnIndicatorKeyLight.target.position.set(
+        MATCH_CAMERA_CENTER_X,
+        MATCH_CAMERA_CENTER_Y,
+        0
+      );
+      this.scene.add(this.turnIndicatorHemisphereLight);
+      this.scene.add(this.turnIndicatorKeyLight);
+      this.scene.add(
+        this.turnIndicatorKeyLight.target
+      );
       this.textureLoader = new TextureLoader();
       this.renderer = new WebGLRenderer({
         alpha: true,
@@ -345,6 +458,11 @@ class ModernGraphicsSurface {
       this.handleContextLost = (event) => {
         event.preventDefault();
         this.contextLost = true;
+        this.cancelTurnIndicatorMotion(
+          'context-lost',
+          false,
+          true
+        );
         this.cancelPickup('context-lost', false);
         this.clearLocalPreviewPlacement(
           'context-lost',
@@ -412,6 +530,11 @@ class ModernGraphicsSurface {
         this.visibilitySuspended =
           document.hidden === true;
         if (this.visibilitySuspended) {
+          this.cancelTurnIndicatorMotion(
+            'visibility-hidden',
+            false,
+            true
+          );
           this.cancelPickup(
             'visibility-hidden',
             false
@@ -422,6 +545,13 @@ class ModernGraphicsSurface {
           );
           this.detachInputHandlers();
           return;
+        }
+        if (this.turnIndicatorMotion) {
+          this.cancelTurnIndicatorMotion(
+            'visibility-restored',
+            false,
+            true
+          );
         }
         this.attachInputHandlers();
         this.render();
@@ -537,6 +667,15 @@ class ModernGraphicsSurface {
       ).matches;
   }
 
+  isPresentationReady() {
+    return (
+      this.status === 'ready' &&
+      Boolean(this.turnIndicator) &&
+      this.turnIndicatorStatus === 'ready' &&
+      Boolean(this.turnIndicatorEntry)
+    );
+  }
+
   attachInputHandlers() {
     if (
       this.inputHandlersAttached ||
@@ -544,7 +683,7 @@ class ModernGraphicsSurface {
       this.contextLost ||
       this.suspended ||
       this.visibilitySuspended ||
-      this.status !== 'ready'
+      !this.isPresentationReady()
     ) {
       return;
     }
@@ -2398,6 +2537,12 @@ class ModernGraphicsSurface {
       return;
     }
     this.suspended = true;
+    this.snapNextTurnIndicatorUpdate = true;
+    this.cancelTurnIndicatorMotion(
+      'suspend',
+      false,
+      true
+    );
     this.cancelPickup('suspend', false);
     this.clearLocalPreviewPlacement(
       'suspend',
@@ -2412,6 +2557,16 @@ class ModernGraphicsSurface {
       return;
     }
     this.suspended = false;
+    if (
+      this.turnIndicatorEntry &&
+      this.turnIndicator
+    ) {
+      this.applyTurnIndicatorPose(
+        this.settledTurnIndicatorPose(
+          this.turnIndicator
+        )
+      );
+    }
     this.attachInputHandlers();
     this.render();
   }
@@ -2427,6 +2582,62 @@ class ModernGraphicsSurface {
     this.renderer.setSize(LOGICAL_WIDTH, LOGICAL_HEIGHT, false);
     this.camera.updateProjectionMatrix();
     this.render();
+  }
+
+  normalizeTurnIndicator(indicator) {
+    if (indicator == null) {
+      return null;
+    }
+    const sequence = Number(indicator.sequence);
+    const side = String(
+      indicator.side == null
+        ? ''
+        : indicator.side
+    );
+    const x = Number(indicator.x);
+    const y = Number(indicator.y);
+    const width = Number(indicator.width);
+    const height = Number(indicator.height);
+    const textureUrl = String(
+      indicator.textureUrl || ''
+    );
+    const textureAllowed =
+      textureUrl === '/images/dime-heads.png' ||
+      textureUrl === '/images/dime-tails.png';
+
+    if (
+      !Number.isInteger(sequence) ||
+      sequence < 0 ||
+      (
+        side !== 'initial' &&
+        side !== 'player' &&
+        side !== 'opponent'
+      ) ||
+      !Number.isFinite(x) ||
+      !Number.isFinite(y) ||
+      !Number.isFinite(width) ||
+      !Number.isFinite(height) ||
+      width !== MATCH_TURN_COIN_DIAMETER ||
+      height !== MATCH_TURN_COIN_DIAMETER ||
+      !textureAllowed
+    ) {
+      throw new Error(
+        'The match turn-indicator description is invalid.'
+      );
+    }
+
+    return {
+      sequence,
+      side,
+      x,
+      y,
+      width,
+      height,
+      centerX: x + (width / 2),
+      centerY: y + (height / 2),
+      textureUrl,
+      visible: indicator.visible !== false
+    };
   }
 
   normalizeCard(card, side, handIndex) {
@@ -2526,7 +2737,15 @@ class ModernGraphicsSurface {
     return texture;
   }
 
-  loadTexture(textureUrl) {
+  loadTexture(
+    textureUrl,
+    pendingLoads,
+    subjectLabel
+  ) {
+    const loadSet =
+      pendingLoads || this.pendingTextureLoads;
+    const label =
+      subjectLabel || 'match-hand card';
     return new Promise((resolve, reject) => {
       let settled = false;
       let pendingTexture = null;
@@ -2543,7 +2762,7 @@ class ModernGraphicsSurface {
         if (timeoutId !== null) {
           window.clearTimeout(timeoutId);
         }
-        this.pendingTextureLoads.delete(cancel);
+        loadSet.delete(cancel);
         if (error) {
           if (pendingTexture) {
             pendingTexture.dispose();
@@ -2552,7 +2771,7 @@ class ModernGraphicsSurface {
             error instanceof Error
               ? error
               : new Error(
-                'A match-hand card texture could not be loaded.'
+                `A ${label} texture could not be loaded.`
               )
           );
           return;
@@ -2562,14 +2781,18 @@ class ModernGraphicsSurface {
       };
       const cancel = () => {
         settle(
-          new Error('A match-hand card texture load was cancelled.')
+          new Error(
+            `A ${label} texture load was cancelled.`
+          )
         );
       };
 
-      this.pendingTextureLoads.add(cancel);
+      loadSet.add(cancel);
       timeoutId = window.setTimeout(() => {
         settle(
-          new Error('A match-hand card texture load timed out.')
+          new Error(
+            `A ${label} texture load timed out.`
+          )
         );
       }, this.textureLoadTimeoutMs);
 
@@ -2590,6 +2813,304 @@ class ModernGraphicsSurface {
     const cancellations = Array.from(this.pendingTextureLoads);
     this.pendingTextureLoads.clear();
     cancellations.forEach((cancel) => cancel());
+  }
+
+  cancelPendingTurnIndicatorTextureLoads() {
+    const cancellations = Array.from(
+      this.pendingTurnIndicatorTextureLoads
+    );
+    this.pendingTurnIndicatorTextureLoads.clear();
+    cancellations.forEach((cancel) => cancel());
+  }
+
+  clearTurnIndicator() {
+    this.cancelPendingTurnIndicatorTextureLoads();
+    this.cancelTurnIndicatorMotion(
+      'turn-indicator-cleared',
+      false,
+      false
+    );
+    if (this.turnIndicatorEntry) {
+      this.turnIndicatorGroup.remove(
+        this.turnIndicatorEntry.root
+      );
+      this.turnIndicatorGroup.remove(
+        this.turnIndicatorEntry.shadowMesh
+      );
+      this.turnIndicatorEntry.faceMaterial.dispose();
+    }
+    if (this.turnIndicatorTexture) {
+      this.turnIndicatorTexture.dispose();
+    }
+    this.turnIndicatorEntry = null;
+    this.turnIndicatorTexture = null;
+    this.turnIndicatorTextureUrl = null;
+    this.turnIndicatorStatus = 'empty';
+  }
+
+  commitTurnIndicator(texture, descriptor) {
+    if (this.turnIndicatorEntry) {
+      this.turnIndicatorGroup.remove(
+        this.turnIndicatorEntry.root
+      );
+      this.turnIndicatorGroup.remove(
+        this.turnIndicatorEntry.shadowMesh
+      );
+      this.turnIndicatorEntry.faceMaterial.dispose();
+    }
+    if (
+      this.turnIndicatorTexture &&
+      this.turnIndicatorTexture !== texture
+    ) {
+      this.turnIndicatorTexture.dispose();
+    }
+
+    const faceMaterial = new MeshBasicMaterial({
+      map: texture,
+      color: 0xffffff,
+      transparent: true,
+      alphaTest: 0.01,
+      alphaToCoverage: true,
+      depthTest: true,
+      depthWrite: true,
+      side: FrontSide,
+      toneMapped: false
+    });
+    const root = new Group();
+    const projection = new Group();
+    const orientation = new Group();
+    const frontMesh = new Mesh(
+      this.turnIndicatorFaceGeometry,
+      faceMaterial
+    );
+    const backMesh = new Mesh(
+      this.turnIndicatorFaceGeometry,
+      faceMaterial
+    );
+    const edgeMesh = new Mesh(
+      this.turnIndicatorEdgeGeometry,
+      this.turnIndicatorEdgeMaterial
+    );
+    const shadowMesh = new Mesh(
+      this.turnIndicatorShadowGeometry,
+      this.turnIndicatorShadowMaterial
+    );
+
+    frontMesh.position.z =
+      MATCH_TURN_COIN_FACE_OFFSET;
+    backMesh.position.z =
+      -MATCH_TURN_COIN_FACE_OFFSET;
+    backMesh.rotation.y = Math.PI;
+    edgeMesh.rotation.x = Math.PI / 2;
+    shadowMesh.position.z =
+      MATCH_TURN_COIN_SHADOW_Z;
+    shadowMesh.renderOrder =
+      MATCH_TURN_COIN_RENDER_ORDER - 1;
+    edgeMesh.renderOrder =
+      MATCH_TURN_COIN_RENDER_ORDER;
+    frontMesh.renderOrder =
+      MATCH_TURN_COIN_RENDER_ORDER + 1;
+    backMesh.renderOrder =
+      MATCH_TURN_COIN_RENDER_ORDER + 1;
+
+    orientation.add(edgeMesh);
+    orientation.add(frontMesh);
+    orientation.add(backMesh);
+    projection.matrixAutoUpdate = false;
+    projection.add(orientation);
+    root.add(projection);
+    this.turnIndicatorGroup.add(shadowMesh);
+    this.turnIndicatorGroup.add(root);
+
+    this.turnIndicatorTexture = texture;
+    this.turnIndicatorTextureUrl =
+      descriptor.textureUrl;
+    this.turnIndicatorEntry = {
+      root,
+      projection,
+      orientation,
+      frontMesh,
+      backMesh,
+      edgeMesh,
+      shadowMesh,
+      faceMaterial,
+      currentPose: null
+    };
+    this.applyTurnIndicatorPose(
+      this.settledTurnIndicatorPose(descriptor)
+    );
+  }
+
+  settledTurnIndicatorPose(indicator) {
+    return {
+      phase: 'settled',
+      complete: true,
+      progress: 1,
+      flightProgress: 1,
+      settleProgress: 1,
+      screenX: indicator.centerX,
+      screenY: indicator.centerY,
+      height: 0,
+      depth: 0,
+      rotationX: 0,
+      rotationY: 0,
+      rotationZ: 0,
+      authoredScale: 1,
+      shadowOpacity:
+        this.turnIndicatorProfile.shadow.strength,
+      shadowScale:
+        this.turnIndicatorProfile.shadow.spread,
+      shadow: {
+        strength:
+          this.turnIndicatorProfile.shadow.strength,
+        spread:
+          this.turnIndicatorProfile.shadow.spread
+      }
+    };
+  }
+
+  applyTurnIndicatorProfileAtRest() {
+    if (
+      !this.turnIndicatorEntry ||
+      !this.turnIndicator ||
+      this.turnIndicatorMotion
+    ) {
+      return;
+    }
+    const current =
+      this.turnIndicatorEntry.currentPose ||
+      this.settledTurnIndicatorPose(
+        this.turnIndicator
+      );
+    this.applyTurnIndicatorPose(
+      Object.assign({}, current, {
+        shadowOpacity:
+          this.turnIndicatorProfile.shadow
+            .strength,
+        shadowScale:
+          this.turnIndicatorProfile.shadow
+            .spread,
+        shadow: {
+          strength:
+            this.turnIndicatorProfile.shadow
+              .strength,
+          spread:
+            this.turnIndicatorProfile.shadow
+              .spread
+        }
+      })
+    );
+  }
+
+  applyTurnIndicatorPose(pose) {
+    const entry = this.turnIndicatorEntry;
+    if (!entry || !pose) {
+      return;
+    }
+    const depth = Math.max(
+      0,
+      Number(pose.height) || 0
+    );
+    const rotationX =
+      Number(pose.rotationX) || 0;
+    const rotationY =
+      Number(pose.rotationY) || 0;
+    const rotationZ =
+      Number(pose.rotationZ) || 0;
+    const depthMetrics =
+      cardMotionDepthMetrics(
+        MATCH_TURN_COIN_DIAMETER,
+        MATCH_TURN_COIN_DIAMETER,
+        MATCH_TURN_COIN_FACE_OFFSET,
+        rotationX,
+        rotationY,
+        rotationZ,
+        1
+      );
+    const rootZ =
+      depth - depthMetrics.minimum;
+    const visibleCenterDepth =
+      rootZ + depthMetrics.visibleCenter;
+    const world = this.screenCenterToWorld(
+      Number(pose.screenX),
+      Number(pose.screenY),
+      visibleCenterDepth
+    );
+    const shadowOpacity = Number.isFinite(
+      Number(pose.shadowOpacity)
+    )
+      ? Number(pose.shadowOpacity)
+      : Number(
+          pose.shadow &&
+          pose.shadow.strength
+        ) || 0;
+    const shadowScale = Number.isFinite(
+      Number(pose.shadowScale)
+    )
+      ? Number(pose.shadowScale)
+      : Number(
+          pose.shadow &&
+          pose.shadow.spread
+        ) || 1;
+
+    entry.root.position.set(
+      world.x,
+      world.y,
+      rootZ
+    );
+    entry.orientation.rotation.set(
+      rotationX,
+      rotationY,
+      rotationZ
+    );
+    const screenWorldY =
+      LOGICAL_HEIGHT - Number(pose.screenY);
+    const horizontalOffset =
+      (
+        Number(pose.screenX) -
+        MATCH_CAMERA_CENTER_X
+      ) / MATCH_CAMERA_DISTANCE;
+    const verticalOffset =
+      (
+        screenWorldY -
+        MATCH_CAMERA_CENTER_Y
+      ) / MATCH_CAMERA_DISTANCE;
+    const shearX = -horizontalOffset;
+    const shearY = -verticalOffset;
+    const anchorDepth =
+      depthMetrics.visibleCenter;
+    entry.projection.matrix.set(
+      1, 0, shearX, -shearX * anchorDepth,
+      0, 1, shearY, -shearY * anchorDepth,
+      0, 0, 1, 0,
+      0, 0, 0, 1
+    );
+    entry.projection.matrixWorldNeedsUpdate = true;
+    entry.shadowMesh.position.set(
+      Number(pose.screenX) + (depth * 0.04),
+      LOGICAL_HEIGHT -
+        (Number(pose.screenY) + (depth * 0.03)),
+      MATCH_TURN_COIN_SHADOW_Z
+    );
+    entry.shadowMesh.scale.set(
+      shadowScale *
+        MATCH_TURN_COIN_SHADOW_SCALE,
+      shadowScale *
+        MATCH_TURN_COIN_SHADOW_SCALE,
+      1
+    );
+    this.turnIndicatorShadowMaterial.opacity =
+      Math.max(0, Math.min(1, shadowOpacity));
+    entry.shadowMesh.visible =
+      this.turnIndicatorShadowMaterial.opacity >
+        0.002;
+    entry.root.visible =
+      !this.turnIndicator ||
+      this.turnIndicator.visible !== false;
+    entry.shadowMesh.visible =
+      entry.root.visible &&
+      entry.shadowMesh.visible;
+    entry.currentPose = clonePlain(pose);
   }
 
   clearCommittedHands() {
@@ -2697,6 +3218,481 @@ class ModernGraphicsSurface {
       }
       return entry;
     });
+  }
+
+  setTurnIndicator(indicator, profile) {
+    if (this.disposed) {
+      return;
+    }
+    const normalizedProfile =
+      normalizeTurnMarkerMotionProfile(
+        profile ||
+        this.turnIndicatorProfile ||
+        DEFAULT_TURN_MARKER_MOTION_PROFILE
+      );
+    const profileChanged =
+      JSON.stringify(normalizedProfile) !==
+      JSON.stringify(this.turnIndicatorProfile);
+    const normalized =
+      this.normalizeTurnIndicator(indicator);
+    const previous = this.turnIndicator;
+    const previousKey = this.turnIndicatorKey;
+    const nextKey = normalized
+      ? [
+          normalized.side,
+          normalized.centerX,
+          normalized.centerY,
+          normalized.textureUrl,
+          normalized.visible
+        ].join('|')
+      : null;
+    const presentationChanged =
+      previousKey !== null &&
+      nextKey !== previousKey;
+    const targetChanged =
+      Boolean(previous) &&
+      (
+        normalized.side !== previous.side ||
+        normalized.centerX !==
+          previous.centerX ||
+        normalized.centerY !==
+          previous.centerY
+      );
+
+    this.turnIndicatorProfile =
+      normalizedProfile;
+
+    if (!normalized) {
+      this.turnIndicator = null;
+      this.turnIndicatorKey = null;
+      this.turnIndicatorLoadGeneration += 1;
+      this.detachInputHandlers();
+      this.clearTurnIndicator();
+      this.render();
+      return;
+    }
+
+    if (
+      previous &&
+      (
+        normalized.sequence < previous.sequence ||
+        (
+          targetChanged &&
+          normalized.sequence <= previous.sequence
+        )
+      )
+    ) {
+      this.ignoredTurnIndicatorNotifications += 1;
+      this.ignoredStaleTurnIndicatorNotifications += 1;
+      if (
+        profileChanged &&
+        !this.turnIndicatorMotion
+      ) {
+        this.applyTurnIndicatorProfileAtRest();
+      }
+      this.render();
+      this.reportReady();
+      return;
+    }
+
+    const snapForLifecycle =
+      this.snapNextTurnIndicatorUpdate ||
+      this.suspended ||
+      this.visibilitySuspended ||
+      this.contextLost;
+    this.snapNextTurnIndicatorUpdate = false;
+    this.turnIndicator = normalized;
+    this.turnIndicatorKey = nextKey;
+
+    if (
+      !this.turnIndicatorEntry ||
+      this.turnIndicatorTextureUrl !==
+        normalized.textureUrl
+    ) {
+      if (
+        this.turnIndicatorStatus === 'loading' &&
+        this.turnIndicatorTextureUrl ===
+          normalized.textureUrl
+      ) {
+        return;
+      }
+      const loadGeneration =
+        ++this.turnIndicatorLoadGeneration;
+      this.cancelPendingTurnIndicatorTextureLoads();
+      this.turnIndicatorStatus = 'loading';
+      this.turnIndicatorTextureUrl =
+        normalized.textureUrl;
+      this.detachInputHandlers();
+      this.loadTexture(
+        normalized.textureUrl,
+        this.pendingTurnIndicatorTextureLoads,
+        'match turn-indicator'
+      ).then((texture) => {
+        if (
+          this.disposed ||
+          loadGeneration !==
+            this.turnIndicatorLoadGeneration ||
+          !this.turnIndicator
+        ) {
+          texture.dispose();
+          return;
+        }
+        this.commitTurnIndicator(
+          texture,
+          this.turnIndicator
+        );
+        this.turnIndicatorStatus = 'ready';
+        this.attachInputHandlers();
+        this.render();
+        this.reportReady();
+      }).catch((error) => {
+        if (
+          this.disposed ||
+          loadGeneration !==
+            this.turnIndicatorLoadGeneration
+        ) {
+          return;
+        }
+        this.turnIndicatorStatus = 'error';
+        this.turnIndicatorTextureUrl = null;
+        this.reportError(
+          error instanceof Error
+            ? error
+            : new Error(
+                'The match turn-indicator texture could not be loaded.'
+              )
+        );
+      });
+      return;
+    }
+
+    this.turnIndicatorStatus = 'ready';
+    if (
+      targetChanged &&
+      previous &&
+      normalized.sequence >
+        previous.sequence &&
+      !snapForLifecycle
+    ) {
+      this.beginTurnIndicatorTransition(
+        previous,
+        normalized
+      );
+    } else {
+      this.ignoredTurnIndicatorNotifications +=
+        previous ? 1 : 0;
+      if (!this.turnIndicatorMotion) {
+        if (
+          !previous ||
+          snapForLifecycle
+        ) {
+          this.applyTurnIndicatorPose(
+            this.settledTurnIndicatorPose(
+              normalized
+            )
+          );
+          if (previous && snapForLifecycle) {
+            this.snappedTurnIndicatorUpdates += 1;
+          }
+        } else if (profileChanged) {
+          this.applyTurnIndicatorProfileAtRest();
+        } else if (
+          presentationChanged &&
+          this.turnIndicatorEntry &&
+          this.turnIndicatorEntry.currentPose
+        ) {
+          this.applyTurnIndicatorPose(
+            this.turnIndicatorEntry.currentPose
+          );
+        }
+      } else if (
+        presentationChanged &&
+        this.turnIndicatorEntry &&
+        this.turnIndicatorEntry.currentPose
+      ) {
+        this.applyTurnIndicatorPose(
+          this.turnIndicatorEntry.currentPose
+        );
+      }
+      this.render();
+      this.reportReady();
+    }
+  }
+
+  beginTurnIndicatorTransition(
+    previous,
+    destination
+  ) {
+    const entry = this.turnIndicatorEntry;
+    if (!entry) {
+      return;
+    }
+    const sourcePose =
+      entry.currentPose ||
+      this.settledTurnIndicatorPose(previous);
+    const sourceShadowOpacity =
+      Number.isFinite(
+        Number(sourcePose.shadowOpacity)
+      )
+        ? Number(sourcePose.shadowOpacity)
+        : this.turnIndicatorProfile.shadow
+            .strength;
+    const sourceShadowScale =
+      Number.isFinite(
+        Number(sourcePose.shadowScale)
+      )
+        ? Number(sourcePose.shadowScale)
+        : this.turnIndicatorProfile.shadow
+            .spread;
+    this.cancelTurnIndicatorMotion(
+      'superseded',
+      false,
+      false
+    );
+    const generation =
+      ++this.turnIndicatorMotionGeneration;
+    const plan = createTurnMarkerMotionPlan(
+      this.turnIndicatorProfile,
+      {
+        source: {
+          x: previous.centerX,
+          y: previous.centerY
+        },
+        destination: {
+          x: destination.centerX,
+          y: destination.centerY
+        },
+        sourcePose: {
+          screenX: sourcePose.screenX,
+          screenY: sourcePose.screenY,
+          height:
+            Math.max(
+              0,
+              Number(sourcePose.height) || 0
+            ),
+          rotationX:
+            Number(sourcePose.rotationX) || 0,
+          rotationY:
+            Number(sourcePose.rotationY) || 0,
+          rotationZ:
+            Number(sourcePose.rotationZ) || 0,
+          shadowOpacity:
+            sourceShadowOpacity,
+          shadowScale:
+            sourceShadowScale
+        }
+      }
+    );
+    const reducedMotion =
+      this.prefersReducedMotion();
+    const startedAt = performance.now();
+
+    this.turnIndicatorMotion = {
+      generation,
+      sequence: destination.sequence,
+      fromSide: previous.side,
+      toSide: destination.side,
+      startedAt,
+      plan,
+      progress: 0,
+      reducedMotion
+    };
+    this.acceptedTurnIndicatorTransitions += 1;
+    this.lastTurnIndicatorTransition = {
+      outcome: 'running',
+      sequence: destination.sequence,
+      fromSide: previous.side,
+      toSide: destination.side,
+      startedAt,
+      durationMs: plan.timing.totalMs,
+      reducedMotion
+    };
+
+    if (reducedMotion) {
+      this.completeTurnIndicatorTransition(
+        startedAt,
+        'reduced-motion'
+      );
+      return;
+    }
+    this.scheduleTurnIndicatorFrame();
+  }
+
+  scheduleTurnIndicatorFrame() {
+    if (
+      this.turnIndicatorAnimationFrameId !== null ||
+      !this.turnIndicatorMotion ||
+      this.disposed ||
+      this.contextLost ||
+      this.suspended ||
+      this.visibilitySuspended
+    ) {
+      return;
+    }
+    this.turnIndicatorPendingFrameCount = 1;
+    this.turnIndicatorPeakPendingFrameCount =
+      Math.max(
+        this.turnIndicatorPeakPendingFrameCount,
+        this.turnIndicatorPendingFrameCount
+      );
+    const generation =
+      this.turnIndicatorMotion.generation;
+    let frameId = null;
+    frameId = window.requestAnimationFrame(
+      (timestamp) => {
+        if (
+          this.turnIndicatorAnimationFrameId !==
+            frameId
+        ) {
+          return;
+        }
+        this.turnIndicatorAnimationFrameId = null;
+        this.turnIndicatorPendingFrameCount = 0;
+        if (
+          !this.turnIndicatorMotion ||
+          this.turnIndicatorMotion.generation !==
+            generation
+        ) {
+          return;
+        }
+        this.stepTurnIndicatorTransition(
+          timestamp,
+          generation
+        );
+      }
+    );
+    this.turnIndicatorAnimationFrameId =
+      frameId;
+  }
+
+  stepTurnIndicatorTransition(
+    timestamp,
+    generation
+  ) {
+    const motion = this.turnIndicatorMotion;
+    if (
+      !motion ||
+      motion.generation !== generation ||
+      !this.turnIndicatorEntry ||
+      this.disposed ||
+      this.contextLost ||
+      this.suspended ||
+      this.visibilitySuspended
+    ) {
+      return;
+    }
+    const elapsed = Math.max(
+      0,
+      timestamp - motion.startedAt
+    );
+    const pose = sampleTurnMarkerMotion(
+      motion.plan,
+      elapsed
+    );
+    motion.progress = pose.progress;
+    this.applyTurnIndicatorPose(pose);
+    this.turnIndicatorFrameCount += 1;
+    this.render();
+
+    if (pose.complete) {
+      this.completeTurnIndicatorTransition(
+        timestamp,
+        'animation'
+      );
+      return;
+    }
+    this.scheduleTurnIndicatorFrame();
+  }
+
+  completeTurnIndicatorTransition(
+    completedAt,
+    completion
+  ) {
+    const motion = this.turnIndicatorMotion;
+    if (!motion || !this.turnIndicator) {
+      return false;
+    }
+    if (
+      this.turnIndicatorAnimationFrameId !== null
+    ) {
+      window.cancelAnimationFrame(
+        this.turnIndicatorAnimationFrameId
+      );
+    }
+    this.turnIndicatorAnimationFrameId = null;
+    this.turnIndicatorPendingFrameCount = 0;
+    const finalPose = sampleTurnMarkerMotion(
+      motion.plan,
+      motion.plan.timing.totalMs
+    );
+    this.turnIndicatorMotion = null;
+    this.applyTurnIndicatorPose(finalPose);
+    this.completedTurnIndicatorTransitions += 1;
+    this.lastTurnIndicatorTransition = {
+      outcome: 'completed',
+      completion,
+      sequence: motion.sequence,
+      fromSide: motion.fromSide,
+      toSide: motion.toSide,
+      startedAt: motion.startedAt,
+      completedAt,
+      durationMs:
+        motion.plan.timing.totalMs,
+      reducedMotion:
+        motion.reducedMotion,
+      finalPose: clonePlain(finalPose)
+    };
+    this.render();
+    return true;
+  }
+
+  cancelTurnIndicatorMotion(
+    reason,
+    shouldRender,
+    settleLatest
+  ) {
+    if (
+      this.turnIndicatorAnimationFrameId !== null
+    ) {
+      window.cancelAnimationFrame(
+        this.turnIndicatorAnimationFrameId
+      );
+    }
+    this.turnIndicatorAnimationFrameId = null;
+    this.turnIndicatorPendingFrameCount = 0;
+    if (this.turnIndicatorMotion) {
+      const motion = this.turnIndicatorMotion;
+      this.cancelledTurnIndicatorTransitions += 1;
+      this.lastTurnIndicatorTransition = {
+        outcome: 'cancelled',
+        reason,
+        sequence: motion.sequence,
+        fromSide: motion.fromSide,
+        toSide: motion.toSide,
+        startedAt: motion.startedAt,
+        progress: motion.progress,
+        durationMs:
+          motion.plan.timing.totalMs,
+        reducedMotion:
+          motion.reducedMotion
+      };
+    }
+    this.turnIndicatorMotion = null;
+    this.turnIndicatorMotionGeneration += 1;
+    if (
+      settleLatest === true &&
+      this.turnIndicatorEntry &&
+      this.turnIndicator
+    ) {
+      this.applyTurnIndicatorPose(
+        this.settledTurnIndicatorPose(
+          this.turnIndicator
+        )
+      );
+    }
+    if (shouldRender !== false) {
+      this.render();
+    }
   }
 
   setHands(hands, dropZones) {
@@ -2812,7 +3808,10 @@ class ModernGraphicsSurface {
   }
 
   reportReady() {
-    if (typeof this.options.onReady === 'function') {
+    if (
+      this.isPresentationReady() &&
+      typeof this.options.onReady === 'function'
+    ) {
       this.options.onReady(this.getDebugState());
     }
   }
@@ -2827,8 +3826,10 @@ class ModernGraphicsSurface {
     const context = this.renderer.getContext();
     const isWebGL2 = typeof WebGL2RenderingContext !== 'undefined' && context instanceof WebGL2RenderingContext;
     const held = this.heldCard;
+    const turnMotion =
+      this.turnIndicatorMotion;
     const interactive =
-      this.status === 'ready' &&
+      this.isPresentationReady() &&
       !this.suspended &&
       !this.contextLost &&
       this.inputHandlersAttached;
@@ -3136,6 +4137,29 @@ class ModernGraphicsSurface {
         },
         gameplayAuthority: false
       },
+      turnIndicatorPolicy: {
+        subject: 'coin',
+        diameter:
+          MATCH_TURN_COIN_DIAMETER,
+        thickness:
+          MATCH_TURN_COIN_THICKNESS,
+        textureFaces: 'same-approved-image',
+        faceMaterial: 'unlit-srgb',
+        edgeMaterial: 'lit-metallic',
+        depthOcclusion: 'self-occluding',
+        projection: 'flat-table-neutralized',
+        endpoints:
+          clonePlain(
+            TURN_MARKER_MATCH_CENTERS
+          ),
+        profile:
+          clonePlain(
+            this.turnIndicatorProfile
+          ),
+        motion:
+          'deterministic-arc-flip-tumble-spin-settle',
+        gameplayAuthority: false
+      },
       pixelRatio: this.renderer.getPixelRatio(),
       disposed: this.disposed,
       contextLost: this.contextLost,
@@ -3143,7 +4167,7 @@ class ModernGraphicsSurface {
       visibilitySuspended:
         this.visibilitySuspended,
       status: this.status,
-      ready: this.status === 'ready',
+      ready: this.isPresentationReady(),
       interactive,
       inputHandlersAttached:
         this.inputHandlersAttached,
@@ -3153,6 +4177,85 @@ class ModernGraphicsSurface {
       peakPendingFrameCount:
         this.peakPendingFrameCount,
       frameCount: this.frameCount,
+      turnIndicatorRafActive:
+        this.turnIndicatorAnimationFrameId !==
+          null,
+      turnIndicatorPendingFrameCount:
+        this.turnIndicatorPendingFrameCount,
+      turnIndicatorPeakPendingFrameCount:
+        this.turnIndicatorPeakPendingFrameCount,
+      turnIndicatorFrameCount:
+        this.turnIndicatorFrameCount,
+      pendingHandTextureLoadCount:
+        this.pendingTextureLoads.size,
+      pendingTurnIndicatorTextureLoadCount:
+        this.pendingTurnIndicatorTextureLoads
+          .size,
+      turnIndicatorStatus:
+        this.turnIndicatorStatus,
+      turnIndicator:
+        this.turnIndicator
+          ? {
+              descriptor:
+                clonePlain(
+                  this.turnIndicator
+                ),
+              currentPose:
+                this.turnIndicatorEntry
+                  ? clonePlain(
+                      this.turnIndicatorEntry
+                        .currentPose
+                    )
+                  : null,
+              motion: turnMotion
+                ? {
+                    generation:
+                      turnMotion.generation,
+                    sequence:
+                      turnMotion.sequence,
+                    fromSide:
+                      turnMotion.fromSide,
+                    toSide:
+                      turnMotion.toSide,
+                    startedAt:
+                      turnMotion.startedAt,
+                    durationMs:
+                      turnMotion.plan.timing
+                        .totalMs,
+                    progress:
+                      turnMotion.progress,
+                    reducedMotion:
+                      turnMotion.reducedMotion,
+                    plan:
+                      clonePlain(
+                        turnMotion.plan
+                      )
+                  }
+                : null,
+              visible:
+                Boolean(
+                  this.turnIndicatorEntry &&
+                  this.turnIndicatorEntry.root
+                    .visible
+                )
+            }
+          : null,
+      acceptedTurnIndicatorTransitions:
+        this.acceptedTurnIndicatorTransitions,
+      completedTurnIndicatorTransitions:
+        this.completedTurnIndicatorTransitions,
+      cancelledTurnIndicatorTransitions:
+        this.cancelledTurnIndicatorTransitions,
+      ignoredTurnIndicatorNotifications:
+        this.ignoredTurnIndicatorNotifications,
+      ignoredStaleTurnIndicatorNotifications:
+        this.ignoredStaleTurnIndicatorNotifications,
+      snappedTurnIndicatorUpdates:
+        this.snappedTurnIndicatorUpdates,
+      lastTurnIndicatorTransition:
+        clonePlain(
+          this.lastTurnIndicatorTransition
+        ),
       holdGeneration: this.holdGeneration,
       heldCard,
       acceptedPickups: this.acceptedPickups,
@@ -3289,6 +4392,7 @@ class ModernGraphicsSurface {
       return;
     }
 
+    this.clearTurnIndicator();
     this.cancelPickup('dispose', false);
     this.clearLocalPreviewPlacement(
       'dispose',
@@ -3325,6 +4429,21 @@ class ModernGraphicsSurface {
     }
     if (this.dropZoneTexture) {
       this.dropZoneTexture.dispose();
+    }
+    if (this.turnIndicatorFaceGeometry) {
+      this.turnIndicatorFaceGeometry.dispose();
+    }
+    if (this.turnIndicatorEdgeGeometry) {
+      this.turnIndicatorEdgeGeometry.dispose();
+    }
+    if (this.turnIndicatorShadowGeometry) {
+      this.turnIndicatorShadowGeometry.dispose();
+    }
+    if (this.turnIndicatorShadowMaterial) {
+      this.turnIndicatorShadowMaterial.dispose();
+    }
+    if (this.turnIndicatorEdgeMaterial) {
+      this.turnIndicatorEdgeMaterial.dispose();
     }
     if (this.canvas && this.handleContextLost) {
       this.canvas.removeEventListener('webglcontextlost', this.handleContextLost, false);
@@ -6213,7 +7332,42 @@ window.gh.modernGraphics = {
     },
     parsePreset(json) {
       return parseCardMotionPreset(json);
-    }
+    },
+    coin: Object.freeze({
+      schemaVersion:
+        TURN_MARKER_MOTION_SCHEMA_VERSION,
+      defaults:
+        DEFAULT_TURN_MARKER_MOTION_PROFILE,
+      positions:
+        TURN_MARKER_MATCH_CENTERS,
+      limits:
+        TURN_MARKER_MOTION_LIMITS,
+      normalize(profile) {
+        return normalizeTurnMarkerMotionProfile(
+          profile
+        );
+      },
+      createPlan(profile, instance) {
+        return createTurnMarkerMotionPlan(
+          profile,
+          instance
+        );
+      },
+      samplePlan(plan, elapsedMs) {
+        return sampleTurnMarkerMotion(
+          plan,
+          elapsedMs
+        );
+      },
+      serialize(profile) {
+        return serializeTurnMarkerMotionProfile(
+          profile
+        );
+      },
+      parse(json) {
+        return parseTurnMarkerMotionProfile(json);
+      }
+    })
   }),
   lobbyPlaybook: lobbyPlaybookApi,
   createSurface(host, options) {

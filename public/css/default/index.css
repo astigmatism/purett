@@ -280,7 +280,8 @@ html[data-graphics-startup-mode="modern"] #menu .legacy-menu-hand-card {
     letter-spacing: 0.04em;
 }
 .motion-studio-target-label,
-.motion-studio-preset-label {
+.motion-studio-preset-label,
+.motion-studio-coin-direction-label {
     display: flex;
     min-width: 0;
     flex-direction: column;
@@ -299,8 +300,20 @@ html[data-graphics-startup-mode="modern"] #menu .legacy-menu-hand-card {
     grid-row: 3;
     grid-column: 1 / 3;
 }
+.motion-studio-coin-direction-label {
+    display: none;
+    grid-row: 3;
+    grid-column: 1 / 3;
+}
+.motion-studio-coin-target .motion-studio-preset-label {
+    display: none;
+}
+.motion-studio-coin-target .motion-studio-coin-direction-label {
+    display: flex;
+}
 .motion-studio-target-label select,
-.motion-studio-preset-label select {
+.motion-studio-preset-label select,
+.motion-studio-coin-direction-label select {
     box-sizing: border-box;
     width: 100%;
     min-width: 0;
@@ -371,6 +384,24 @@ html[data-graphics-startup-mode="modern"] #menu .legacy-menu-hand-card {
     stroke-dasharray: 7 6;
     vector-effect: non-scaling-stroke;
 }
+.motion-studio-destination .motion-studio-coin-destination {
+    display: none;
+    fill: rgba(255, 241, 204, 0.06);
+    stroke: rgba(255, 226, 160, 0.56);
+    stroke-width: 2;
+    stroke-dasharray: 5 4;
+    vector-effect: non-scaling-stroke;
+}
+.motion-studio-coin-target
+    .motion-studio-destination
+    .motion-studio-card-destination {
+    display: none;
+}
+.motion-studio-coin-target
+    .motion-studio-destination
+    .motion-studio-coin-destination {
+    display: block;
+}
 .motion-studio-path,
 .motion-studio-skid-path {
     fill: none;
@@ -407,6 +438,10 @@ html[data-graphics-startup-mode="modern"] #menu .legacy-menu-hand-card {
     cursor: grabbing;
 }
 .motion-studio-exit-target .motion-studio-marker-start {
+    pointer-events: none;
+    cursor: default;
+}
+.motion-studio-coin-target .motion-studio-marker-start {
     pointer-events: none;
     cursor: default;
 }

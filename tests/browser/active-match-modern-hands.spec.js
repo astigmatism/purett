@@ -64,6 +64,16 @@ async function installPassiveMatchFixture(page, options = {}) {
     game.isreplay = true;
     game.buildCanvas();
     game.buildPositions();
+    game.turnIndicatorPresentation = {
+      sequence: 0,
+      side: 'initial',
+      x: 327,
+      y: 420,
+      width: 41,
+      height: 41,
+      textureUrl: '/images/dime-tails.png',
+      visible: true
+    };
     game.pb = game.pbp.slice(1).map(position => ({
       gameCardId: 0,
       image: null,
@@ -260,6 +270,518 @@ async function installControlledMatchFrameClock(page) {
     };
   });
 }
+
+test('turn coin snaps to its exact center, flies in 3D between players, and cancels without gameplay authority', async ({page}) => {
+  const moveRequests = [];
+  page.on('request', request => {
+    const requestUrl = new URL(request.url());
+    if (
+      request.method() === 'POST' &&
+      requestUrl.pathname === '/index/me'
+    ) {
+      moveRequests.push(request.url());
+    }
+  });
+
+  await loginWithLegacyGraphics(page);
+  await installPassiveMatchFixture(page);
+  await selectGraphicsMode(page, 'modern');
+  await waitForModernMatch(page);
+
+  const initial = await page.evaluate(() => {
+    const game = gh.manager.game;
+    const surface =
+      gh.manager.graphics.getState().surface;
+    window.__turnCoinAuthority = {
+      gameId: game.gameid,
+      isMyTurn: game.isMyTurn,
+      boardEnabled: game.boardEnabled,
+      dragging: game.dragging,
+      isDroppable: game.isDroppable,
+      playerHand: game.p1h,
+      opponentHand: game.p2h,
+      playBoard: game.pb,
+      playerIds:
+        game.p1h.map(item => item.gameCardId),
+      opponentIds:
+        game.p2h.map(item => item.gameCardId),
+      boardIds:
+        game.pb.map(item => item.gameCardId),
+      playerNodes:
+        game.p1h.map(item => item.card.node),
+      opponentNodes:
+        game.p2h.map(item => item.card.node)
+    };
+    return {
+      turnIndicator: surface.turnIndicator,
+      policy: surface.turnIndicatorPolicy,
+      rafActive: surface.turnIndicatorRafActive,
+      pendingFrameCount:
+        surface.turnIndicatorPendingFrameCount,
+      accepted:
+        surface.acceptedTurnIndicatorTransitions,
+      completed:
+        surface.completedTurnIndicatorTransitions
+    };
+  });
+  expect(initial).toMatchObject({
+    turnIndicator: {
+      descriptor: {
+        sequence: 0,
+        side: 'initial',
+        x: 327,
+        y: 420,
+        width: 41,
+        height: 41,
+        centerX: 347.5,
+        centerY: 440.5,
+        textureUrl: '/images/dime-tails.png',
+        visible: true
+      },
+      currentPose: {
+        phase: 'settled',
+        complete: true,
+        screenX: 347.5,
+        screenY: 440.5,
+        height: 0,
+        depth: 0,
+        rotationX: 0,
+        rotationY: 0,
+        rotationZ: 0,
+        authoredScale: 1
+      },
+      motion: null,
+      visible: true
+    },
+    policy: {
+      subject: 'coin',
+      diameter: 41,
+      textureFaces: 'same-approved-image',
+      endpoints: {
+        initial: {x: 347.5, y: 440.5},
+        player: {x: 53.5, y: 440.5},
+        opponent: {x: 641.5, y: 440.5}
+      },
+      gameplayAuthority: false
+    },
+    rafActive: false,
+    pendingFrameCount: 0,
+    accepted: 0,
+    completed: 0
+  });
+
+  await installControlledMatchFrameClock(page);
+  await page.evaluate(() => {
+    const game = gh.manager.game;
+    game.turnIndicatorPresentation = {
+      ...game.turnIndicatorPresentation,
+      sequence: 1,
+      side: 'player',
+      x: 33
+    };
+    game.notifyGraphicsHands();
+  });
+  const toPlayer = await page.evaluate(() => {
+    const surface =
+      gh.manager.graphics.getState().surface;
+    return {
+      surface,
+      queuedFrames:
+        window.__modernMatchFrameClock.pending()
+    };
+  });
+  expect(toPlayer.surface).toMatchObject({
+    turnIndicatorRafActive: true,
+    turnIndicatorPendingFrameCount: 1,
+    turnIndicator: {
+      descriptor: {
+        sequence: 1,
+        side: 'player',
+        centerX: 53.5,
+        centerY: 440.5
+      },
+      motion: {
+        sequence: 1,
+        fromSide: 'initial',
+        toSide: 'player',
+        progress: 0,
+        reducedMotion: false
+      }
+    },
+    acceptedTurnIndicatorTransitions: 1,
+    completedTurnIndicatorTransitions: 0
+  });
+  expect(toPlayer.queuedFrames).toBe(1);
+  const toPlayerStartedAt =
+    toPlayer.surface.turnIndicator.motion.startedAt;
+  const toPlayerDuration =
+    toPlayer.surface.turnIndicator.motion.durationMs;
+  expect(await page.evaluate(timestamp => (
+    window.__modernMatchFrameClock.advance(timestamp)
+  ), toPlayerStartedAt + toPlayerDuration)).toBe(1);
+  const playerLanded = await page.evaluate(() => {
+    const surface =
+      gh.manager.graphics.getState().surface;
+    const pose = surface.turnIndicator.currentPose;
+    return {
+      side: surface.turnIndicator.descriptor.side,
+      sequence:
+        surface.turnIndicator.descriptor.sequence,
+      screenX: pose.screenX,
+      screenY: pose.screenY,
+      height: pose.height,
+      flatX: Math.abs(Math.sin(pose.rotationX)),
+      flatY: Math.abs(Math.sin(pose.rotationY)),
+      flatZ: Math.abs(Math.sin(pose.rotationZ)),
+      rafActive: surface.turnIndicatorRafActive,
+      pendingFrameCount:
+        surface.turnIndicatorPendingFrameCount,
+      queuedFrames:
+        window.__modernMatchFrameClock.pending(),
+      completed:
+        surface.completedTurnIndicatorTransitions
+    };
+  });
+  expect(playerLanded).toMatchObject({
+    side: 'player',
+    sequence: 1,
+    screenX: 53.5,
+    screenY: 440.5,
+    height: 0,
+    rafActive: false,
+    pendingFrameCount: 0,
+    queuedFrames: 0,
+    completed: 1
+  });
+  expect(playerLanded.flatX)
+    .toBeLessThan(0.00000001);
+  expect(playerLanded.flatY)
+    .toBeLessThan(0.00000001);
+  expect(playerLanded.flatZ)
+    .toBeLessThan(0.00000001);
+
+  await page.evaluate(() => {
+    const game = gh.manager.game;
+    game.turnIndicatorPresentation = {
+      ...game.turnIndicatorPresentation,
+      sequence: 2,
+      side: 'opponent',
+      x: 621
+    };
+    game.notifyGraphicsHands();
+  });
+  const toOpponent = await page.evaluate(() => {
+    const surface =
+      gh.manager.graphics.getState().surface;
+    return {
+      motion: surface.turnIndicator.motion,
+      settledShadow:
+        surface.turnIndicatorPolicy.profile.shadow,
+      queuedFrames:
+        window.__modernMatchFrameClock.pending()
+    };
+  });
+  expect(toOpponent.motion).toMatchObject({
+    sequence: 2,
+    fromSide: 'player',
+    toSide: 'opponent',
+    progress: 0,
+    reducedMotion: false
+  });
+  expect(toOpponent.queuedFrames).toBe(1);
+
+  const toOpponentStartedAt =
+    toOpponent.motion.startedAt;
+  const toOpponentFlightMs =
+    toOpponent.motion.plan.timing.flightMs;
+  expect(await page.evaluate(timestamp => (
+    window.__modernMatchFrameClock.advance(timestamp)
+  ), toOpponentStartedAt + (toOpponentFlightMs / 2)))
+    .toBe(1);
+  const midpoint = await page.evaluate(() => {
+    const surface =
+      gh.manager.graphics.getState().surface;
+    const pose = surface.turnIndicator.currentPose;
+    return {
+      pose,
+      settledShadow:
+        surface.turnIndicatorPolicy.profile.shadow,
+      rafActive: surface.turnIndicatorRafActive,
+      pendingFrameCount:
+        surface.turnIndicatorPendingFrameCount,
+      queuedFrames:
+        window.__modernMatchFrameClock.pending()
+    };
+  });
+  expect(midpoint.pose).toMatchObject({
+    phase: 'flight',
+    complete: false,
+    flightProgress: 0.5,
+    screenX: 347.5
+  });
+  expect(midpoint.pose.height).toBeGreaterThan(0);
+  expect(Math.abs(midpoint.pose.rotationX))
+    .toBeGreaterThan(0.1);
+  expect(Math.abs(midpoint.pose.rotationY))
+    .toBeGreaterThan(0.1);
+  expect(Math.abs(midpoint.pose.rotationZ))
+    .toBeGreaterThan(0.1);
+  expect(midpoint.pose.shadowOpacity)
+    .toBeLessThan(midpoint.settledShadow.strength);
+  expect(midpoint.pose.shadowScale)
+    .toBeGreaterThan(midpoint.settledShadow.spread);
+  expect(midpoint).toMatchObject({
+    rafActive: true,
+    pendingFrameCount: 1,
+    queuedFrames: 1
+  });
+
+  expect(await page.evaluate(timestamp => (
+    window.__modernMatchFrameClock.advance(timestamp)
+  ), toOpponentStartedAt + toOpponent.motion.durationMs))
+    .toBe(1);
+  const landed = await page.evaluate(() => {
+    const surface =
+      gh.manager.graphics.getState().surface;
+    const pose = surface.turnIndicator.currentPose;
+    return {
+      surface,
+      pose,
+      flatX: Math.abs(Math.sin(pose.rotationX)),
+      flatY: Math.abs(Math.sin(pose.rotationY)),
+      flatZ: Math.abs(Math.sin(pose.rotationZ)),
+      queuedFrames:
+        window.__modernMatchFrameClock.pending()
+    };
+  });
+  expect(landed.surface).toMatchObject({
+    turnIndicatorRafActive: false,
+    turnIndicatorPendingFrameCount: 0,
+    acceptedTurnIndicatorTransitions: 2,
+    completedTurnIndicatorTransitions: 2,
+    cancelledTurnIndicatorTransitions: 0,
+    semanticActionCount: 0,
+    requestCount: 0,
+    turnIndicator: {
+      descriptor: {
+        sequence: 2,
+        side: 'opponent',
+        centerX: 641.5,
+        centerY: 440.5
+      },
+      motion: null
+    },
+    lastTurnIndicatorTransition: {
+      outcome: 'completed',
+      completion: 'animation',
+      sequence: 2,
+      fromSide: 'player',
+      toSide: 'opponent'
+    }
+  });
+  expect(landed.pose).toMatchObject({
+    phase: 'complete',
+    complete: true,
+    progress: 1,
+    screenX: 641.5,
+    screenY: 440.5,
+    height: 0,
+    depth: 0,
+    shadowOpacity:
+      landed.surface.turnIndicatorPolicy.profile
+        .shadow.strength,
+    shadowScale:
+      landed.surface.turnIndicatorPolicy.profile
+        .shadow.spread
+  });
+  expect(landed.flatX).toBeLessThan(0.00000001);
+  expect(landed.flatY).toBeLessThan(0.00000001);
+  expect(landed.flatZ).toBeLessThan(0.00000001);
+  expect(landed.queuedFrames).toBe(0);
+
+  await page.evaluate(() => {
+    const game = gh.manager.game;
+    game.turnIndicatorPresentation = {
+      ...game.turnIndicatorPresentation,
+      sequence: 1
+    };
+    game.notifyGraphicsHands();
+  });
+  expect(await page.evaluate(() => {
+    const surface =
+      gh.manager.graphics.getState().surface;
+    return {
+      descriptor: surface.turnIndicator.descriptor,
+      ignoredStale:
+        surface.ignoredStaleTurnIndicatorNotifications,
+      rafActive: surface.turnIndicatorRafActive,
+      pendingFrameCount:
+        surface.turnIndicatorPendingFrameCount,
+      queuedFrames:
+        window.__modernMatchFrameClock.pending()
+    };
+  })).toMatchObject({
+    descriptor: {
+      sequence: 2,
+      side: 'opponent',
+      centerX: 641.5,
+      centerY: 440.5
+    },
+    ignoredStale: 1,
+    rafActive: false,
+    pendingFrameCount: 0,
+    queuedFrames: 0
+  });
+
+  await page.evaluate(() => {
+    const game = gh.manager.game;
+    game.turnIndicatorPresentation = {
+      ...game.turnIndicatorPresentation,
+      sequence: 3,
+      side: 'player',
+      x: 33
+    };
+    game.notifyGraphicsHands();
+  });
+  const interrupted = await page.evaluate(() => {
+    const surface =
+      gh.manager.graphics.getState().surface;
+    return {
+      startedAt:
+        surface.turnIndicator.motion.startedAt,
+      durationMs:
+        surface.turnIndicator.motion.durationMs
+    };
+  });
+  expect(await page.evaluate(timestamp => (
+    window.__modernMatchFrameClock.advance(timestamp)
+  ), interrupted.startedAt + (interrupted.durationMs / 3)))
+    .toBe(1);
+
+  await page.evaluate(() => {
+    gh.manager.graphics.setMode('legacy', false);
+  });
+  await expect.poll(() => page.evaluate(() => (
+    gh.manager.graphics.effectiveMode
+  ))).toBe('legacy');
+  const cancelled = await page.evaluate(() => {
+    const state = gh.manager.graphics.getState();
+    const surface = state.surface;
+    const authority = window.__turnCoinAuthority;
+    const game = gh.manager.game;
+    const pose = surface.turnIndicator.currentPose;
+    return {
+      state,
+      pose,
+      queuedFrames:
+        window.__modernMatchFrameClock.pending(),
+      authorityIntact:
+        game.gameid === authority.gameId &&
+        game.isMyTurn === authority.isMyTurn &&
+        game.boardEnabled ===
+          authority.boardEnabled &&
+        game.dragging === authority.dragging &&
+        game.isDroppable ===
+          authority.isDroppable &&
+        game.p1h === authority.playerHand &&
+        game.p2h === authority.opponentHand &&
+        game.pb === authority.playBoard &&
+        game.p1h.every((item, index) =>
+          item.gameCardId ===
+            authority.playerIds[index] &&
+          item.card.node ===
+            authority.playerNodes[index]
+        ) &&
+        game.p2h.every((item, index) =>
+          item.gameCardId ===
+            authority.opponentIds[index] &&
+          item.card.node ===
+            authority.opponentNodes[index]
+        ) &&
+        game.pb.every((item, index) =>
+          item.gameCardId ===
+            authority.boardIds[index]
+        )
+    };
+  });
+  expect(cancelled.state.surface).toMatchObject({
+    suspended: true,
+    turnIndicatorRafActive: false,
+    turnIndicatorPendingFrameCount: 0,
+    acceptedTurnIndicatorTransitions: 3,
+    completedTurnIndicatorTransitions: 2,
+    cancelledTurnIndicatorTransitions: 1,
+    semanticActionCount: 0,
+    requestCount: 0,
+    turnIndicator: {
+      descriptor: {
+        sequence: 3,
+        side: 'player',
+        centerX: 53.5,
+        centerY: 440.5
+      },
+      motion: null
+    },
+    lastTurnIndicatorTransition: {
+      outcome: 'cancelled',
+      reason: 'suspend',
+      sequence: 3,
+      fromSide: 'opponent',
+      toSide: 'player'
+    }
+  });
+  expect(cancelled.pose).toMatchObject({
+    phase: 'settled',
+    complete: true,
+    screenX: 53.5,
+    screenY: 440.5,
+    height: 0,
+    depth: 0,
+    rotationX: 0,
+    rotationY: 0,
+    rotationZ: 0
+  });
+  expect(cancelled.queuedFrames).toBe(0);
+  expect(cancelled.authorityIntact).toBe(true);
+
+  expect(await page.evaluate(timestamp => (
+    window.__modernMatchFrameClock
+      .runLastCancelled(timestamp)
+  ), interrupted.startedAt + interrupted.durationMs))
+    .toBe(true);
+  expect(await page.evaluate(() => {
+    const surface =
+      gh.manager.graphics.getState().surface;
+    return {
+      pose: surface.turnIndicator.currentPose,
+      completed:
+        surface.completedTurnIndicatorTransitions,
+      cancelled:
+        surface.cancelledTurnIndicatorTransitions,
+      rafActive: surface.turnIndicatorRafActive,
+      pendingFrameCount:
+        surface.turnIndicatorPendingFrameCount,
+      queuedFrames:
+        window.__modernMatchFrameClock.pending()
+    };
+  })).toMatchObject({
+    pose: {
+      phase: 'settled',
+      screenX: 53.5,
+      screenY: 440.5,
+      height: 0,
+      rotationX: 0,
+      rotationY: 0,
+      rotationZ: 0
+    },
+    completed: 2,
+    cancelled: 1,
+    rafActive: false,
+    pendingFrameCount: 0,
+    queuedFrames: 0
+  });
+  expect(moveRequests).toHaveLength(0);
+});
 
 test('renders exact pickup-capable player and Closed opponent hands and restores the same Legacy nodes', async ({page}) => {
   const moveRequests = [];

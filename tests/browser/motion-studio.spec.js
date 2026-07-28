@@ -3,9 +3,10 @@
 const {test, expect} = require('@playwright/test');
 
 const PLAYBOOK_STORAGE_KEY = 'purett.lobbyMotionPlaybook.v1';
+const TURN_MARKER_STORAGE_KEY = 'purett.turnMarkerMotion.v1';
 const STUDIO_SESSION_KEY = 'purett.motionStudio.v2';
 const CONTENT_SCALE_STORAGE_KEY = 'purett.contentScale';
-const TARGET_IDS = [
+const PLAYBOOK_TARGET_IDS = [
   'lobby-card-1-intro',
   'lobby-card-2-intro',
   'lobby-card-3-intro',
@@ -13,17 +14,24 @@ const TARGET_IDS = [
   'lobby-card-5-intro',
   'lobby-hand-gentle-wind-exit'
 ];
+const COIN_TARGET_ID = 'match-turn-coin-transition';
+const APPLICATION_TARGET_IDS = [
+  ...PLAYBOOK_TARGET_IDS,
+  COIN_TARGET_ID
+];
 
 async function loginWithLegacyGraphics(page) {
   await page.goto('/auth/login');
-  await page.evaluate(({playbookKey, sessionKey}) => {
+  await page.evaluate(({playbookKey, turnMarkerKey, sessionKey}) => {
     window.localStorage.removeItem('purett.graphicsMode.v1');
     window.localStorage.removeItem(playbookKey);
+    window.localStorage.removeItem(turnMarkerKey);
     window.sessionStorage.removeItem('purett.motionStudio.v1');
     window.sessionStorage.removeItem(sessionKey);
     window.sessionStorage.removeItem('purett.contentScale');
   }, {
     playbookKey: PLAYBOOK_STORAGE_KEY,
+    turnMarkerKey: TURN_MARKER_STORAGE_KEY,
     sessionKey: STUDIO_SESSION_KEY
   });
   await page.locator('input[name="username"]').fill('demo');
@@ -115,14 +123,14 @@ test('authors six application targets as one playbook and keeps edits draft-only
   expect(opened).toMatchObject({
     storedMode: null,
     storedPlaybook: null,
-    targetIds: TARGET_IDS,
+    targetIds: PLAYBOOK_TARGET_IDS,
     targetCount: 6,
     canvasCount: 1
   });
   expect(modernRequests).toHaveLength(1);
   expect(await page.locator('#motionstudio-target option').evaluateAll(
     options => options.map(option => option.value)
-  )).toEqual(TARGET_IDS);
+  )).toEqual(APPLICATION_TARGET_IDS);
   await expect(page.locator(
     '#motionstudio .motion-studio-preview-hint'
   )).toContainText('application target is locked');
@@ -241,7 +249,9 @@ test('authors six application targets as one playbook and keeps edits draft-only
       locked: false
     }
   });
-  expect(Object.keys(exportedPlaybook.targets)).toEqual(TARGET_IDS);
+  expect(Object.keys(exportedPlaybook.targets)).toEqual(
+    PLAYBOOK_TARGET_IDS
+  );
   expect(exported).not.toContain('destination');
   expect(exported).not.toContain('screenRect');
 
@@ -321,6 +331,206 @@ test('authors six application targets as one playbook and keeps edits draft-only
     legacyCardsIntact: true
   });
   expect(modernRequests).toHaveLength(1);
+});
+
+test('authors and applies the active-match coin flight in exact match coordinates', async ({page}) => {
+  await loginWithLegacyGraphics(page);
+  await openMotionStudio(page);
+  await page.locator('#motionstudio-auto-replay').uncheck();
+
+  await expect(page.locator(
+    '#motionstudio .motion-studio-coin-direction-label'
+  )).toBeHidden();
+  await expect(page.locator(
+    '[data-motion-field="rotation.flipTurns"]'
+  ).first()).toBeHidden();
+
+  await page.locator('#motionstudio-target').selectOption(
+    COIN_TARGET_ID
+  );
+  await expect(page.locator('#motionstudio')).toHaveClass(
+    /motion-studio-coin-target/
+  );
+  await expect(page.locator(
+    '#motionstudio .motion-studio-coin-direction-label'
+  )).toBeVisible();
+  await expect(page.locator(
+    '#motionstudio .motion-studio-preset-label'
+  )).toBeHidden();
+  await expect(page.locator(
+    '[data-motion-field="rotation.flipTurns"]'
+  ).first()).toBeVisible();
+  await expect(page.locator(
+    '[data-motion-field="rotation.xTurns"]'
+  ).first()).toBeHidden();
+  await expect(page.locator(
+    '#motionstudio .motion-studio-preview-hint'
+  )).toContainText('Endpoints are locked');
+  await expect(page.locator(
+    '#motionstudio .motion-studio-marker-start text'
+  )).toHaveText('LOCKED SOURCE');
+  await expect(page.locator(
+    '#motionstudio .motion-studio-apply-preview'
+  )).toHaveText('Apply to Match Coin');
+
+  await expect.poll(() => page.evaluate(() => {
+    const state = gh.manager.graphics.getState().motionStudio;
+    return state && state.ready
+      ? {
+        subjectKind: state.subjectKind,
+        coordinateSpace: state.coordinateSpace,
+        subject: state.subject,
+        resources: state.resources
+      }
+      : null;
+  })).toMatchObject({
+    subjectKind: 'coin',
+    coordinateSpace: {
+      kind: 'active-match',
+      logicalWidth: 693,
+      logicalHeight: 500,
+      stageOffsetX: 30,
+      stageOffsetY: 30
+    },
+    subject: {
+      source: {x: 53.5, y: 440.5},
+      destination: {x: 641.5, y: 440.5},
+      direction: 'player-to-opponent'
+    },
+    resources: {
+      coinDiameter: 41,
+      coinThickness: 3,
+      hasSubjectRoot: true,
+      hasShadow: true
+    }
+  });
+
+  await page.locator('#motionstudio-coin-direction').selectOption(
+    'opponent-to-player'
+  );
+  await fillMotionField(page, 'path.curvePx', -83);
+  await fillMotionField(page, 'path.apexHeight', 118);
+  await fillMotionField(page, 'rotation.flipTurns', 3.25);
+  await fillMotionField(page, 'rotation.tumbleTurns', 0.75);
+  await fillMotionField(page, 'rotation.spinTurns', -0.25);
+  await fillMotionField(page, 'rotation.contactTiltDeg', 11);
+  await fillMotionField(page, 'landing.settleMs', 135);
+
+  const sampled = await page.evaluate(() => {
+    const controller = gh.manager.motionstudio;
+    const before = gh.manager.graphics.getState().motionStudio;
+    controller.surface.seek(before.durationMs / 2);
+    const state = gh.manager.graphics.getState().motionStudio;
+    return {
+      stored:
+        window.localStorage.getItem(
+          'purett.turnMarkerMotion.v1'
+        ),
+      revision:
+        gh.manager.graphics.getState()
+          .turnMarkerMotionRevision,
+      state
+    };
+  });
+  expect(sampled.stored).toBeNull();
+  expect(sampled.revision).toBe(0);
+  expect(sampled.state).toMatchObject({
+    subjectKind: 'coin',
+    subject: {
+      source: {x: 641.5, y: 440.5},
+      destination: {x: 53.5, y: 440.5},
+      direction: 'opponent-to-player'
+    },
+    preset: {
+      path: {
+        curvePx: -83,
+        apexHeight: 118
+      },
+      rotation: {
+        flipTurns: 3.25,
+        tumbleTurns: 0.75,
+        spinTurns: -0.25,
+        contactTiltDeg: 11
+      },
+      landing: {
+        settleMs: 135
+      }
+    }
+  });
+  expect(sampled.state.pose.height).toBeGreaterThan(50);
+  expect(sampled.state.pose.rotationX).not.toBe(0);
+  expect(sampled.state.pose.rotationY).not.toBe(0);
+  expect(sampled.state.pose.rotationZ).not.toBe(0);
+  expect(sampled.state.pose.screenX).toBeLessThan(641.5);
+  expect(sampled.state.pose.screenX).toBeGreaterThan(53.5);
+
+  await page.locator(
+    '#motionstudio .motion-studio-apply-preview'
+  ).click();
+  await expect(page.locator(
+    '#motionstudio .motion-studio-control-status'
+  )).toContainText('Modern match turn changes now use this coin profile');
+
+  const applied = await page.evaluate(({storageKey, sessionKey}) => {
+    const graphics = gh.manager.graphics.getState();
+    const profile = JSON.parse(
+      window.localStorage.getItem(storageKey)
+    );
+    const session = JSON.parse(
+      window.sessionStorage.getItem(sessionKey)
+    );
+    return {
+      revision: graphics.turnMarkerMotionRevision,
+      profile,
+      activeTargetId:
+        gh.manager.motionstudio.activeTargetId,
+      session: {
+        activeTargetId: session.activeTargetId,
+        coinPreviewDirection:
+          session.coinPreviewDirection,
+        draftTurnMarkerPreset:
+          JSON.parse(session.draftTurnMarkerPreset)
+      },
+      lobbyPlaybook:
+        window.localStorage.getItem(
+          'purett.lobbyMotionPlaybook.v1'
+        )
+    };
+  }, {
+    storageKey: TURN_MARKER_STORAGE_KEY,
+    sessionKey: STUDIO_SESSION_KEY
+  });
+  expect(applied).toMatchObject({
+    revision: 1,
+    activeTargetId: COIN_TARGET_ID,
+    profile: {
+      schemaVersion: 1,
+      path: {
+        curvePx: -83,
+        apexHeight: 118
+      },
+      rotation: {
+        flipTurns: 3.25,
+        tumbleTurns: 0.75,
+        spinTurns: -0.25,
+        contactTiltDeg: 11
+      },
+      landing: {
+        settleMs: 135
+      }
+    },
+    session: {
+      activeTargetId: COIN_TARGET_ID,
+      coinPreviewDirection: 'opponent-to-player',
+      draftTurnMarkerPreset: {
+        path: {
+          curvePx: -83,
+          apexHeight: 118
+        }
+      }
+    },
+    lobbyPlaybook: null
+  });
 });
 
 test('inherits the selected game scale while retaining logical board coordinates and reachable controls', async ({page}) => {

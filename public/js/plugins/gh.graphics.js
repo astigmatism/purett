@@ -13,9 +13,11 @@ gh.graphics.prototype = {
         this.storageKey = 'purett.graphicsMode.v1';
         this.playbookStorageKey =
             'purett.lobbyMotionPlaybook.v1';
+        this.turnMarkerMotionStorageKey =
+            'purett.turnMarkerMotion.v1';
         this.threePackageVersion = '0.185.1';
         this.threeRevision = '185';
-        this.modernScriptUrl = '/js/modern/purett-modern-graphics.min.js?v=0.185.1-match-placement.1';
+        this.modernScriptUrl = '/js/modern/purett-modern-graphics.min.js?v=0.185.1-match-turn-coin.1';
         this.requestedMode = 'legacy';
         this.effectiveMode = 'legacy';
         this.loadState = 'idle';
@@ -37,12 +39,16 @@ gh.graphics.prototype = {
             opponent: []
         };
         this.matchDropZones = [];
+        this.matchTurnIndicator = null;
         this.lobbyPresentation = null;
         this.lobbyPresentationDeliveredId = null;
         this.scriptElement = null;
         this.lobbyPlaybookSource = null;
         this.lobbyPlaybook = null;
         this.playbookRevision = 0;
+        this.turnMarkerMotionSource = null;
+        this.turnMarkerMotionProfile = null;
+        this.turnMarkerMotionRevision = 0;
         this.windSequence = 0;
         this.lobbyCommandSequence = 0;
         this.pendingLobbyCommand = null;
@@ -62,14 +68,19 @@ gh.graphics.prototype = {
 
         var storedMode = null;
         var storedPlaybook = null;
+        var storedTurnMarkerMotion = null;
         try {
             storedMode = window.localStorage.getItem(this.storageKey);
             storedPlaybook = window.localStorage.getItem(
                 this.playbookStorageKey
             );
+            storedTurnMarkerMotion = window.localStorage.getItem(
+                this.turnMarkerMotionStorageKey
+            );
         } catch (error) {
             storedMode = null;
             storedPlaybook = null;
+            storedTurnMarkerMotion = null;
         }
         if (storedPlaybook) {
             try {
@@ -77,6 +88,10 @@ gh.graphics.prototype = {
             } catch (error) {
                 this.lobbyPlaybookSource = null;
             }
+        }
+        if (storedTurnMarkerMotion) {
+            this.turnMarkerMotionSource =
+                storedTurnMarkerMotion;
         }
 
         $('#contextmenu .graphics-mode-options button').click(function(event) {
@@ -221,6 +236,9 @@ gh.graphics.prototype = {
             typeof modernGraphics.createLobbyHandSurface === 'function' &&
             typeof modernGraphics.createMotionStudioSurface === 'function' &&
             modernGraphics.motionStudio &&
+            modernGraphics.motionStudio.coin &&
+            typeof modernGraphics.motionStudio.coin.normalize ===
+                'function' &&
             modernGraphics.lobbyPlaybook;
     },
     completeModernLoad: function(error, modernGraphics) {
@@ -244,6 +262,7 @@ gh.graphics.prototype = {
             }
             this.modernGraphics = modernGraphics;
             this.ensureLobbyPlaybook(modernGraphics);
+            this.ensureTurnMarkerMotionProfile(modernGraphics);
             surfaceKind = this.lobbyVisible
                 ? 'lobby-hand'
                 : (this.activeMatchVisible
@@ -402,6 +421,90 @@ gh.graphics.prototype = {
         }
         return this.clonePlain(this.lobbyPlaybook);
     },
+    ensureTurnMarkerMotionProfile: function(modernGraphics) {
+        var api = modernGraphics &&
+            modernGraphics.motionStudio &&
+            modernGraphics.motionStudio.coin;
+        var source = this.turnMarkerMotionSource;
+        if (!api || typeof api.normalize !== 'function') {
+            throw new Error(
+                'The turn-marker motion profile API is unavailable.'
+            );
+        }
+        try {
+            if (typeof source === 'string') {
+                source = typeof api.parse === 'function'
+                    ? api.parse(source)
+                    : JSON.parse(source);
+            }
+            this.turnMarkerMotionProfile = api.normalize(
+                source || api.defaults
+            );
+        } catch (error) {
+            this.turnMarkerMotionProfile = api.normalize(
+                api.defaults
+            );
+        }
+        this.turnMarkerMotionSource = this.clonePlain(
+            this.turnMarkerMotionProfile
+        );
+        return this.turnMarkerMotionProfile;
+    },
+    getTurnMarkerMotionProfile: function() {
+        if (this.modernGraphics &&
+                this.modernGraphics.motionStudio &&
+                this.modernGraphics.motionStudio.coin) {
+            this.ensureTurnMarkerMotionProfile(
+                this.modernGraphics
+            );
+        }
+        return this.clonePlain(
+            this.turnMarkerMotionProfile ||
+            this.turnMarkerMotionSource
+        );
+    },
+    setTurnMarkerMotionProfile: function(profile, persist) {
+        var api;
+        var serialized;
+        if (!this.modernGraphics ||
+                !this.modernGraphics.motionStudio ||
+                !this.modernGraphics.motionStudio.coin) {
+            throw new Error(
+                'Three.js must be loaded before saving a turn-marker motion profile.'
+            );
+        }
+        api = this.modernGraphics.motionStudio.coin;
+        this.turnMarkerMotionProfile = api.normalize(profile);
+        this.turnMarkerMotionSource = this.clonePlain(
+            this.turnMarkerMotionProfile
+        );
+        this.turnMarkerMotionRevision += 1;
+        if (persist !== false) {
+            try {
+                serialized = typeof api.serialize === 'function'
+                    ? api.serialize(this.turnMarkerMotionProfile)
+                    : JSON.stringify(this.turnMarkerMotionProfile);
+                window.localStorage.setItem(
+                    this.turnMarkerMotionStorageKey,
+                    serialized
+                );
+            } catch (error) {
+                // The authoring surface remains usable without storage.
+            }
+        }
+        if (this.surfaceKind === 'active-match' &&
+                this.surface &&
+                typeof this.surface.setTurnIndicator ===
+                    'function') {
+            this.surface.setTurnIndicator(
+                this.matchTurnIndicator,
+                this.turnMarkerMotionProfile
+            );
+        }
+        return this.clonePlain(
+            this.turnMarkerMotionProfile
+        );
+    },
     resetLobbyPlaybook: function() {
         if (!this.modernGraphics ||
                 !this.modernGraphics.lobbyPlaybook) {
@@ -441,6 +544,7 @@ gh.graphics.prototype = {
                 opponent: []
             };
             this.matchDropZones = [];
+            this.matchTurnIndicator = null;
             if (this.game && this.game.setModernMatchReady) {
                 this.game.setModernMatchReady(false);
             }
@@ -480,6 +584,7 @@ gh.graphics.prototype = {
             opponent: []
         };
         this.matchDropZones = [];
+        this.matchTurnIndicator = null;
         if (this.game && this.game.setModernMatchReady) {
             this.game.setModernMatchReady(false);
         }
@@ -520,6 +625,7 @@ gh.graphics.prototype = {
             opponent: []
         };
         this.matchDropZones = [];
+        this.matchTurnIndicator = null;
         this.lobbyPresentation = null;
         this.cancelLobbyPreview('cancelled-view-change');
         if (this.game && this.game.setModernMatchReady) {
@@ -554,6 +660,9 @@ gh.graphics.prototype = {
         };
         this.matchDropZones = this.clonePlain(
             (source.dropZones || []).slice(0, 9)
+        );
+        this.matchTurnIndicator = this.clonePlain(
+            source.turnIndicator || null
         );
         if (!this.studioOpen &&
                 this.activeMatchVisible &&
@@ -692,6 +801,13 @@ gh.graphics.prototype = {
                 this.matchHands,
                 this.matchDropZones
             );
+            if (typeof this.surface.setTurnIndicator ===
+                    'function') {
+                this.surface.setTurnIndicator(
+                    this.matchTurnIndicator,
+                    this.turnMarkerMotionProfile
+                );
+            }
         }
     },
     disposeSurface: function() {
@@ -788,6 +904,9 @@ gh.graphics.prototype = {
             try {
                 me.modernGraphics = modernGraphics;
                 me.ensureLobbyPlaybook(modernGraphics);
+                me.ensureTurnMarkerMotionProfile(
+                    modernGraphics
+                );
                 createdSurface = modernGraphics.createMotionStudioSurface(
                     host,
                     $.extend({}, options || {}, {
@@ -1180,9 +1299,9 @@ gh.graphics.prototype = {
                 ? this.surface.getDebugState()
                 : null;
             if (surfaceState && surfaceState.ready) {
-                this.setStatus('Three.js ' + this.threePackageVersion + ' match placement study active. Hover an available board space while carrying a card, then click to place it visually. Modern match rendering remains incomplete and non-playable; moves are not submitted.');
+                this.setStatus('Three.js ' + this.threePackageVersion + ' match placement and mirrored 3D turn-coin studies active. The coin reflects the existing turn marker; it does not control the turn. Hover an available board space while carrying a card, then click to place it visually. Modern match rendering remains incomplete and non-playable; moves are not submitted.');
             } else {
-                this.setStatus('Three.js ' + this.threePackageVersion + ' is preparing the Modern match hands\u2026');
+                this.setStatus('Three.js ' + this.threePackageVersion + ' is preparing the Modern match hands and turn coin\u2026');
             }
             return;
         }
@@ -1254,6 +1373,15 @@ gh.graphics.prototype = {
             matchHands: this.clonePlain(this.matchHands),
             matchDropZones:
                 this.clonePlain(this.matchDropZones),
+            matchTurnIndicator:
+                this.clonePlain(this.matchTurnIndicator),
+            turnMarkerMotionRevision:
+                this.turnMarkerMotionRevision,
+            turnMarkerMotionProfile:
+                this.clonePlain(
+                    this.turnMarkerMotionProfile ||
+                    this.turnMarkerMotionSource
+                ),
             playbookRevision: this.playbookRevision,
             lobbyPlaybook: this.lobbyPlaybook
                 ? this.clonePlain(this.lobbyPlaybook)

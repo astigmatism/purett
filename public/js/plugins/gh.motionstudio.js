@@ -19,6 +19,9 @@ gh.motionstudio.prototype = {
         this.api = null;
         this.preset = null;
         this.playbook = null;
+        this.coinTargetId = 'match-turn-coin-transition';
+        this.coinPreviewDirection = 'player-to-opponent';
+        this.coinPreset = null;
         this.activeTargetId = 'lobby-card-1-intro';
         this.activeTarget = null;
         this.entryDelayMs = 0;
@@ -62,11 +65,16 @@ gh.motionstudio.prototype = {
             {group: 'rotation', field: 'rotation.contactYawDeg', label: 'Contact yaw', min: -45, max: 45, step: 1, unit: '\u00b0'},
             {group: 'rotation', field: 'rotation.contactRollDeg', label: 'Contact roll', min: -180, max: 180, step: 1, unit: '\u00b0'},
             {group: 'rotation', field: 'rotation.finalRollDeg', label: 'Final rotation', min: -30, max: 30, step: 1, unit: '\u00b0'},
+            {group: 'rotation', field: 'rotation.flipTurns', label: 'Coin flips', min: -8, max: 8, step: 0.125, unit: 'turn'},
+            {group: 'rotation', field: 'rotation.tumbleTurns', label: 'Coin tumble', min: -8, max: 8, step: 0.125, unit: 'turn'},
+            {group: 'rotation', field: 'rotation.spinTurns', label: 'Table spin', min: -4, max: 4, step: 0.125, unit: 'turn'},
+            {group: 'rotation', field: 'rotation.contactTiltDeg', label: 'Landing tilt', min: -45, max: 45, step: 1, unit: '\u00b0'},
 
             {group: 'landing', field: 'landing.skidDistancePx', label: 'Skid distance', min: 0, max: 200, step: 1, unit: 'px'},
             {group: 'landing', field: 'landing.skidAngleDeg', label: 'Skid direction', min: -180, max: 180, step: 1, unit: '\u00b0'},
             {group: 'landing', field: 'landing.slapMs', label: 'Slap time', min: 0, max: 400, step: 5, unit: 'ms'},
             {group: 'landing', field: 'landing.skidMs', label: 'Skid time', min: 0, max: 1000, step: 5, unit: 'ms'},
+            {group: 'landing', field: 'landing.settleMs', label: 'Settle time', min: 0, max: 600, step: 5, unit: 'ms'},
             {group: 'landing', field: 'shadow.strength', label: 'Shadow strength', min: 0, max: 1, step: 0.01, unit: ''},
             {group: 'landing', field: 'shadow.spread', label: 'Shadow spread', min: 0.5, max: 2, step: 0.01, unit: '\u00d7'}
         ];
@@ -102,6 +110,26 @@ gh.motionstudio.prototype = {
         $.each(this.controlDefinitions, function(index, definition) {
             var id = 'motionstudio-field-' + definition.field.replace(/\./g, '-');
             var $row = $('<div class="motion-studio-control"></div>');
+            var coinOnly = $.inArray(
+                definition.field,
+                [
+                    'rotation.flipTurns',
+                    'rotation.tumbleTurns',
+                    'rotation.spinTurns',
+                    'rotation.contactTiltDeg',
+                    'landing.settleMs'
+                ]
+            ) !== -1;
+            var shared = $.inArray(
+                definition.field,
+                [
+                    'path.curvePx',
+                    'path.flightMs',
+                    'path.apexHeight',
+                    'shadow.strength',
+                    'shadow.spread'
+                ]
+            ) !== -1;
             var $label = $('<label></label>')
                 .attr('for', id + '-range')
                 .attr('title', definition.label)
@@ -127,7 +155,14 @@ gh.motionstudio.prototype = {
                 });
             var $unit = $('<span class="motion-studio-unit"></span>')
                 .text(definition.unit);
-            $row.append($label, $range, $number, $unit);
+            $row
+                .attr(
+                    'data-motion-subject',
+                    coinOnly
+                        ? 'coin'
+                        : (shared ? 'shared' : 'card')
+                )
+                .append($label, $range, $number, $unit);
             $('[data-motion-control-group="' + definition.group + '"]')
                 .append($row);
         });
@@ -183,6 +218,13 @@ gh.motionstudio.prototype = {
         });
         $('#motionstudio-target').change(function() {
             me.selectTarget($(this).val(), true);
+        });
+        $('#motionstudio-coin-direction').change(function() {
+            me.coinPreviewDirection = $(this).val() ===
+                'opponent-to-player'
+                ? 'opponent-to-player'
+                : 'player-to-opponent';
+            me.applyPresetToSurface(true);
         });
         $('#motionstudio-preset').change(function() {
             var name = $(this).val();
@@ -330,7 +372,6 @@ gh.motionstudio.prototype = {
 
     open: function(options) {
         var me = this;
-        var card;
         var settings = options || {};
         var previewToken = settings.previewToken;
         var ownsPreview =
@@ -360,12 +401,6 @@ gh.motionstudio.prototype = {
         this.setControlStatus('', false);
         this.setJsonStatus('', false);
         $('body').addClass('motion-studio-active');
-        card = this.getCard(this.previewCardIndex());
-        if (!card) {
-            this.showLoadError('A card is required to open the Motion Studio.');
-            return;
-        }
-
         this.graphics.openMotionStudio(
             document.getElementById('motionstudio-canvas-host'),
             {
@@ -480,6 +515,7 @@ gh.motionstudio.prototype = {
         var ui = null;
         var storedPlaybook;
         var storedPresetNames;
+        var storedCoinPreset;
 
         if (!this.api || !this.api.playbook) {
             throw new Error(
@@ -500,6 +536,22 @@ gh.motionstudio.prototype = {
                 this.api.playbook.defaults
             );
         }
+        if (!this.api.coin) {
+            throw new Error(
+                'The turn-marker motion API is unavailable.'
+            );
+        }
+        try {
+            storedCoinPreset =
+                this.graphics.getTurnMarkerMotionProfile();
+            this.coinPreset = this.api.coin.normalize(
+                storedCoinPreset || this.api.coin.defaults
+            );
+        } catch (error) {
+            this.coinPreset = this.api.coin.normalize(
+                this.api.coin.defaults
+            );
+        }
         try {
             stored = window.sessionStorage.getItem(this.storageKey);
         } catch (error) {
@@ -516,6 +568,17 @@ gh.motionstudio.prototype = {
                         this.playbook = this.api.playbook.parse(
                             session.draftPlaybook
                         );
+                    }
+                    if (typeof session.draftTurnMarkerPreset ===
+                            'string') {
+                        this.coinPreset = this.api.coin.parse(
+                            session.draftTurnMarkerPreset
+                        );
+                    }
+                    if (session.coinPreviewDirection ===
+                            'opponent-to-player') {
+                        this.coinPreviewDirection =
+                            'opponent-to-player';
                     }
                     if (session.activeTargetId) {
                         this.activeTargetId =
@@ -585,6 +648,9 @@ gh.motionstudio.prototype = {
                 'helpers-hidden',
                 !$('#motionstudio-show-helpers').is(':checked')
             );
+        $('#motionstudio-coin-direction').val(
+            this.coinPreviewDirection
+        );
         this.selectTarget(this.activeTargetId, false);
     },
 
@@ -596,10 +662,40 @@ gh.motionstudio.prototype = {
         return 2;
     },
 
+    isCoinTarget: function(targetId) {
+        return String(
+            targetId == null
+                ? this.activeTargetId
+                : targetId
+        ) === this.coinTargetId;
+    },
+
     selectTarget: function(targetId, replayImmediately) {
         var definition;
         var entry;
         if (!this.api || !this.api.playbook || !this.playbook) {
+            return;
+        }
+        if (this.isCoinTarget(targetId)) {
+            definition = {
+                id: this.coinTargetId,
+                label: 'Match turn coin \u2014 Transition',
+                kind: 'coin',
+                domain: 'active-match'
+            };
+            this.activeTargetId = definition.id;
+            this.activeTarget = definition;
+            this.entryDelayMs = 0;
+            this.preset = this.api.coin.normalize(
+                this.coinPreset || this.api.coin.defaults
+            );
+            this.activePresetName = 'custom';
+            this.syncTargetUi(definition);
+            this.setControlStatus('', false);
+            this.applyPresetToSurface(
+                replayImmediately === true,
+                replayImmediately !== true
+            );
             return;
         }
         try {
@@ -630,24 +726,78 @@ gh.motionstudio.prototype = {
             this.basePresetName =
                 this.targetPresetNames[definition.id];
         }
+        this.syncTargetUi(definition);
+        this.setControlStatus('', false);
+        this.applyPresetToSurface(
+            replayImmediately === true,
+            replayImmediately !== true
+        );
+    },
+
+    syncTargetUi: function(definition) {
+        var isCoin = definition.kind === 'coin';
         $('#motionstudio-target').val(this.activeTargetId);
         $('#motionstudio').toggleClass(
             'motion-studio-exit-target',
             definition.kind === 'exit'
+        ).toggleClass(
+            'motion-studio-coin-target',
+            isCoin
+        );
+        $('#motionstudio .motion-studio-heading span').text(
+            isCoin
+                ? 'Active-match turn-indicator motion profile'
+                : 'Lobby card animation playbook'
         );
         $('.motion-studio-wind-tools').toggle(
             definition.kind === 'exit'
         );
         $('.motion-studio-marker-start text').text(
-            definition.kind === 'exit'
+            isCoin
+                ? 'LOCKED SOURCE'
+                : (definition.kind === 'exit'
                 ? 'WIND END'
-                : 'START'
+                : 'START')
         );
         $('.motion-studio-preview-hint').html(
-            definition.kind === 'exit'
+            isCoin
+                ? 'Endpoints are locked; tune the coin\u2019s <strong>flight</strong>'
+                : (definition.kind === 'exit'
                 ? 'Adjust <strong>Travel</strong>; the lobby origin is locked'
-                : 'Drag <strong>START</strong>; the application target is locked'
+                : 'Drag <strong>START</strong>; the application target is locked')
         );
+        $('#motionstudio .motion-studio-apply-preview').text(
+            isCoin
+                ? 'Apply to Match Coin'
+                : 'Apply & Preview in Lobby'
+        );
+        $('#motionstudio .motion-studio-reset').text(
+            isCoin ? 'Reset coin' : 'Reset target'
+        );
+        $('#motionstudio .motion-studio-json summary').text(
+            isCoin
+                ? 'Advanced coin profile data'
+                : 'Advanced playbook data'
+        );
+        $('#motionstudio .motion-studio-copy').text(
+            isCoin ? 'Export Profile' : 'Export Playbook'
+        );
+        $('#motionstudio .motion-studio-apply-json').text(
+            isCoin ? 'Import Profile' : 'Import Playbook'
+        );
+        $('#motionstudio-preset').prop('disabled', isCoin);
+        $('#motionstudio-coin-direction')
+            .val(this.coinPreviewDirection);
+        $('#motionstudio .motion-studio-control').each(function() {
+            var subject = $(this).attr('data-motion-subject');
+            $(this).toggle(
+                subject === 'shared' ||
+                (isCoin ? subject === 'coin' : subject === 'card')
+            );
+        });
+        $('#motionstudio-scale-mode')
+            .closest('.motion-studio-select-row')
+            .toggle(!isCoin);
         $('[data-motion-field="entry.delayMs"]')
             .closest('.motion-studio-control')
             .find('label')
@@ -666,11 +816,6 @@ gh.motionstudio.prototype = {
         this.previewCardKey = null;
         this.syncIntroCopyUi();
         this.syncWindUi();
-        this.setControlStatus('', false);
-        this.applyPresetToSurface(
-            replayImmediately === true,
-            replayImmediately !== true
-        );
     },
 
     presetMatchesNamed: function(name, preset, targetId) {
@@ -700,6 +845,9 @@ gh.motionstudio.prototype = {
     },
 
     selectPreset: function(name) {
+        if (this.isCoinTarget()) {
+            return;
+        }
         if (!this.api || !this.api.presets[name]) {
             return;
         }
@@ -716,6 +864,22 @@ gh.motionstudio.prototype = {
     resetActiveTarget: function() {
         var defaultEntry;
         var sourceName;
+        if (this.isCoinTarget()) {
+            if (!this.api || !this.api.coin) {
+                return;
+            }
+            this.coinPreset = this.api.coin.normalize(
+                this.api.coin.defaults
+            );
+            this.preset = this.coinPreset;
+            this.activePresetName = 'custom';
+            this.setControlStatus(
+                'The match turn coin was restored to its application default.',
+                false
+            );
+            this.applyPresetToSurface(true);
+            return;
+        }
         if (!this.api || !this.api.playbook ||
                 !this.playbook || !this.activeTarget) {
             return;
@@ -904,7 +1068,9 @@ gh.motionstudio.prototype = {
         candidate = this.clonePreset(this.preset);
         this.setNestedValue(candidate, field, value);
         try {
-            candidate = this.api.normalizePreset(candidate);
+            candidate = this.isCoinTarget()
+                ? this.api.coin.normalize(candidate)
+                : this.api.normalizePreset(candidate);
         } catch (error) {
             this.syncUiFromPreset();
             this.setControlStatus(
@@ -931,6 +1097,13 @@ gh.motionstudio.prototype = {
         var plan;
         var card;
         var cardKey;
+        if (this.isCoinTarget()) {
+            this.applyCoinPresetToSurface(
+                replayImmediately,
+                suppressAutoReplay
+            );
+            return;
+        }
         if (!this.preset || !this.api || !this.api.playbook ||
                 !this.playbook || !this.activeTarget) {
             return;
@@ -1016,6 +1189,90 @@ gh.motionstudio.prototype = {
         }
     },
 
+    applyCoinPresetToSurface: function(
+        replayImmediately,
+        suppressAutoReplay
+    ) {
+        var me = this;
+        var positions;
+        var source;
+        var destination;
+        var descriptor;
+        var plan;
+        if (!this.preset || !this.api || !this.api.coin) {
+            return;
+        }
+        try {
+            this.coinPreset =
+                this.api.coin.normalize(this.preset);
+            this.preset = this.coinPreset;
+            positions = this.api.coin.positions || {
+                player: {x: 53.5, y: 440.5},
+                opponent: {x: 641.5, y: 440.5}
+            };
+            if (this.coinPreviewDirection ===
+                    'opponent-to-player') {
+                source = positions.opponent;
+                destination = positions.player;
+            } else {
+                source = positions.player;
+                destination = positions.opponent;
+            }
+            descriptor = {
+                textureUrl: '/images/dime-heads.png',
+                source: {
+                    x: Number(source.x),
+                    y: Number(source.y)
+                },
+                destination: {
+                    x: Number(destination.x),
+                    y: Number(destination.y)
+                },
+                direction: this.coinPreviewDirection
+            };
+            plan = this.api.coin.createPlan(
+                this.coinPreset,
+                {
+                    source: descriptor.source,
+                    destination: descriptor.destination
+                }
+            );
+            this.previewPlan = plan;
+            if (this.surface) {
+                if (this.surface.setCoinProfile) {
+                    this.surface.setCoinProfile(
+                        this.coinPreset
+                    );
+                }
+                this.surface.setCoin(descriptor);
+            }
+        } catch (error) {
+            this.setControlStatus(
+                error && error.message
+                    ? error.message
+                    : 'That coin motion cannot be previewed safely.',
+                true
+            );
+            return;
+        }
+        this.syncUiFromPreset();
+        this.updateRecipeJson();
+        this.saveSessionPreset();
+        if (this.replayTimer !== null) {
+            window.clearTimeout(this.replayTimer);
+            this.replayTimer = null;
+        }
+        if (replayImmediately) {
+            this.replay();
+        } else if (!suppressAutoReplay &&
+                $('#motionstudio-auto-replay').is(':checked')) {
+            this.replayTimer = window.setTimeout(function() {
+                me.replayTimer = null;
+                me.replay();
+            }, 120);
+        }
+    },
+
     createPreviewBatch: function() {
         var cards = this.getCards() || [];
         var fallbackCard;
@@ -1069,29 +1326,35 @@ gh.motionstudio.prototype = {
 
     syncUiFromPreset: function() {
         var me = this;
+        var isCoin = this.isCoinTarget();
         if (!this.preset) {
             return;
         }
-        $('#motionstudio-preset').val(
-            this.activePresetName === 'custom'
-                ? 'custom'
-                : this.activePresetName
-        );
-        $('#motionstudio-scale-mode').val(this.preset.scale.mode);
+        if (!isCoin) {
+            $('#motionstudio-preset').val(
+                this.activePresetName === 'custom'
+                    ? 'custom'
+                    : this.activePresetName
+            );
+            $('#motionstudio-scale-mode').val(this.preset.scale.mode);
+        }
         $('#motionstudio').toggleClass(
             'motion-studio-keyframed',
-            this.preset.scale.mode === 'keyframed'
+            !isCoin &&
+                this.preset.scale.mode === 'keyframed'
         );
         $('#motionstudio [data-motion-field]').each(function() {
             var field = $(this).attr('data-motion-field');
+            var value;
             if (field === 'scale.mode') {
                 return;
             }
-            $(this).val(
-                field === 'entry.delayMs'
-                    ? me.entryDelayMs
-                    : me.getNestedValue(me.preset, field)
-            );
+            value = field === 'entry.delayMs'
+                ? me.entryDelayMs
+                : me.getNestedValue(me.preset, field);
+            if (value !== undefined) {
+                $(this).val(value);
+            }
         });
     },
 
@@ -1170,7 +1433,8 @@ gh.motionstudio.prototype = {
     },
 
     beginHelperDrag: function(name, event) {
-        if (!this.preset || !this.lastSurfaceState ||
+        if (this.isCoinTarget() ||
+                !this.preset || !this.lastSurfaceState ||
                 !this.lastSurfaceState.plan) {
             return;
         }
@@ -1268,7 +1532,9 @@ gh.motionstudio.prototype = {
             me.setNestedValue(candidate, path, value);
         });
         try {
-            candidate = this.api.normalizePreset(candidate);
+            candidate = this.isCoinTarget()
+                ? this.api.coin.normalize(candidate)
+                : this.api.normalizePreset(candidate);
         } catch (error) {
             this.setControlStatus(
                 error && error.message
@@ -1319,11 +1585,15 @@ gh.motionstudio.prototype = {
         if (state.plan &&
                 state.planRevision !== this.lastHelperPlanRevision) {
             this.lastHelperPlanRevision = state.planRevision;
-            this.updateHelpers(state.plan, state.motionContext);
+            this.updateHelpers(
+                state.plan,
+                state.motionContext,
+                state.subjectKind
+            );
         }
     },
 
-    updateHelpers: function(plan, motionContext) {
+    updateHelpers: function(plan, motionContext, subjectKind) {
         var sample;
         var points = [];
         var index;
@@ -1338,6 +1608,10 @@ gh.motionstudio.prototype = {
         var apexAt;
 
         if (!this.api || !plan) {
+            return;
+        }
+        if (subjectKind === 'coin' || this.isCoinTarget()) {
+            this.updateCoinHelpers(plan, motionContext);
             return;
         }
         direction = motionContext &&
@@ -1433,6 +1707,97 @@ gh.motionstudio.prototype = {
         }
     },
 
+    updateCoinHelpers: function(plan, motionContext) {
+        var points = [];
+        var timing = plan.timing || {};
+        var path = plan.path || {};
+        var start =
+            path.source || path.start || plan.source;
+        var destination =
+            path.destination || plan.destination;
+        var flightMs = Number(timing.flightMs) ||
+            Number(path.flightMs) || 1;
+        var totalMs = Number(timing.totalMs) ||
+            flightMs + (Number(timing.settleMs) || 0);
+        var apexProgress =
+            Number(path.apexProgress);
+        var helperOffset =
+            motionContext && motionContext.helperOffset
+                ? motionContext.helperOffset
+                : {x: 30, y: 30};
+        var sample;
+        var index;
+        var offsetX = Number(helperOffset.x) || 0;
+        var offsetY = Number(helperOffset.y) || 0;
+
+        if (!start || !destination ||
+                !this.api.coin) {
+            return;
+        }
+        if (!isFinite(apexProgress)) {
+            apexProgress = 0.5;
+        }
+        for (index = 0; index <= 32; index += 1) {
+            sample = this.api.coin.samplePlan(
+                plan,
+                flightMs * (index / 32)
+            );
+            points.push(
+                (index === 0 ? 'M ' : 'L ') +
+                (sample.screenX + offsetX).toFixed(2) +
+                ' ' +
+                (sample.screenY + offsetY).toFixed(2)
+            );
+        }
+        $('.motion-studio-path').attr('d', points.join(' '));
+        $('.motion-studio-skid-path').attr({
+            x1: destination.x + offsetX,
+            y1: destination.y + offsetY,
+            x2: destination.x + offsetX,
+            y2: destination.y + offsetY
+        });
+        this.placeMarker(
+            'start',
+            start.x + offsetX,
+            start.y + offsetY
+        );
+        this.placeMarker(
+            'destination',
+            destination.x + offsetX,
+            destination.y + offsetY
+        );
+        sample = this.api.coin.samplePlan(
+            plan,
+            flightMs * apexProgress
+        );
+        this.placeMarker(
+            'apex',
+            sample.screenX + offsetX,
+            sample.screenY + offsetY
+        );
+        this.placeMarker(
+            'contact',
+            destination.x + offsetX,
+            destination.y + offsetY
+        );
+        this.placeMarker(
+            'land',
+            destination.x + offsetX,
+            destination.y + offsetY
+        );
+        this.placeTimelineMarker('release', 0);
+        this.placeTimelineMarker(
+            'apex',
+            (flightMs * apexProgress) / totalMs
+        );
+        this.placeTimelineMarker(
+            'contact',
+            flightMs / totalMs
+        );
+        this.placeTimelineMarker('flat', 1);
+        this.placeTimelineMarker('settled', 1);
+    },
+
     placeMarker: function(name, x, y) {
         $('.motion-studio-marker-' + name)
             .attr('transform', 'translate(' + x + ' ' + y + ')');
@@ -1451,7 +1816,12 @@ gh.motionstudio.prototype = {
     },
 
     updateRecipeJson: function() {
-        if (this.api && this.api.playbook && this.playbook) {
+        if (this.isCoinTarget() &&
+                this.api && this.api.coin && this.coinPreset) {
+            $('#motionstudio-json').val(
+                this.api.coin.serialize(this.coinPreset)
+            );
+        } else if (this.api && this.api.playbook && this.playbook) {
             $('#motionstudio-json').val(
                 this.api.playbook.serialize(this.playbook)
             );
@@ -1463,10 +1833,45 @@ gh.motionstudio.prototype = {
         var text;
         var copied = function() {
             me.setJsonStatus(
-                'Exported the complete versioned lobby playbook.',
+                me.isCoinTarget()
+                    ? 'Exported the versioned turn-coin profile.'
+                    : 'Exported the complete versioned lobby playbook.',
                 false
             );
         };
+        if (this.isCoinTarget()) {
+            if (!this.api || !this.api.coin || !this.coinPreset) {
+                this.setJsonStatus(
+                    'The turn-coin profile is unavailable for export.',
+                    true
+                );
+                return;
+            }
+            try {
+                text = this.api.coin.serialize(this.coinPreset);
+                $('#motionstudio-json').val(text);
+            } catch (error) {
+                this.setJsonStatus(
+                    error && error.message
+                        ? error.message
+                        : 'The turn-coin profile could not be exported.',
+                    true
+                );
+                return;
+            }
+            if (navigator.clipboard &&
+                    navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(
+                    copied,
+                    function() {
+                        me.fallbackCopy(text, copied);
+                    }
+                );
+            } else {
+                this.fallbackCopy(text, copied);
+            }
+            return;
+        }
         if (!this.api || !this.api.playbook || !this.playbook) {
             this.setJsonStatus(
                 'The lobby playbook is unavailable for export.',
@@ -1508,6 +1913,33 @@ gh.motionstudio.prototype = {
 
     applyJson: function() {
         var candidate;
+        if (this.isCoinTarget()) {
+            if (!this.api || !this.api.coin) {
+                return;
+            }
+            try {
+                candidate = this.api.coin.parse(
+                    $('#motionstudio-json').val()
+                );
+                this.coinPreset =
+                    this.api.coin.normalize(candidate);
+                this.preset = this.coinPreset;
+                this.applyPresetToSurface(true);
+                this.setJsonStatus(
+                    'The turn-coin profile was imported into this draft.',
+                    false
+                );
+                this.setControlStatus('', false);
+            } catch (error) {
+                this.setJsonStatus(
+                    error && error.message
+                        ? error.message
+                        : 'The turn-coin profile is invalid.',
+                    true
+                );
+            }
+            return;
+        }
         if (!this.api || !this.api.playbook) {
             return;
         }
@@ -1541,6 +1973,44 @@ gh.motionstudio.prototype = {
         var seed;
         var previewToken;
         var completePreview;
+        if (this.isCoinTarget()) {
+            if (!this.api || !this.api.coin ||
+                    !this.coinPreset || !this.graphics ||
+                    !gh.defined(
+                        this.graphics.setTurnMarkerMotionProfile,
+                        'function'
+                    )) {
+                this.setControlStatus(
+                    'The match turn-coin profile is unavailable.',
+                    true
+                );
+                return;
+            }
+            try {
+                this.coinPreset = this.api.coin.normalize(
+                    this.graphics.setTurnMarkerMotionProfile(
+                        this.coinPreset,
+                        true
+                    )
+                );
+                this.preset = this.coinPreset;
+                this.updateRecipeJson();
+                this.saveSessionPreset();
+                this.setControlStatus(
+                    'Applied. Modern match turn changes now use this coin profile.',
+                    false
+                );
+                this.replay();
+            } catch (error) {
+                this.setControlStatus(
+                    error && error.message
+                        ? error.message
+                        : 'The turn-coin profile could not be applied.',
+                    true
+                );
+            }
+            return;
+        }
         if (!this.api || !this.playbook || !this.activeTarget ||
                 !this.graphics ||
                 !gh.defined(
@@ -1630,11 +2100,16 @@ gh.motionstudio.prototype = {
 
     saveSessionPreset: function() {
         var draftPlaybook = null;
+        var draftTurnMarkerPreset = null;
         var session;
         try {
             if (this.api && this.api.playbook && this.playbook) {
                 draftPlaybook =
                     this.api.playbook.serialize(this.playbook);
+            }
+            if (this.api && this.api.coin && this.coinPreset) {
+                draftTurnMarkerPreset =
+                    this.api.coin.serialize(this.coinPreset);
             }
             session = {
                 studioSessionVersion: this.sessionVersion,
@@ -1642,6 +2117,10 @@ gh.motionstudio.prototype = {
                 activePresetName: this.activePresetName,
                 basePresetName: this.basePresetName,
                 draftPlaybook: draftPlaybook,
+                draftTurnMarkerPreset:
+                    draftTurnMarkerPreset,
+                coinPreviewDirection:
+                    this.coinPreviewDirection,
                 targetPresetNames: $.extend(
                     {},
                     this.targetPresetNames

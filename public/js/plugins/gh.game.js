@@ -73,7 +73,24 @@ gh.game.prototype = {
         return {
             player: describe(this.p1h, this.p1p, 'player'),
             opponent: describe(this.p2h, this.p2p, 'opponent'),
-            dropZones: this.describeMatchDropZones()
+            dropZones: this.describeMatchDropZones(),
+            turnIndicator: this.describeTurnIndicator()
+        };
+    },
+    describeTurnIndicator: function() {
+        var indicator = this.turnIndicatorPresentation;
+        if (!indicator) {
+            return null;
+        }
+        return {
+            sequence: indicator.sequence,
+            side: indicator.side,
+            x: indicator.x,
+            y: indicator.y,
+            width: indicator.width,
+            height: indicator.height,
+            textureUrl: indicator.textureUrl,
+            visible: indicator.visible === true
         };
     },
     describeMatchDropZones: function() {
@@ -176,6 +193,7 @@ gh.game.prototype = {
         //places where there are cards:
         this.p1h = []; //player one hand. the object contains the properties: gamecardId, image, card (svg ref), x, y (current positions)
         this.p2h = []; //player two hand same properties as above
+        this.turnIndicatorPresentation = null;
         if (this.graphics &&
                 this.graphics.setActiveMatch) {
             this.graphics.setActiveMatch(true);
@@ -646,13 +664,39 @@ gh.game.prototype = {
     buildTurnMarker: function() {
         var me = this;
         var src = ['/images/dime-heads.png', '/images/dime-tails.png'];
-        me.turnMarker = me.canvas.image(src[(me.isMyTurn) ? 0 : 1], 327, 420, 41, 41).toFront();
+        var textureUrl = src[(me.isMyTurn) ? 0 : 1];
+        me.turnIndicatorPresentation = {
+            sequence: 0,
+            side: 'initial',
+            x: 327,
+            y: 420,
+            width: 41,
+            height: 41,
+            textureUrl: textureUrl,
+            visible: true
+        };
+        me.turnMarker = me.canvas.image(textureUrl, 327, 420, 41, 41).toFront();
     },
     drawTurnMarker: function(myTurn, callback) {
         //renders the turn marker. mtTurn is true when the user's turn is active. callback is function to fire when animation is complete
         var me = this;
         //images to use
         var xpos = (myTurn) ? 33 : 621;
+        var currentIndicator = me.turnIndicatorPresentation || {};
+        me.turnIndicatorPresentation = {
+            sequence:
+                (Number(currentIndicator.sequence) || 0) + 1,
+            side: (myTurn) ? 'player' : 'opponent',
+            x: xpos,
+            y: 420,
+            width: 41,
+            height: 41,
+            textureUrl:
+                currentIndicator.textureUrl ||
+                '/images/dime-tails.png',
+            visible: true
+        };
+        me.notifyGraphicsHands();
         //begin animation to other side
         //me.turnMarker.attr('rotation', 0); //I commented this out because I dont see why its necessary
         me.turnMarker.animate({ x: xpos, y: 420, width: 41 }, 400, "<>", function() {

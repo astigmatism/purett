@@ -87,6 +87,7 @@
                 >
                     <g class="motion-studio-destination motion-studio-marker-destination">
                         <rect
+                            class="motion-studio-card-destination"
                             x="-58.5"
                             y="-73"
                             width="117"
@@ -94,6 +95,10 @@
                             rx="4"
                             ry="4"
                         ></rect>
+                        <circle
+                            class="motion-studio-coin-destination"
+                            r="20.5"
+                        ></circle>
                     </g>
                     <path class="motion-studio-path" d=""></path>
                     <line class="motion-studio-skid-path"></line>
@@ -141,6 +146,19 @@
                         <optgroup label="Lobby exits">
                             <option value="lobby-hand-gentle-wind-exit">Lobby hand — Gentle Wind Exit</option>
                         </optgroup>
+                        <optgroup label="Active match studies">
+                            <option value="match-turn-coin-transition">Match turn coin — Transition</option>
+                        </optgroup>
+                    </select>
+                </label>
+                <label
+                    class="motion-studio-coin-direction-label"
+                    for="motionstudio-coin-direction"
+                >
+                    Preview direction
+                    <select id="motionstudio-coin-direction">
+                        <option value="player-to-opponent">Player &rarr; AI</option>
+                        <option value="opponent-to-player">AI &rarr; Player</option>
                     </select>
                 </label>
                 <label class="motion-studio-preset-label" for="motionstudio-preset">

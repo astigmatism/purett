@@ -152,6 +152,10 @@ async function installPassiveMatchFixture(page, options = {}) {
       boardEnabled: game.boardEnabled,
       isMyTurn: game.isMyTurn
     };
+    if (settings.holdEntrance !== true) {
+      gh.manager.graphics
+        .matchHandEntrance = null;
+    }
   }, options);
 }
 
@@ -270,6 +274,368 @@ async function installControlledMatchFrameClock(page) {
     };
   });
 }
+
+test('fans both stacked hands only after an accepted cover-open settlement', async ({page}) => {
+  const moveRequests = [];
+  page.on('request', request => {
+    const requestUrl =
+      new URL(request.url());
+    if (
+      request.method() === 'POST' &&
+      requestUrl.pathname === '/index/me'
+    ) {
+      moveRequests.push(request.url());
+    }
+  });
+
+  await loginWithLegacyGraphics(page);
+  await installPassiveMatchFixture(page, {
+    holdEntrance: true
+  });
+  await selectGraphicsMode(page, 'modern');
+  await waitForModernMatch(page);
+
+  const stacked = await page.evaluate(() => {
+    const state =
+      gh.manager.graphics.getState();
+    return {
+      entrance:
+        state.matchHandEntrance,
+      surfaceEntrance:
+        state.surface.handEntrance,
+      interactive:
+        state.surface.interactive,
+      inputHandlersAttached:
+        state.surface
+          .inputHandlersAttached,
+      cards: state.surface.cards.map(
+        card => ({
+          side: card.side,
+          handIndex: card.handIndex,
+          canonicalY:
+            card.screenRect.y +
+            (card.screenRect.height / 2),
+          current:
+            card.currentPosition,
+          rotation:
+            card.rotationRadians,
+          renderOrder:
+            card.renderOrder
+        })
+      )
+    };
+  });
+  expect(stacked.entrance).toMatchObject({
+    schemaVersion: 1,
+    state: 'stacked',
+    startedAtMs: null,
+    coverSequence: null
+  });
+  expect(stacked.surfaceEntrance).toMatchObject({
+    presentation: {
+      state: 'stacked'
+    },
+    blocking: true,
+    completedSequence: null,
+    motion: null
+  });
+  expect(stacked.interactive).toBe(false);
+  expect(
+    stacked.inputHandlersAttached
+  ).toBe(false);
+  for (
+    const side of ['player', 'opponent']
+  ) {
+    const cards = stacked.cards.filter(
+      card => card.side === side
+    );
+    const expectedX = side === 'player' ? 86.5 : 608.5;
+    expect(
+      cards.map(card =>
+        card.current
+      )
+    ).toEqual([
+      {x: expectedX, y: 311, z: 0},
+      {x: expectedX, y: 311, z: 0},
+      {x: expectedX, y: 311, z: 0},
+      {x: expectedX, y: 311, z: 0},
+      {x: expectedX, y: 311, z: 0}
+    ]);
+    cards.forEach(card => {
+      expect(card.rotation).toEqual({
+        x: 0,
+        y: 0,
+        z: 0
+      });
+    });
+    expect(
+      cards.map(card =>
+        card.renderOrder.face
+      )
+    ).toEqual(
+      cards.map(card =>
+        card.renderOrder.face
+      ).slice().sort(
+        (left, right) => left - right
+      )
+    );
+    expect(
+      cards.map(card =>
+        card.canonicalY
+      )
+    ).toEqual([
+      91,
+      146,
+      201,
+      256,
+      311
+    ]);
+  }
+
+  await installControlledMatchFrameClock(
+    page
+  );
+  const running = await page.evaluate(() => {
+    const graphics =
+      gh.manager.graphics;
+    const current =
+      graphics.clonePlain(
+        graphics.gameCoverPresentation
+      );
+    const completedAtMs =
+      performance.now();
+    const coverSequence =
+      Number(current.sequence) + 1;
+    current.sequence = coverSequence;
+    current.target = 'open';
+    current.startedAtMs =
+      completedAtMs - 2000;
+    current.durationMs = 2000;
+    current.easing = 'cubic-in';
+    graphics.gameCoverPresentation =
+      current;
+    const accepted =
+      graphics.handleGameCoverSettlement({
+        schemaVersion: 1,
+        sequence: coverSequence,
+        target: 'open',
+        completedAtMs
+      });
+    const surface =
+      graphics.getState().surface;
+    return {
+      accepted,
+      startedAt:
+        surface.handEntrance.motion
+          .startedAt,
+      durationMs:
+        surface.handEntrance.motion
+          .durationMs,
+      pending:
+        surface
+          .handEntrancePendingFrameCount,
+      interactive:
+        surface.interactive
+    };
+  });
+  expect(running).toMatchObject({
+    accepted: true,
+    durationMs: 785,
+    pending: 1,
+    interactive: false
+  });
+
+  const midpoint =
+    await page.evaluate(({timestamp}) => {
+      window.__modernMatchFrameClock
+        .advance(timestamp);
+      const surface =
+        gh.manager.graphics
+          .getState().surface;
+      return {
+        pending:
+          surface
+            .handEntrancePendingFrameCount,
+        progress:
+          surface.handEntrance.motion
+            .progress,
+        interactive:
+          surface.interactive,
+        player: surface.cards
+          .filter(card =>
+            card.side === 'player'
+          )
+          .map(card => ({
+            position:
+              card.currentPosition,
+            rotation:
+              card.rotationRadians
+          })),
+        opponent: surface.cards
+          .filter(card =>
+            card.side === 'opponent'
+          )
+          .map(card => ({
+            position:
+              card.currentPosition,
+            rotation:
+              card.rotationRadians
+          }))
+      };
+    }, {
+      timestamp:
+        running.startedAt + 310
+    });
+  expect(midpoint.pending).toBe(1);
+  expect(midpoint.progress)
+    .toBeGreaterThan(0);
+  expect(midpoint.progress)
+    .toBeLessThan(1);
+  expect(midpoint.interactive)
+    .toBe(false);
+  expect(midpoint.player[4].position).toEqual({
+    x: 86.5,
+    y: 311,
+    z: 0
+  });
+  expect(midpoint.opponent[4].position).toEqual({
+    x: 608.5,
+    y: 311,
+    z: 0
+  });
+  expect(midpoint.player[3].position)
+    .toEqual({
+      x: 85.5,
+      y: 262.875,
+      z: 4.5
+    });
+  expect(midpoint.opponent[3].position)
+    .toEqual({
+      x: 609.5,
+      y: 262.875,
+      z: 4.5
+    });
+  expect(
+    midpoint.player[3].rotation.x
+  ).toBeCloseTo(
+    -1.125 * (Math.PI / 180),
+    10
+  );
+  expect(
+    midpoint.player[3].rotation.y
+  ).toBeCloseTo(
+    -0.5 * (Math.PI / 180),
+    10
+  );
+  expect(
+    midpoint.player[3].rotation.z
+  ).toBeCloseTo(
+    -0.375 * (Math.PI / 180),
+    10
+  );
+  expect(
+    midpoint.opponent[3].rotation.x
+  ).toBeCloseTo(
+    midpoint.player[3].rotation.x,
+    10
+  );
+  expect(
+    midpoint.opponent[3].rotation.y
+  ).toBeCloseTo(
+    -midpoint.player[3].rotation.y,
+    10
+  );
+  expect(
+    midpoint.opponent[3].rotation.z
+  ).toBeCloseTo(
+    -midpoint.player[3].rotation.z,
+    10
+  );
+  expect(
+    midpoint.player[3].position.x +
+    midpoint.opponent[3].position.x
+  ).toBeCloseTo(695, 8);
+
+  const settled =
+    await page.evaluate(({timestamp}) => {
+      window.__modernMatchFrameClock
+        .advance(timestamp);
+      const surface =
+        gh.manager.graphics
+          .getState().surface;
+      const pendingClock =
+        window.__modernMatchFrameClock
+          .pending();
+      window.__modernMatchFrameClock
+        .restore();
+      return {
+        entrance:
+          surface.handEntrance,
+        completed:
+          surface
+            .completedHandEntrances,
+        pending:
+          surface
+            .handEntrancePendingFrameCount,
+        pendingClock,
+        interactive:
+          surface.interactive,
+        inputHandlersAttached:
+          surface
+            .inputHandlersAttached,
+        cards: surface.cards.map(
+          card => ({
+            side: card.side,
+            handIndex:
+              card.handIndex,
+            current:
+              card.currentPosition,
+            rotation:
+              card.rotationRadians
+          })
+        )
+      };
+    }, {
+      timestamp:
+        running.startedAt +
+        running.durationMs
+    });
+  expect(settled.entrance).toMatchObject({
+    presentation: {
+      state: 'fanning'
+    },
+    blocking: false,
+    completedSequence:
+      stacked.entrance.sequence,
+    motion: null
+  });
+  expect(settled.completed).toBe(1);
+  expect(settled.pending).toBe(0);
+  expect(settled.pendingClock).toBe(0);
+  expect(settled.interactive).toBe(true);
+  expect(
+    settled.inputHandlersAttached
+  ).toBe(true);
+  settled.cards.forEach(card => {
+    const expectedX =
+      card.side === 'player'
+        ? 86.5
+        : 608.5;
+    const expectedY =
+      91 + (card.handIndex * 55);
+    expect(card.current).toEqual({
+      x: expectedX,
+      y: expectedY,
+      z: 0
+    });
+    expect(card.rotation).toEqual({
+      x: 0,
+      y: 0,
+      z: 0
+    });
+  });
+  expect(moveRequests).toHaveLength(0);
+});
 
 test('turn coin snaps to its exact center, flies in 3D between players, and cancels without gameplay authority', async ({page}) => {
   const moveRequests = [];

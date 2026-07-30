@@ -86,6 +86,8 @@ function fakeRaphaelElement(
 
 try {
   const presentations = [];
+  const settlements = [];
+  const settlementHiddenStates = [];
   const dom = {
     hidden: false,
     shown: true,
@@ -239,6 +241,14 @@ try {
   cover.setGraphicsCoordinator({
     updateGameCover(presentation) {
       presentations.push(presentation);
+    },
+    handleGameCoverSettlement(
+      settlement
+    ) {
+      settlementHiddenStates.push(
+        dom.hidden
+      );
+      settlements.push(settlement);
     }
   });
 
@@ -335,6 +345,10 @@ try {
     'open callback stopped being synchronous'
   );
   assert(
+    settlements.length === 0,
+    'open settlement fired from the synchronous public callback'
+  );
+  assert(
     cover.isopen === true &&
       presentations.length === 2 &&
       presentations[1].sequence === 1 &&
@@ -368,8 +382,25 @@ try {
 
   canvas.elements[0].finishLatest();
   assert(
-    dom.hidden === true,
-    'Legacy left completion no longer hides the cover shell'
+    dom.hidden === true &&
+      settlements.length === 1 &&
+      settlementHiddenStates[0] ===
+        true &&
+      settlements[0].schemaVersion === 1 &&
+      settlements[0].sequence === 1 &&
+      settlements[0].target === 'open' &&
+      settlements[0].completedAtMs ===
+        1234.5 &&
+      Object.keys(
+        settlements[0]
+      ).sort().join(',') ===
+        [
+          'completedAtMs',
+          'schemaVersion',
+          'sequence',
+          'target'
+        ].sort().join(','),
+    'Legacy left completion did not publish one exact open settlement'
   );
 
   let closeCallbacks = 0;
@@ -407,6 +438,13 @@ try {
   assert(
     closeCallbacks === 1,
     'Legacy close completion did not own its callback'
+  );
+  canvas.elements[0]
+    .animations[0]
+    .callback();
+  assert(
+    settlements.length === 1,
+    'a stale opening completion published a second settlement'
   );
 
   cover.close(() => {

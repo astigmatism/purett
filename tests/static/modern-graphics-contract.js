@@ -43,6 +43,9 @@ try {
   const gameBoxCoverSurfaceSource = read(
     'frontend/src/game-box-cover-surface.js'
   );
+  const matchHandEntranceSource = read(
+    'frontend/src/match-hand-entrance.js'
+  );
   const motionStudioSurfaceSource = read(
     'frontend/src/motion-studio-surface.js'
   );
@@ -101,14 +104,29 @@ try {
       ),
     'generated modern graphics bundle omits the hinged game-box cover'
   );
+  assert(
+    modernBundle.includes(
+      'legacy-cover-open-settlement'
+    ) &&
+      modernBundle.includes(
+        '0.185.1-match-hand-fan.1'
+      ) &&
+      modernBundle.includes(
+        'next-under-top-through-first'
+      ) &&
+      modernBundle.includes(
+        'matchHandEntrance'
+      ),
+    'generated modern graphics bundle omits the match-hand stack fan'
+  );
   assert(!/window\.THREE\s*=/.test(modernSource + modernBundle), 'modern bundle overwrites the legacy snow THREE global');
   assert(fs.existsSync(path.join(root, 'public/js/modern/THREE-LICENSE.txt')), 'distributed Three.js license is missing');
 
   assert(
     coordinator.includes(
-      '/js/modern/purett-modern-graphics.min.js?v=0.185.1-game-cover-hinge.1'
+      '/js/modern/purett-modern-graphics.min.js?v=0.185.1-match-hand-fan.1'
     ),
-    'coordinator does not use the game-cover-hinge bundle cache revision'
+    'coordinator does not use the match-hand-fan bundle cache revision'
   );
   assert(!/https?:\/\//.test(coordinator), 'coordinator references a third-party graphics URL');
   assert(coordinator.includes("this.storageKey = 'purett.graphicsMode.v1'"), 'graphics preference does not have a stable storage key');
@@ -185,12 +203,102 @@ try {
         '            )'
       ) &&
       coordinator.includes(
+        'this.surface.setHandEntrance('
+      ) &&
+      coordinator.includes(
+        "modernGraphics.matchHandEntrance.cacheIdentity ===\n" +
+        "                '0.185.1-match-hand-fan.1'"
+      ) &&
+      coordinator.includes(
+        'armMatchHandEntrance: function()'
+      ) &&
+      coordinator.includes(
+        'handleGameCoverSettlement: function('
+      ) &&
+      coordinator.includes(
+        "state: canAnimate\n" +
+        "                ? 'fanning'\n" +
+        "                : 'settled'"
+      ) &&
+      coordinator.includes(
         'this.surface.setTurnIndicator('
       ) &&
       coordinator.includes("me.surfaceKind === 'active-match'") &&
       game.includes('this.graphics.setActiveMatch(true)') &&
       application.includes('me.graphics.setActiveMatch(false)'),
     'graphics coordinator does not explicitly scope the match-hand bridge to an active match'
+  );
+  assert(
+    cover.includes(
+      'notifyGraphicsSettlement: function('
+    ) &&
+      cover.includes(
+        "$('#game-cover').hide();"
+      ) &&
+      cover.indexOf(
+        "$('#game-cover').hide();"
+      ) <
+        cover.indexOf(
+          "me.notifyGraphicsSettlement("
+        ) &&
+      cover.includes(
+        'me.presentationSequence ==='
+      ) &&
+      cover.includes(
+        "me.presentation.target ===\n" +
+        "                            'open'"
+      ),
+    'the hand fan is not released by the guarded Legacy cover settlement'
+  );
+  assert(
+    matchHandEntranceSource.includes(
+      "stackAnchor: 'last-current-card'"
+    ) &&
+      matchHandEntranceSource.includes(
+        "revealOrder:\n" +
+        "      'next-under-top-through-first'"
+      ) &&
+      matchHandEntranceSource.includes(
+        'cardDurationMs: 620'
+      ) &&
+      matchHandEntranceSource.includes(
+        'staggerMs: 55'
+      ) &&
+      !matchHandEntranceSource.includes(
+        'Math.random'
+      ) &&
+      !matchHandEntranceSource.includes(
+        'document.'
+      ) &&
+      !matchHandEntranceSource.includes(
+        'window.'
+      ),
+    'the match-hand fan is not a deterministic renderer-neutral plan'
+  );
+  assert(
+    activeSurfaceSource.includes(
+      'setHandEntrance(presentation)'
+    ) &&
+      activeSurfaceSource.includes(
+        'scheduleHandEntranceFrame()'
+      ) &&
+      activeSurfaceSource.includes(
+        'this.isHandEntranceBlocking()'
+      ) &&
+      activeSurfaceSource.includes(
+        "'late-readiness'"
+      ) &&
+      activeSurfaceSource.includes(
+        "this.cancelHandEntrance(\n" +
+        "      'suspend'"
+      ) &&
+      activeSurfaceSource.includes(
+        'handEntrancePendingFrameCount:'
+      ) &&
+      activeSurfaceSource.includes(
+        'gameplayAuthority: false'
+      ),
+    'the active-match surface lacks a bounded, input-locked hand fan lifecycle'
   );
   assert(
     application.includes('cover: me.cover') &&

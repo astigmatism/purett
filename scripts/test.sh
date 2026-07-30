@@ -43,6 +43,8 @@ run_static() {
     node tests/static/lobby-motion-playbook-contract.mjs
     node tests/static/turn-marker-motion-contract.mjs
     node tests/static/game-box-cover-motion-contract.mjs
+    node tests/static/match-hand-entrance-contract.mjs
+    node tests/static/match-hand-entrance-bridge-contract.js
     node tests/static/game-box-cover-bridge-contract.js
     node tests/static/game-box-cover-lifecycle-contract.mjs
     compose run --rm -T \

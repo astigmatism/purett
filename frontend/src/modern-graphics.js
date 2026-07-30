@@ -82,6 +82,13 @@ import {
   GameBoxCoverSurface
 } from './game-box-cover-surface.js';
 import {
+  MATCH_HAND_ENTRANCE_CACHE_IDENTITY,
+  MATCH_HAND_ENTRANCE_DEFAULTS,
+  MATCH_HAND_ENTRANCE_SCHEMA_VERSION,
+  createMatchHandEntrancePlan,
+  sampleMatchHandEntrance
+} from './match-hand-entrance.js';
+import {
   MOTION_STUDIO_CAMERA,
   MotionStudioSurface,
   validateMotionStudioPreset
@@ -266,6 +273,20 @@ class ModernGraphicsSurface {
     this.cardEntries = [];
     this.playerPickMeshes = [];
     this.opponentPickMeshes = [];
+    this.handEntrancePresentation = null;
+    this.handEntranceKey = null;
+    this.handEntranceMotion = null;
+    this.handEntranceGeneration = 0;
+    this.handEntranceAnimationFrameId = null;
+    this.handEntrancePendingFrameCount = 0;
+    this.handEntrancePeakPendingFrameCount = 0;
+    this.handEntranceFrameCount = 0;
+    this.handEntranceCompletedSequence = null;
+    this.handEntranceAcceptedCount = 0;
+    this.handEntranceCompletedCount = 0;
+    this.handEntranceCancelledCount = 0;
+    this.handEntranceIgnoredCount = 0;
+    this.lastHandEntrance = null;
     this.textures = new Map();
     this.pendingTextureLoads = new Set();
     this.pendingTurnIndicatorTextureLoads =
@@ -475,6 +496,11 @@ class ModernGraphicsSurface {
           false,
           true
         );
+        this.cancelHandEntrance(
+          'context-lost',
+          false,
+          true
+        );
         this.cancelPickup('context-lost', false);
         this.clearLocalPreviewPlacement(
           'context-lost',
@@ -543,6 +569,11 @@ class ModernGraphicsSurface {
           document.hidden === true;
         if (this.visibilitySuspended) {
           this.cancelTurnIndicatorMotion(
+            'visibility-hidden',
+            false,
+            true
+          );
+          this.cancelHandEntrance(
             'visibility-hidden',
             false,
             true
@@ -688,6 +719,22 @@ class ModernGraphicsSurface {
     );
   }
 
+  isHandEntranceBlocking() {
+    const presentation =
+      this.handEntrancePresentation;
+    if (!presentation) {
+      return false;
+    }
+    return (
+      this.handEntranceCompletedSequence !==
+        presentation.sequence &&
+      (
+        presentation.state === 'stacked' ||
+        presentation.state === 'fanning'
+      )
+    );
+  }
+
   attachInputHandlers() {
     if (
       this.inputHandlersAttached ||
@@ -695,7 +742,8 @@ class ModernGraphicsSurface {
       this.contextLost ||
       this.suspended ||
       this.visibilitySuspended ||
-      !this.isPresentationReady()
+      !this.isPresentationReady() ||
+      this.isHandEntranceBlocking()
     ) {
       return;
     }
@@ -1162,6 +1210,578 @@ class ModernGraphicsSurface {
     );
     entry.shadowMesh.visible = false;
     this.matchShadowMaterial.opacity = 0;
+  }
+
+  normalizeHandEntrancePresentation(presentation) {
+    if (presentation == null) {
+      return null;
+    }
+    const schemaVersion =
+      Number(presentation.schemaVersion);
+    const sequence =
+      Number(presentation.sequence);
+    const state = String(
+      presentation.state || ''
+    );
+    const startedAtMs =
+      presentation.startedAtMs == null
+        ? null
+        : Number(
+            presentation.startedAtMs
+          );
+    const coverSequence =
+      presentation.coverSequence == null
+        ? null
+        : Number(
+            presentation.coverSequence
+          );
+
+    if (
+      schemaVersion !==
+        MATCH_HAND_ENTRANCE_SCHEMA_VERSION ||
+      !Number.isInteger(sequence) ||
+      sequence < 1 ||
+      (
+        state !== 'stacked' &&
+        state !== 'fanning' &&
+        state !== 'settled'
+      ) ||
+      (
+        state === 'stacked' &&
+        (
+          startedAtMs !== null ||
+          coverSequence !== null
+        )
+      ) ||
+      (
+        state !== 'stacked' &&
+        (
+          !Number.isFinite(startedAtMs) ||
+          !Number.isInteger(coverSequence) ||
+          coverSequence < 1
+        )
+      )
+    ) {
+      throw new Error(
+        'The match-hand entrance presentation is invalid.'
+      );
+    }
+
+    return {
+      schemaVersion,
+      sequence,
+      state,
+      startedAtMs,
+      coverSequence
+    };
+  }
+
+  applyCanonicalHandPoses() {
+    this.cardEntries.forEach((entry) => {
+      this.resetEntryPose(entry);
+    });
+  }
+
+  applyStackedHandPoses() {
+    ['player', 'opponent'].forEach((side) => {
+      const sideEntries = this.cardEntries
+        .filter((entry) =>
+          entry.card.side === side
+        )
+        .sort((left, right) =>
+          left.card.handIndex -
+          right.card.handIndex
+        );
+      if (sideEntries.length === 0) {
+        return;
+      }
+      const stackEntry =
+        sideEntries[
+          sideEntries.length - 1
+        ];
+      sideEntries.forEach((entry) => {
+        entry.held = false;
+        entry.placed = false;
+        entry.placedSlotIndex = null;
+        entry.placedPose = null;
+        this.setEntryRenderOrder(
+          entry,
+          false
+        );
+        this.applyEntryPose(
+          entry,
+          stackEntry.basePosition.x,
+          stackEntry.basePosition.y,
+          0,
+          0,
+          0,
+          null,
+          0
+        );
+        entry.shadowMesh.visible = false;
+      });
+    });
+    this.matchShadowMaterial.opacity = 0;
+  }
+
+  applyHandEntranceSample(sample) {
+    this.cardEntries.forEach((entry, index) => {
+      let pose = sample.cards[index];
+      if (
+        !pose ||
+        pose.side !== entry.card.side ||
+        pose.handIndex !==
+          entry.card.handIndex
+      ) {
+        pose = sample.cards.find(
+          (candidate) =>
+            candidate.side ===
+              entry.card.side &&
+            candidate.handIndex ===
+              entry.card.handIndex
+        );
+      }
+      if (!pose) {
+        this.resetEntryPose(entry);
+        return;
+      }
+      entry.held = false;
+      entry.placed = false;
+      entry.placedSlotIndex = null;
+      entry.placedPose = null;
+      this.setEntryRenderOrder(
+        entry,
+        false
+      );
+      this.applyEntryPose(
+        entry,
+        pose.screenX,
+        pose.screenY,
+        pose.depth,
+        pose.rotationX,
+        pose.rotationY,
+        null,
+        pose.rotationZ
+      );
+      entry.shadowMesh.visible = false;
+    });
+    this.matchShadowMaterial.opacity = 0;
+  }
+
+  applyHandEntranceAfterCommit() {
+    const presentation =
+      this.handEntrancePresentation;
+    if (
+      !presentation ||
+      presentation.state === 'settled' ||
+      this.handEntranceCompletedSequence ===
+        presentation.sequence
+    ) {
+      this.applyCanonicalHandPoses();
+      return;
+    }
+    this.detachInputHandlers();
+    if (presentation.state === 'stacked') {
+      this.applyStackedHandPoses();
+      return;
+    }
+    this.beginHandEntrance();
+  }
+
+  setHandEntrance(presentation) {
+    if (this.disposed) {
+      return;
+    }
+    const normalized =
+      this.normalizeHandEntrancePresentation(
+        presentation
+      );
+    const nextKey = JSON.stringify(normalized);
+    if (
+      normalized &&
+      this.handEntrancePresentation &&
+      (
+        normalized.sequence <
+          this.handEntrancePresentation
+            .sequence ||
+        (
+          normalized.sequence ===
+            this.handEntrancePresentation
+              .sequence &&
+          (
+            (
+              this.handEntrancePresentation
+                .state === 'fanning' &&
+              normalized.state === 'stacked'
+            ) ||
+            (
+              this.handEntrancePresentation
+                .state === 'settled' &&
+              normalized.state !== 'settled'
+            )
+          )
+        )
+      )
+    ) {
+      this.handEntranceIgnoredCount += 1;
+      return;
+    }
+    if (nextKey === this.handEntranceKey) {
+      this.handEntranceIgnoredCount += 1;
+      if (
+        normalized &&
+        normalized.state === 'stacked' &&
+        this.status === 'ready' &&
+        this.handEntranceCompletedSequence !==
+          normalized.sequence
+      ) {
+        this.applyStackedHandPoses();
+        this.detachInputHandlers();
+        this.render();
+      }
+      return;
+    }
+    if (
+      normalized &&
+      this.handEntranceCompletedSequence ===
+        normalized.sequence
+    ) {
+      this.handEntrancePresentation =
+        normalized;
+      this.handEntranceKey = nextKey;
+      this.handEntranceIgnoredCount += 1;
+      this.applyCanonicalHandPoses();
+      this.attachInputHandlers();
+      this.render();
+      return;
+    }
+
+    this.cancelHandEntrance(
+      'presentation-replaced',
+      false,
+      true
+    );
+    this.handEntrancePresentation =
+      normalized;
+    this.handEntranceKey = nextKey;
+    this.handEntranceCompletedSequence =
+      null;
+
+    if (!normalized) {
+      this.applyCanonicalHandPoses();
+      this.attachInputHandlers();
+      this.render();
+      return;
+    }
+    if (normalized.state === 'settled') {
+      this.handEntranceCompletedSequence =
+        normalized.sequence;
+      this.applyCanonicalHandPoses();
+      this.lastHandEntrance = {
+        outcome: 'settled-without-animation',
+        sequence: normalized.sequence,
+        coverSequence:
+          normalized.coverSequence,
+        completedAt:
+          normalized.startedAtMs
+      };
+      this.attachInputHandlers();
+      this.render();
+      return;
+    }
+
+    this.cancelPickup(
+      'hand-entrance',
+      false
+    );
+    this.clearLocalPreviewPlacement(
+      'hand-entrance',
+      false
+    );
+    this.detachInputHandlers();
+    if (normalized.state === 'stacked') {
+      if (this.status === 'ready') {
+        this.applyStackedHandPoses();
+        this.render();
+      }
+      return;
+    }
+    this.beginHandEntrance();
+  }
+
+  beginHandEntrance() {
+    const presentation =
+      this.handEntrancePresentation;
+    if (
+      !presentation ||
+      presentation.state !== 'fanning' ||
+      this.status !== 'ready' ||
+      this.cardEntries.length === 0 ||
+      this.handEntranceCompletedSequence ===
+        presentation.sequence
+    ) {
+      return false;
+    }
+
+    const plan =
+      createMatchHandEntrancePlan(
+        this.hands
+      );
+    const startedAt =
+      presentation.startedAtMs;
+    const now = performance.now();
+    const elapsed = Math.max(
+      0,
+      now - startedAt
+    );
+    const reducedMotion =
+      this.prefersReducedMotion();
+    const generation =
+      ++this.handEntranceGeneration;
+
+    this.handEntranceMotion = {
+      generation,
+      sequence: presentation.sequence,
+      coverSequence:
+        presentation.coverSequence,
+      startedAt,
+      plan,
+      progress: 0,
+      reducedMotion
+    };
+    this.handEntranceAcceptedCount += 1;
+    this.lastHandEntrance = {
+      outcome: 'running',
+      sequence: presentation.sequence,
+      coverSequence:
+        presentation.coverSequence,
+      startedAt,
+      durationMs: plan.totalMs,
+      reducedMotion
+    };
+
+    if (
+      reducedMotion ||
+      this.contextLost ||
+      this.suspended ||
+      this.visibilitySuspended ||
+      elapsed >= plan.totalMs
+    ) {
+      this.completeHandEntrance(
+        now,
+        reducedMotion
+          ? 'reduced-motion'
+          : (
+              this.contextLost
+                ? 'context-lost'
+                : (
+                    this.suspended
+                      ? 'suspended'
+                      : (
+                          this.visibilitySuspended
+                            ? 'visibility-suspended'
+                            : 'late-readiness'
+                        )
+                  )
+            )
+      );
+      return true;
+    }
+
+    const sample =
+      sampleMatchHandEntrance(
+        plan,
+        elapsed
+      );
+    this.handEntranceMotion.progress =
+      sample.progress;
+    this.applyHandEntranceSample(sample);
+    this.render();
+    this.scheduleHandEntranceFrame();
+    return true;
+  }
+
+  scheduleHandEntranceFrame() {
+    if (
+      this.handEntranceAnimationFrameId !==
+        null ||
+      !this.handEntranceMotion ||
+      this.disposed ||
+      this.contextLost ||
+      this.suspended ||
+      this.visibilitySuspended
+    ) {
+      return;
+    }
+    this.handEntrancePendingFrameCount = 1;
+    this.handEntrancePeakPendingFrameCount =
+      Math.max(
+        this.handEntrancePeakPendingFrameCount,
+        this.handEntrancePendingFrameCount
+      );
+    const generation =
+      this.handEntranceMotion.generation;
+    let frameId = null;
+    frameId = window.requestAnimationFrame(
+      (timestamp) => {
+        if (
+          this.handEntranceAnimationFrameId !==
+            frameId
+        ) {
+          return;
+        }
+        this.handEntranceAnimationFrameId =
+          null;
+        this.handEntrancePendingFrameCount = 0;
+        if (
+          !this.handEntranceMotion ||
+          this.handEntranceMotion.generation !==
+            generation
+        ) {
+          return;
+        }
+        this.stepHandEntrance(
+          timestamp,
+          generation
+        );
+      }
+    );
+    this.handEntranceAnimationFrameId =
+      frameId;
+  }
+
+  stepHandEntrance(timestamp, generation) {
+    const motion =
+      this.handEntranceMotion;
+    if (
+      !motion ||
+      motion.generation !== generation ||
+      this.disposed ||
+      this.contextLost ||
+      this.suspended ||
+      this.visibilitySuspended
+    ) {
+      return;
+    }
+    const sample =
+      sampleMatchHandEntrance(
+        motion.plan,
+        Math.max(
+          0,
+          timestamp - motion.startedAt
+        )
+      );
+    motion.progress = sample.progress;
+    this.applyHandEntranceSample(sample);
+    this.handEntranceFrameCount += 1;
+    this.render();
+
+    if (sample.complete) {
+      this.completeHandEntrance(
+        timestamp,
+        'animation'
+      );
+      return;
+    }
+    this.scheduleHandEntranceFrame();
+  }
+
+  completeHandEntrance(completedAt, completion) {
+    const motion =
+      this.handEntranceMotion;
+    if (!motion) {
+      return false;
+    }
+    if (
+      this.handEntranceAnimationFrameId !==
+        null
+    ) {
+      window.cancelAnimationFrame(
+        this.handEntranceAnimationFrameId
+      );
+    }
+    this.handEntranceAnimationFrameId = null;
+    this.handEntrancePendingFrameCount = 0;
+    const finalSample =
+      sampleMatchHandEntrance(
+        motion.plan,
+        motion.plan.totalMs
+      );
+    this.handEntranceMotion = null;
+    this.applyHandEntranceSample(
+      finalSample
+    );
+    this.handEntranceCompletedSequence =
+      motion.sequence;
+    this.handEntranceCompletedCount += 1;
+    this.lastHandEntrance = {
+      outcome: 'completed',
+      completion,
+      sequence: motion.sequence,
+      coverSequence:
+        motion.coverSequence,
+      startedAt: motion.startedAt,
+      completedAt,
+      durationMs: motion.plan.totalMs,
+      reducedMotion:
+        motion.reducedMotion,
+      finalSample
+    };
+    this.attachInputHandlers();
+    this.render();
+    return true;
+  }
+
+  cancelHandEntrance(
+    reason,
+    shouldRender,
+    settle
+  ) {
+    if (
+      this.handEntranceAnimationFrameId !==
+        null
+    ) {
+      window.cancelAnimationFrame(
+        this.handEntranceAnimationFrameId
+      );
+    }
+    this.handEntranceAnimationFrameId = null;
+    this.handEntrancePendingFrameCount = 0;
+    const motion =
+      this.handEntranceMotion;
+    if (motion) {
+      this.handEntranceCancelledCount += 1;
+      this.lastHandEntrance = {
+        outcome: 'cancelled',
+        reason,
+        sequence: motion.sequence,
+        coverSequence:
+          motion.coverSequence,
+        startedAt: motion.startedAt,
+        progress: motion.progress,
+        durationMs: motion.plan.totalMs,
+        reducedMotion:
+          motion.reducedMotion
+      };
+    }
+    this.handEntranceMotion = null;
+    this.handEntranceGeneration += 1;
+
+    if (
+      settle === true &&
+      this.handEntrancePresentation
+    ) {
+      this.applyCanonicalHandPoses();
+      this.handEntranceCompletedSequence =
+        this.handEntrancePresentation
+          .sequence;
+    }
+    if (shouldRender !== false) {
+      this.render();
+    }
+    if (settle === true) {
+      this.attachInputHandlers();
+    }
   }
 
   selectTopIntersection(intersections) {
@@ -2555,6 +3175,18 @@ class ModernGraphicsSurface {
       false,
       true
     );
+    const preservePendingStack =
+      this.handEntrancePresentation &&
+      this.handEntrancePresentation.state ===
+        'stacked' &&
+      this.handEntranceCompletedSequence !==
+        this.handEntrancePresentation
+          .sequence;
+    this.cancelHandEntrance(
+      'suspend',
+      false,
+      preservePendingStack !== true
+    );
     this.cancelPickup('suspend', false);
     this.clearLocalPreviewPlacement(
       'suspend',
@@ -3752,6 +4384,13 @@ class ModernGraphicsSurface {
       return;
     }
 
+    if (this.handEntranceMotion) {
+      this.cancelHandEntrance(
+        'hand-replaced',
+        false,
+        true
+      );
+    }
     this.cancelPickup('hand-replaced', false);
     this.clearLocalPreviewPlacement(
       'hand-replaced',
@@ -3807,6 +4446,7 @@ class ModernGraphicsSurface {
 
       this.commitHands(cards, loadedTextures);
       this.status = 'ready';
+      this.applyHandEntranceAfterCommit();
       this.attachInputHandlers();
       this.render();
       this.reportReady();
@@ -3840,6 +4480,8 @@ class ModernGraphicsSurface {
     const held = this.heldCard;
     const turnMotion =
       this.turnIndicatorMotion;
+    const handEntranceMotion =
+      this.handEntranceMotion;
     const interactive =
       this.isPresentationReady() &&
       !this.suspended &&
@@ -4092,6 +4734,25 @@ class ModernGraphicsSurface {
         interaction:
           'pickup-invalid-return-valid-placement-preview'
       },
+      handEntrancePolicy: {
+        cacheIdentity:
+          MATCH_HAND_ENTRANCE_CACHE_IDENTITY,
+        schemaVersion:
+          MATCH_HAND_ENTRANCE_SCHEMA_VERSION,
+        trigger:
+          'legacy-cover-open-settlement',
+        stackAnchor:
+          'last-current-card',
+        topmost:
+          'last-current-hand-index',
+        revealOrder:
+          'next-under-top-through-first',
+        defaults:
+          clonePlain(
+            MATCH_HAND_ENTRANCE_DEFAULTS
+          ),
+        gameplayAuthority: false
+      },
       pickupPolicy: {
         activation: 'click',
         maxHeld: 1,
@@ -4189,6 +4850,69 @@ class ModernGraphicsSurface {
       peakPendingFrameCount:
         this.peakPendingFrameCount,
       frameCount: this.frameCount,
+      handEntranceRafActive:
+        this.handEntranceAnimationFrameId !==
+          null,
+      handEntrancePendingFrameCount:
+        this.handEntrancePendingFrameCount,
+      handEntrancePeakPendingFrameCount:
+        this.handEntrancePeakPendingFrameCount,
+      handEntranceFrameCount:
+        this.handEntranceFrameCount,
+      handEntrance:
+        this.handEntrancePresentation
+          ? {
+              presentation:
+                clonePlain(
+                  this.handEntrancePresentation
+                ),
+              blocking:
+                this.isHandEntranceBlocking(),
+              completedSequence:
+                this.handEntranceCompletedSequence,
+              motion:
+                handEntranceMotion
+                  ? {
+                      generation:
+                        handEntranceMotion
+                          .generation,
+                      sequence:
+                        handEntranceMotion
+                          .sequence,
+                      coverSequence:
+                        handEntranceMotion
+                          .coverSequence,
+                      startedAt:
+                        handEntranceMotion
+                          .startedAt,
+                      durationMs:
+                        handEntranceMotion
+                          .plan.totalMs,
+                      progress:
+                        handEntranceMotion
+                          .progress,
+                      reducedMotion:
+                        handEntranceMotion
+                          .reducedMotion,
+                      plan:
+                        clonePlain(
+                          handEntranceMotion
+                            .plan
+                        )
+                    }
+                  : null
+            }
+          : null,
+      acceptedHandEntrances:
+        this.handEntranceAcceptedCount,
+      completedHandEntrances:
+        this.handEntranceCompletedCount,
+      cancelledHandEntrances:
+        this.handEntranceCancelledCount,
+      ignoredHandEntrancePresentations:
+        this.handEntranceIgnoredCount,
+      lastHandEntrance:
+        clonePlain(this.lastHandEntrance),
       turnIndicatorRafActive:
         this.turnIndicatorAnimationFrameId !==
           null,
@@ -4376,6 +5100,16 @@ class ModernGraphicsSurface {
                 )
               : 0,
             zOrder: card.zOrder,
+            renderOrder: entry
+              ? {
+                  body:
+                    entry.bodyMesh
+                      .renderOrder,
+                  face:
+                    entry.mesh
+                      .renderOrder
+                }
+              : null,
             pickable:
               card.side === 'player' &&
               !this.localPreviewPlacement &&
@@ -4405,6 +5139,11 @@ class ModernGraphicsSurface {
     }
 
     this.clearTurnIndicator();
+    this.cancelHandEntrance(
+      'dispose',
+      false,
+      true
+    );
     this.cancelPickup('dispose', false);
     this.clearLocalPreviewPlacement(
       'dispose',
@@ -7382,6 +8121,26 @@ window.gh.modernGraphics = {
     })
   }),
   lobbyPlaybook: lobbyPlaybookApi,
+  matchHandEntrance: Object.freeze({
+    cacheIdentity:
+      MATCH_HAND_ENTRANCE_CACHE_IDENTITY,
+    schemaVersion:
+      MATCH_HAND_ENTRANCE_SCHEMA_VERSION,
+    defaults:
+      MATCH_HAND_ENTRANCE_DEFAULTS,
+    createPlan(hands, options) {
+      return createMatchHandEntrancePlan(
+        hands,
+        options
+      );
+    },
+    samplePlan(plan, elapsedMs) {
+      return sampleMatchHandEntrance(
+        plan,
+        elapsedMs
+      );
+    }
+  }),
   gameBoxCover: Object.freeze({
     cacheIdentity:
       GAME_BOX_COVER_CACHE_IDENTITY,

@@ -184,6 +184,26 @@ gh.cover.prototype = {
             }
         }
     },
+    notifyGraphicsSettlement: function(target, sequence) {
+        if (this.graphics &&
+                this.graphics.handleGameCoverSettlement) {
+            try {
+                this.graphics.handleGameCoverSettlement({
+                    schemaVersion: 1,
+                    sequence: sequence,
+                    target: target,
+                    completedAtMs:
+                        window.performance &&
+                        typeof window.performance.now ===
+                            'function'
+                            ? window.performance.now()
+                            : new Date().getTime()
+                });
+            } catch (error) {
+                // A decorative Modern reaction cannot interrupt Legacy flow.
+            }
+        }
+    },
     publishTarget: function(target, easing) {
         this.presentationSequence += 1;
         this.presentation = this.buildPresentation(
@@ -203,8 +223,21 @@ gh.cover.prototype = {
             me.isopen = true;
             var rotation = (Math.random() * 60) - 30;
             me.publishTarget('open', 'cubic-in');
+            var openingSequence =
+                me.presentationSequence;
             me.left.animate({ translation: [-450, 0], rotation: rotation}, 2000, '<', function() {
                 $('#game-cover').hide();
+                if (me.isopen &&
+                        me.presentationSequence ===
+                            openingSequence &&
+                        me.presentation &&
+                        me.presentation.target ===
+                            'open') {
+                    me.notifyGraphicsSettlement(
+                        'open',
+                        openingSequence
+                    );
+                }
             });
             me.right.animate({ translation: [450, 0], rotation: Math.abs(rotation)}, 2000, '<', function() {
             });

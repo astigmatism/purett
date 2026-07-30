@@ -18,7 +18,7 @@ gh.graphics.prototype = {
             'purett.turnMarkerMotion.v1';
         this.threePackageVersion = '0.185.1';
         this.threeRevision = '185';
-        this.modernScriptUrl = '/js/modern/purett-modern-graphics.min.js?v=0.185.1-game-cover-hinge.1';
+        this.modernScriptUrl = '/js/modern/purett-modern-graphics.min.js?v=0.185.1-match-hand-fan.1';
         this.requestedMode = 'legacy';
         this.effectiveMode = 'legacy';
         this.loadState = 'idle';
@@ -44,6 +44,9 @@ gh.graphics.prototype = {
             player: [],
             opponent: []
         };
+        this.matchHandEntranceSequence = 0;
+        this.matchHandEntrance = null;
+        this.lastGameCoverSettlement = null;
         this.matchDropZones = [];
         this.matchTurnIndicator = null;
         this.lobbyPresentation = null;
@@ -244,6 +247,13 @@ gh.graphics.prototype = {
             typeof modernGraphics.createSurface === 'function' &&
             typeof modernGraphics.createLobbyHandSurface === 'function' &&
             typeof modernGraphics.createMotionStudioSurface === 'function' &&
+            modernGraphics.matchHandEntrance &&
+            modernGraphics.matchHandEntrance.cacheIdentity ===
+                '0.185.1-match-hand-fan.1' &&
+            typeof modernGraphics.matchHandEntrance.createPlan ===
+                'function' &&
+            typeof modernGraphics.matchHandEntrance.samplePlan ===
+                'function' &&
             modernGraphics.motionStudio &&
             modernGraphics.motionStudio.coin &&
             typeof modernGraphics.motionStudio.coin.normalize ===
@@ -583,6 +593,126 @@ gh.graphics.prototype = {
             }
         }
     },
+    armMatchHandEntrance: function() {
+        var settledCover =
+            this.lastGameCoverSettlement;
+        var coverPresentation =
+            this.gameCoverPresentation;
+        var alreadySettled =
+            settledCover &&
+            coverPresentation &&
+            settledCover.target === 'open' &&
+            coverPresentation.target ===
+                'open' &&
+            Number(settledCover.sequence) ===
+                Number(
+                    coverPresentation.sequence
+                );
+        this.matchHandEntranceSequence += 1;
+        this.matchHandEntrance = {
+            schemaVersion: 1,
+            sequence:
+                this.matchHandEntranceSequence,
+            state: alreadySettled
+                ? 'settled'
+                : 'stacked',
+            startedAtMs: alreadySettled
+                ? Number(
+                    settledCover.completedAtMs
+                )
+                : null,
+            coverSequence: alreadySettled
+                ? Number(
+                    settledCover.sequence
+                )
+                : null
+        };
+    },
+    handleGameCoverSettlement: function(settlement) {
+        var source = settlement || {};
+        var sequence = Number(source.sequence);
+        var completedAtMs =
+            Number(source.completedAtMs);
+        var surfaceState = null;
+        var canAnimate = false;
+
+        if (
+            Number(source.schemaVersion) !== 1 ||
+            source.target !== 'open' ||
+            !Number.isInteger(sequence) ||
+            sequence < 1 ||
+            !Number.isFinite(completedAtMs) ||
+            !this.gameCoverPresentation ||
+            this.gameCoverPresentation.target !==
+                'open' ||
+            Number(
+                this.gameCoverPresentation.sequence
+            ) !== sequence
+        ) {
+            return false;
+        }
+
+        this.lastGameCoverSettlement = {
+            schemaVersion: 1,
+            sequence: sequence,
+            target: 'open',
+            completedAtMs: completedAtMs
+        };
+        if (
+            !this.activeMatchVisible ||
+            this.lobbyVisible ||
+            !this.matchHandEntrance ||
+            this.matchHandEntrance.state !==
+                'stacked'
+        ) {
+            return false;
+        }
+
+        if (
+            this.effectiveMode === 'modern' &&
+            this.surface &&
+            this.surfaceKind === 'active-match' &&
+            typeof this.surface.getDebugState ===
+                'function'
+        ) {
+            try {
+                surfaceState =
+                    this.surface.getDebugState();
+                canAnimate =
+                    surfaceState &&
+                    surfaceState.ready === true;
+            } catch (error) {
+                canAnimate = false;
+            }
+        }
+
+        this.matchHandEntrance = {
+            schemaVersion: 1,
+            sequence:
+                this.matchHandEntrance.sequence,
+            state: canAnimate
+                ? 'fanning'
+                : 'settled',
+            startedAtMs: completedAtMs,
+            coverSequence: sequence
+        };
+
+        if (
+            this.effectiveMode === 'modern' &&
+            this.surface &&
+            this.surfaceKind === 'active-match' &&
+            !this.studioOpen
+        ) {
+            try {
+                this.renderCurrentSurface();
+                this.updateModernStatus();
+            } catch (error) {
+                this.disposeSurface();
+                this.activateLegacy(error);
+            }
+        }
+        return true;
+    },
     ensureGameCoverSurface: function() {
         var me = this;
         var host;
@@ -749,12 +879,21 @@ gh.graphics.prototype = {
         }
     },
     setActiveMatch: function(active) {
+        var wasActive =
+            this.activeMatchVisible;
         this.activeMatchVisible = active === true;
+        if (
+            this.activeMatchVisible &&
+            !wasActive
+        ) {
+            this.armMatchHandEntrance();
+        }
         if (!this.activeMatchVisible) {
             this.matchHands = {
                 player: [],
                 opponent: []
             };
+            this.matchHandEntrance = null;
             this.matchDropZones = [];
             this.matchTurnIndicator = null;
             if (this.game && this.game.setModernMatchReady) {
@@ -795,6 +934,7 @@ gh.graphics.prototype = {
             player: [],
             opponent: []
         };
+        this.matchHandEntrance = null;
         this.matchDropZones = [];
         this.matchTurnIndicator = null;
         if (this.game && this.game.setModernMatchReady) {
@@ -832,12 +972,15 @@ gh.graphics.prototype = {
         this.releaseStartupModernGate();
         this.lobbyVisible = false;
         this.lobbyCards = [];
-        this.matchHands = {
-            player: [],
-            opponent: []
-        };
-        this.matchDropZones = [];
-        this.matchTurnIndicator = null;
+        if (!this.activeMatchVisible) {
+            this.matchHands = {
+                player: [],
+                opponent: []
+            };
+            this.matchHandEntrance = null;
+            this.matchDropZones = [];
+            this.matchTurnIndicator = null;
+        }
         this.lobbyPresentation = null;
         this.cancelLobbyPreview('cancelled-view-change');
         if (this.game && this.game.setModernMatchReady) {
@@ -1013,6 +1156,12 @@ gh.graphics.prototype = {
                 this.matchHands,
                 this.matchDropZones
             );
+            if (typeof this.surface.setHandEntrance ===
+                    'function') {
+                this.surface.setHandEntrance(
+                    this.matchHandEntrance
+                );
+            }
             if (typeof this.surface.setTurnIndicator ===
                     'function') {
                 this.surface.setTurnIndicator(
@@ -1586,6 +1735,14 @@ gh.graphics.prototype = {
             lobbyPresentationDeliveredId:
                 this.lobbyPresentationDeliveredId,
             matchHands: this.clonePlain(this.matchHands),
+            matchHandEntrance:
+                this.clonePlain(
+                    this.matchHandEntrance
+                ),
+            lastGameCoverSettlement:
+                this.clonePlain(
+                    this.lastGameCoverSettlement
+                ),
             matchDropZones:
                 this.clonePlain(this.matchDropZones),
             matchTurnIndicator:

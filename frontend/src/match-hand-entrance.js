@@ -1,6 +1,6 @@
 export const MATCH_HAND_ENTRANCE_SCHEMA_VERSION = 1;
 export const MATCH_HAND_ENTRANCE_CACHE_IDENTITY =
-  '0.185.1-match-hand-fan.1';
+  '0.185.1-match-hand-fan.2';
 
 export const MATCH_HAND_ENTRANCE_DEFAULTS = Object.freeze({
   cardDurationMs: 620,
@@ -171,8 +171,7 @@ function buildSidePlans(cards, side, defaults) {
     return [];
   }
 
-  const stackCard =
-    normalized[normalized.length - 1];
+  const stackCard = normalized[0];
   const stack = stackCard.destination;
   const maximumTravel = normalized.reduce(
     (maximum, card) =>
@@ -188,8 +187,8 @@ function buildSidePlans(cards, side, defaults) {
   const sideSign = side === 'player'
     ? -1
     : 1;
-  const lastMovingIndex =
-    normalized.length - 2;
+  const lastHandIndex =
+    normalized.length - 1;
 
   return normalized.map((card) => {
     const stationary =
@@ -204,7 +203,7 @@ function buildSidePlans(cards, side, defaults) {
       : 0;
     const revealOrdinal = stationary
       ? -1
-      : lastMovingIndex -
+      : lastHandIndex -
         card.handIndex;
     const delayMs = stationary
       ? 0
@@ -217,7 +216,7 @@ function buildSidePlans(cards, side, defaults) {
       handIndex: card.handIndex,
       topmostInStack:
         card.handIndex ===
-          stackCard.handIndex,
+          lastHandIndex,
       stationary,
       revealOrdinal,
       source: {
@@ -265,9 +264,9 @@ export function createMatchHandEntrancePlan(
     schemaVersion:
       MATCH_HAND_ENTRANCE_SCHEMA_VERSION,
     subject: 'match-hands',
-    stackAnchor: 'last-current-card',
+    stackAnchor: 'first-current-card',
     revealOrder:
-      'next-under-top-through-first',
+      'last-current-card-through-second',
     easing: 'cubic-out',
     defaults,
     totalMs,

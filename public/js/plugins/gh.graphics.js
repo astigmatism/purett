@@ -18,7 +18,7 @@ gh.graphics.prototype = {
             'purett.turnMarkerMotion.v1';
         this.threePackageVersion = '0.185.1';
         this.threeRevision = '185';
-        this.modernScriptUrl = '/js/modern/purett-modern-graphics.min.js?v=0.185.1-match-hand-fan.1';
+        this.modernScriptUrl = '/js/modern/purett-modern-graphics.min.js?v=0.185.1-match-hand-fan.2';
         this.requestedMode = 'legacy';
         this.effectiveMode = 'legacy';
         this.loadState = 'idle';
@@ -249,7 +249,7 @@ gh.graphics.prototype = {
             typeof modernGraphics.createMotionStudioSurface === 'function' &&
             modernGraphics.matchHandEntrance &&
             modernGraphics.matchHandEntrance.cacheIdentity ===
-                '0.185.1-match-hand-fan.1' &&
+                '0.185.1-match-hand-fan.2' &&
             typeof modernGraphics.matchHandEntrance.createPlan ===
                 'function' &&
             typeof modernGraphics.matchHandEntrance.samplePlan ===

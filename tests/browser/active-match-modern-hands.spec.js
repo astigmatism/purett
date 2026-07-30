@@ -39,6 +39,20 @@ async function installPassiveMatchFixture(page, options = {}) {
     const game = gh.manager.game;
     const lobbyCards =
       gh.manager.menu.currentHandCards.slice(0, 5);
+    const playerCount =
+      Number.isInteger(settings.playerCount)
+        ? Math.max(
+            0,
+            Math.min(5, settings.playerCount)
+          )
+        : 5;
+    const opponentCount =
+      Number.isInteger(settings.opponentCount)
+        ? Math.max(
+            0,
+            Math.min(5, settings.opponentCount)
+          )
+        : 5;
     const toVisibleArtKey = textureUrl => textureUrl
       .replace(/^\/images\/cards\//, '')
       .replace(/\.png$/, '');
@@ -107,28 +121,32 @@ async function installPassiveMatchFixture(page, options = {}) {
         : (index === 0 && settings.stallTexture
           ? 'stalled-modern-match-hand'
           : legacyImage);
-      game.p1h.push({
-        gameCardId: `player-${index + 1}`,
-        usercardid: `player-user-card-${index + 1}`,
-        image: legacyImage,
-        visibleImage,
-        owner: 'demo',
-        purchased: 0,
-        card: null,
-        x: 0,
-        y: 0
-      });
-      game.p2h.push({
-        gameCardId: `opponent-${index + 1}`,
-        usercardid: `opponent-user-card-${index + 1}`,
-        image: 'cardBack',
-        visibleImage: 'cardBack',
-        owner: '1',
-        purchased: 0,
-        card: null,
-        x: 0,
-        y: 0
-      });
+      if (index < playerCount) {
+        game.p1h.push({
+          gameCardId: `player-${index + 1}`,
+          usercardid: `player-user-card-${index + 1}`,
+          image: legacyImage,
+          visibleImage,
+          owner: 'demo',
+          purchased: 0,
+          card: null,
+          x: 0,
+          y: 0
+        });
+      }
+      if (index < opponentCount) {
+        game.p2h.push({
+          gameCardId: `opponent-${index + 1}`,
+          usercardid: `opponent-user-card-${index + 1}`,
+          image: 'cardBack',
+          visibleImage: 'cardBack',
+          owner: '1',
+          purchased: 0,
+          card: null,
+          x: 0,
+          y: 0
+        });
+      }
     });
 
     game.drawBoardDrops();
@@ -275,7 +293,53 @@ async function installControlledMatchFrameClock(page) {
   });
 }
 
-test('fans both stacked hands only after an accepted cover-open settlement', async ({page}) => {
+async function releaseWaitingMatchHandEntrance(page) {
+  return page.evaluate(() => {
+    const graphics =
+      gh.manager.graphics;
+    const current =
+      graphics.clonePlain(
+        graphics.gameCoverPresentation
+      );
+    const completedAtMs =
+      performance.now();
+    const coverSequence =
+      Number(current.sequence) + 1;
+    current.sequence = coverSequence;
+    current.target = 'open';
+    current.startedAtMs =
+      completedAtMs - 2000;
+    current.durationMs = 2000;
+    current.easing = 'cubic-in';
+    graphics.gameCoverPresentation =
+      current;
+    const accepted =
+      graphics.handleGameCoverSettlement({
+        schemaVersion: 1,
+        sequence: coverSequence,
+        target: 'open',
+        completedAtMs
+      });
+    const surface =
+      graphics.getState().surface;
+    return {
+      accepted,
+      startedAt:
+        surface.handEntrance.motion
+          .startedAt,
+      durationMs:
+        surface.handEntrance.motion
+          .durationMs,
+      pending:
+        surface
+          .handEntrancePendingFrameCount,
+      interactive:
+        surface.interactive
+    };
+  });
+}
+
+test('spreads both top-stacked hands downward only after an accepted cover-open settlement', async ({page}) => {
   const moveRequests = [];
   page.on('request', request => {
     const requestUrl =
@@ -355,11 +419,11 @@ test('fans both stacked hands only after an accepted cover-open settlement', asy
         card.current
       )
     ).toEqual([
-      {x: expectedX, y: 311, z: 0},
-      {x: expectedX, y: 311, z: 0},
-      {x: expectedX, y: 311, z: 0},
-      {x: expectedX, y: 311, z: 0},
-      {x: expectedX, y: 311, z: 0}
+      {x: expectedX, y: 91, z: 0},
+      {x: expectedX, y: 91, z: 0},
+      {x: expectedX, y: 91, z: 0},
+      {x: expectedX, y: 91, z: 0},
+      {x: expectedX, y: 91, z: 0}
     ]);
     cards.forEach(card => {
       expect(card.rotation).toEqual({
@@ -395,49 +459,10 @@ test('fans both stacked hands only after an accepted cover-open settlement', asy
   await installControlledMatchFrameClock(
     page
   );
-  const running = await page.evaluate(() => {
-    const graphics =
-      gh.manager.graphics;
-    const current =
-      graphics.clonePlain(
-        graphics.gameCoverPresentation
-      );
-    const completedAtMs =
-      performance.now();
-    const coverSequence =
-      Number(current.sequence) + 1;
-    current.sequence = coverSequence;
-    current.target = 'open';
-    current.startedAtMs =
-      completedAtMs - 2000;
-    current.durationMs = 2000;
-    current.easing = 'cubic-in';
-    graphics.gameCoverPresentation =
-      current;
-    const accepted =
-      graphics.handleGameCoverSettlement({
-        schemaVersion: 1,
-        sequence: coverSequence,
-        target: 'open',
-        completedAtMs
-      });
-    const surface =
-      graphics.getState().surface;
-    return {
-      accepted,
-      startedAt:
-        surface.handEntrance.motion
-          .startedAt,
-      durationMs:
-        surface.handEntrance.motion
-          .durationMs,
-      pending:
-        surface
-          .handEntrancePendingFrameCount,
-      interactive:
-        surface.interactive
-    };
-  });
+  const running =
+    await releaseWaitingMatchHandEntrance(
+      page
+    );
   expect(running).toMatchObject({
     accepted: true,
     durationMs: 785,
@@ -493,67 +518,67 @@ test('fans both stacked hands only after an accepted cover-open settlement', asy
     .toBeLessThan(1);
   expect(midpoint.interactive)
     .toBe(false);
-  expect(midpoint.player[4].position).toEqual({
+  expect(midpoint.player[0].position).toEqual({
     x: 86.5,
-    y: 311,
+    y: 91,
     z: 0
   });
-  expect(midpoint.opponent[4].position).toEqual({
+  expect(midpoint.opponent[0].position).toEqual({
     x: 608.5,
-    y: 311,
+    y: 91,
     z: 0
   });
-  expect(midpoint.player[3].position)
+  expect(midpoint.player[4].position)
     .toEqual({
-      x: 85.5,
-      y: 262.875,
-      z: 4.5
+      x: 82.5,
+      y: 283.5,
+      z: 18
     });
-  expect(midpoint.opponent[3].position)
+  expect(midpoint.opponent[4].position)
     .toEqual({
-      x: 609.5,
-      y: 262.875,
-      z: 4.5
+      x: 612.5,
+      y: 283.5,
+      z: 18
     });
   expect(
-    midpoint.player[3].rotation.x
+    midpoint.player[4].rotation.x
   ).toBeCloseTo(
-    -1.125 * (Math.PI / 180),
+    -4.5 * (Math.PI / 180),
     10
   );
   expect(
-    midpoint.player[3].rotation.y
+    midpoint.player[4].rotation.y
   ).toBeCloseTo(
-    -0.5 * (Math.PI / 180),
+    -2 * (Math.PI / 180),
     10
   );
   expect(
-    midpoint.player[3].rotation.z
+    midpoint.player[4].rotation.z
   ).toBeCloseTo(
-    -0.375 * (Math.PI / 180),
+    -1.5 * (Math.PI / 180),
     10
   );
   expect(
-    midpoint.opponent[3].rotation.x
+    midpoint.opponent[4].rotation.x
   ).toBeCloseTo(
-    midpoint.player[3].rotation.x,
+    midpoint.player[4].rotation.x,
     10
   );
   expect(
-    midpoint.opponent[3].rotation.y
+    midpoint.opponent[4].rotation.y
   ).toBeCloseTo(
-    -midpoint.player[3].rotation.y,
+    -midpoint.player[4].rotation.y,
     10
   );
   expect(
-    midpoint.opponent[3].rotation.z
+    midpoint.opponent[4].rotation.z
   ).toBeCloseTo(
-    -midpoint.player[3].rotation.z,
+    -midpoint.player[4].rotation.z,
     10
   );
   expect(
-    midpoint.player[3].position.x +
-    midpoint.opponent[3].position.x
+    midpoint.player[4].position.x +
+    midpoint.opponent[4].position.x
   ).toBeCloseTo(695, 8);
 
   const settled =
@@ -635,6 +660,171 @@ test('fans both stacked hands only after an accepted cover-open settlement', asy
     });
   });
   expect(moveRequests).toHaveLength(0);
+});
+
+test('top-anchors resumed partial hands independently without revealing opponent cards', async ({page}) => {
+  await loginWithLegacyGraphics(page);
+  await installPassiveMatchFixture(page, {
+    holdEntrance: true,
+    playerCount: 1,
+    opponentCount: 3
+  });
+  await selectGraphicsMode(page, 'modern');
+  await waitForModernMatch(page);
+
+  const state = await page.evaluate(() =>
+    gh.manager.graphics.getState()
+  );
+  const player = state.surface.cards.filter(
+    card => card.side === 'player'
+  );
+  const opponent = state.surface.cards.filter(
+    card => card.side === 'opponent'
+  );
+
+  expect(state.matchHandEntrance.state)
+    .toBe('stacked');
+  expect(state.surface.handEntrance.blocking)
+    .toBe(true);
+  expect(player).toHaveLength(1);
+  expect(player[0].handIndex).toBe(0);
+  expect(player[0].currentPosition).toEqual({
+    x: 86.5,
+    y: 91,
+    z: 0
+  });
+  expect(opponent).toHaveLength(3);
+  expect(
+    opponent.map(card =>
+      card.screenRect.y +
+      (card.screenRect.height / 2)
+    )
+  ).toEqual([91, 146, 201]);
+  expect(
+    opponent.map(card =>
+      card.currentPosition
+    )
+  ).toEqual([
+    {x: 608.5, y: 91, z: 0},
+    {x: 608.5, y: 91, z: 0},
+    {x: 608.5, y: 91, z: 0}
+  ]);
+  expect(
+    opponent.map(card =>
+      card.renderOrder.face
+    )
+  ).toEqual(
+    opponent.map(card =>
+      card.renderOrder.face
+    ).slice().sort(
+      (left, right) => left - right
+    )
+  );
+  opponent.forEach(card => {
+    expect(card.face).toBe('back');
+    expect(card.visibleArtKey)
+      .toBe('cardBack');
+    expect(card.textureUrl)
+      .toBe('/images/cards/cardBack.png');
+  });
+
+  await installControlledMatchFrameClock(
+    page
+  );
+  const running =
+    await releaseWaitingMatchHandEntrance(
+      page
+    );
+  expect(running).toMatchObject({
+    accepted: true,
+    durationMs: 675,
+    pending: 1,
+    interactive: false
+  });
+
+  const settled =
+    await page.evaluate(({timestamp}) => {
+      window.__modernMatchFrameClock
+        .advance(timestamp);
+      const surface =
+        gh.manager.graphics
+          .getState().surface;
+      const pendingClock =
+        window.__modernMatchFrameClock
+          .pending();
+      window.__modernMatchFrameClock
+        .restore();
+      return {
+        pendingClock,
+        entrance:
+          surface.handEntrance,
+        interactive:
+          surface.interactive,
+        cards: surface.cards.map(
+          card => ({
+            side: card.side,
+            handIndex:
+              card.handIndex,
+            current:
+              card.currentPosition,
+            rotation:
+              card.rotationRadians
+          })
+        )
+      };
+    }, {
+      timestamp:
+        running.startedAt +
+        running.durationMs
+    });
+  expect(settled.pendingClock).toBe(0);
+  expect(settled.entrance).toMatchObject({
+    blocking: false,
+    motion: null
+  });
+  expect(settled.interactive).toBe(true);
+  expect(settled.cards).toEqual([
+    {
+      side: 'player',
+      handIndex: 0,
+      current: {
+        x: 86.5,
+        y: 91,
+        z: 0
+      },
+      rotation: {x: 0, y: 0, z: 0}
+    },
+    {
+      side: 'opponent',
+      handIndex: 0,
+      current: {
+        x: 608.5,
+        y: 91,
+        z: 0
+      },
+      rotation: {x: 0, y: 0, z: 0}
+    },
+    {
+      side: 'opponent',
+      handIndex: 1,
+      current: {
+        x: 608.5,
+        y: 146,
+        z: 0
+      },
+      rotation: {x: 0, y: 0, z: 0}
+    },
+    {
+      side: 'opponent',
+      handIndex: 2,
+      current: {
+        x: 608.5,
+        y: 201,
+        z: 0
+      },
+      rotation: {x: 0, y: 0, z: 0}
+    }
+  ]);
 });
 
 test('turn coin snaps to its exact center, flies in 3D between players, and cancels without gameplay authority', async ({page}) => {

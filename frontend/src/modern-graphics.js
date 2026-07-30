@@ -1295,10 +1295,7 @@ class ModernGraphicsSurface {
       if (sideEntries.length === 0) {
         return;
       }
-      const stackEntry =
-        sideEntries[
-          sideEntries.length - 1
-        ];
+      const stackEntry = sideEntries[0];
       sideEntries.forEach((entry) => {
         entry.held = false;
         entry.placed = false;
@@ -4742,11 +4739,11 @@ class ModernGraphicsSurface {
         trigger:
           'legacy-cover-open-settlement',
         stackAnchor:
-          'last-current-card',
+          'first-current-card',
         topmost:
           'last-current-hand-index',
         revealOrder:
-          'next-under-top-through-first',
+          'last-current-card-through-second',
         defaults:
           clonePlain(
             MATCH_HAND_ENTRANCE_DEFAULTS

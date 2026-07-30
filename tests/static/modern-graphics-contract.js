@@ -109,10 +109,10 @@ try {
       'legacy-cover-open-settlement'
     ) &&
       modernBundle.includes(
-        '0.185.1-match-hand-fan.1'
+        '0.185.1-match-hand-fan.2'
       ) &&
       modernBundle.includes(
-        'next-under-top-through-first'
+        'last-current-card-through-second'
       ) &&
       modernBundle.includes(
         'matchHandEntrance'
@@ -124,7 +124,7 @@ try {
 
   assert(
     coordinator.includes(
-      '/js/modern/purett-modern-graphics.min.js?v=0.185.1-match-hand-fan.1'
+      '/js/modern/purett-modern-graphics.min.js?v=0.185.1-match-hand-fan.2'
     ),
     'coordinator does not use the match-hand-fan bundle cache revision'
   );
@@ -207,7 +207,7 @@ try {
       ) &&
       coordinator.includes(
         "modernGraphics.matchHandEntrance.cacheIdentity ===\n" +
-        "                '0.185.1-match-hand-fan.1'"
+        "                '0.185.1-match-hand-fan.2'"
       ) &&
       coordinator.includes(
         'armMatchHandEntrance: function()'
@@ -252,11 +252,11 @@ try {
   );
   assert(
     matchHandEntranceSource.includes(
-      "stackAnchor: 'last-current-card'"
+      "stackAnchor: 'first-current-card'"
     ) &&
       matchHandEntranceSource.includes(
         "revealOrder:\n" +
-        "      'next-under-top-through-first'"
+        "      'last-current-card-through-second'"
       ) &&
       matchHandEntranceSource.includes(
         'cardDurationMs: 620'
@@ -284,6 +284,9 @@ try {
       ) &&
       activeSurfaceSource.includes(
         'this.isHandEntranceBlocking()'
+      ) &&
+      activeSurfaceSource.includes(
+        'const stackEntry = sideEntries[0];'
       ) &&
       activeSurfaceSource.includes(
         "'late-readiness'"

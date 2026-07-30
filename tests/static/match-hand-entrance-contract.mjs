@@ -52,9 +52,9 @@ try {
       MATCH_HAND_ENTRANCE_SCHEMA_VERSION &&
       plan.subject === 'match-hands' &&
       plan.stackAnchor ===
-        'last-current-card' &&
+        'first-current-card' &&
       plan.revealOrder ===
-        'next-under-top-through-first' &&
+        'last-current-card-through-second' &&
       plan.easing === 'cubic-out',
     'the match-hand entrance plan metadata changed'
   );
@@ -84,22 +84,26 @@ try {
       sideCards.length === 5 &&
         sideCards.every((entry) =>
           close(entry.source.x, expectedX) &&
-          close(entry.source.y, 311)
+          close(entry.source.y, 91)
         ),
-      `${side} does not stack on its bottom card anchor`
+      `${side} does not stack on its top hand anchor`
     );
     assert(
-      sideCards[4].stationary === true &&
+      sideCards[0].stationary === true &&
+        sideCards[0].topmostInStack === false &&
+        sideCards[0].durationMs === 0 &&
+        sideCards[4].stationary === false &&
         sideCards[4].topmostInStack === true &&
-        sideCards[4].durationMs === 0,
-      `${side} bottommost card is not topmost and stationary`
+        sideCards[4].durationMs === 620,
+      `${side} stack order or stationary top slot changed`
     );
     assert(
-      sideCards[3].delayMs === 0 &&
-        sideCards[2].delayMs === 55 &&
-        sideCards[1].delayMs === 110 &&
-        sideCards[0].delayMs === 165,
-      `${side} reveal order is not front-to-back`
+      sideCards[4].delayMs === 0 &&
+        sideCards[3].delayMs === 55 &&
+        sideCards[2].delayMs === 110 &&
+        sideCards[1].delayMs === 165 &&
+        sideCards[0].delayMs === 0,
+      `${side} reveal order is not bottommost-through-second`
     );
   }
 
@@ -109,7 +113,7 @@ try {
     initial.complete === false &&
       initial.progress === 0 &&
       initial.cards.every((entry) =>
-        close(entry.screenY, 311) &&
+        close(entry.screenY, 91) &&
         close(entry.depth, 0) &&
         close(entry.rotationX, 0) &&
         close(entry.rotationY, 0) &&
@@ -157,26 +161,27 @@ try {
     );
   }
 
-  const firstCardApex =
+  const farthestCardApex =
     sampleMatchHandEntrance(
       plan,
-      475
+      310
     );
   const apexPlayer =
-    firstCardApex.cards.find(
+    farthestCardApex.cards.find(
       (entry) =>
         entry.side === 'player' &&
-        entry.handIndex === 0
+        entry.handIndex === 4
     );
   const apexOpponent =
-    firstCardApex.cards.find(
+    farthestCardApex.cards.find(
       (entry) =>
         entry.side === 'opponent' &&
-        entry.handIndex === 0
+        entry.handIndex === 4
     );
   assert(
     close(apexPlayer.depth, 18) &&
       close(apexPlayer.screenX, 82.5) &&
+      close(apexPlayer.screenY, 283.5) &&
       close(
         apexPlayer.rotationX,
         -4.5 * (Math.PI / 180)
@@ -191,6 +196,7 @@ try {
       ) &&
       close(apexOpponent.depth, 18) &&
       close(apexOpponent.screenX, 612.5) &&
+      close(apexOpponent.screenY, 283.5) &&
       close(
         apexOpponent.rotationX,
         apexPlayer.rotationX
@@ -220,6 +226,7 @@ try {
       );
     sample.cards.forEach((entry, index) => {
       const prior = previous.cards[index];
+      const cardPlan = plan.cards[index];
       [
         entry.screenX,
         entry.screenY,
@@ -236,10 +243,20 @@ try {
         );
       });
       assert(
-        entry.screenY <=
-          prior.screenY + 1e-9 &&
+        entry.screenY >=
+          prior.screenY - 1e-9 &&
+          entry.screenY >=
+            Math.min(
+              cardPlan.source.y,
+              cardPlan.destination.y
+            ) - 1e-9 &&
+          entry.screenY <=
+            Math.max(
+              cardPlan.source.y,
+              cardPlan.destination.y
+            ) + 1e-9 &&
           entry.rawProgress >=
-          prior.rawProgress - 1e-9,
+            prior.rawProgress - 1e-9,
         'the vertical fan reversed direction'
       );
       assert(
@@ -346,6 +363,60 @@ try {
       threePlan.totalMs === 675,
     'partial-hand timing or settlement changed'
   );
+  for (let count = 1; count <= 5; count += 1) {
+    const partialPlan =
+      createMatchHandEntrancePlan(
+        hands(count)
+      );
+    const expectedTotal =
+      count === 1
+        ? 0
+        : 620 + ((count - 2) * 55);
+    assert(
+      partialPlan.totalMs === expectedTotal,
+      `the ${count}-card batch duration changed`
+    );
+    for (
+      const side of ['player', 'opponent']
+    ) {
+      const sideCards =
+        partialPlan.cards.filter(
+          entry => entry.side === side
+        );
+      assert(
+        sideCards.length === count &&
+          sideCards.every(entry =>
+            close(entry.source.y, 91)
+          ) &&
+          sideCards[0].stationary === true &&
+          sideCards.filter(entry =>
+            entry.stationary
+          ).length === 1 &&
+          sideCards[count - 1]
+            .topmostInStack === true &&
+          sideCards.filter(entry =>
+            entry.topmostInStack
+          ).length === 1,
+        `the ${count}-card ${side} pile is not top-anchored`
+      );
+      sideCards.slice(1).forEach(entry => {
+        assert(
+          entry.stationary === false &&
+            entry.revealOrdinal ===
+              (count - 1) -
+                entry.handIndex &&
+            entry.delayMs ===
+              (
+                (
+                  count - 1 -
+                  entry.handIndex
+                ) * 55
+              ),
+          `the ${count}-card ${side} reveal order changed`
+        );
+      });
+    }
+  }
   assert(
     asymmetricPlan.cards.length === 8 &&
       asymmetricPlan.totalMs === 785 &&
@@ -354,21 +425,21 @@ try {
           entry.side === 'player'
         )
         .every(entry =>
-          close(entry.source.y, 201)
+          close(entry.source.y, 91)
         ) &&
       asymmetricPlan.cards
         .filter(entry =>
           entry.side === 'opponent'
         )
         .every(entry =>
-          close(entry.source.y, 311)
+          close(entry.source.y, 91)
         ) &&
       opponentOnlyPlan.cards.length ===
         4 &&
       opponentOnlyPlan.cards.every(
         entry =>
           entry.side === 'opponent' &&
-          close(entry.source.y, 256)
+          close(entry.source.y, 91)
       ) &&
       JSON.stringify(asymmetricHands) ===
         asymmetricBefore,
@@ -440,7 +511,7 @@ try {
 
   assert(
     MATCH_HAND_ENTRANCE_CACHE_IDENTITY ===
-      '0.185.1-match-hand-fan.1' &&
+      '0.185.1-match-hand-fan.2' &&
     MATCH_HAND_ENTRANCE_DEFAULTS
       .cardDurationMs === 620 &&
       MATCH_HAND_ENTRANCE_DEFAULTS

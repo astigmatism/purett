@@ -145,8 +145,9 @@ body::before {
 #game-cover.graphics-modern-cover-ready {
     pointer-events: auto;
 }
+#game-cover.graphics-modern-cover-ready #legacyGameCover,
 #game-cover.graphics-modern-cover-ready .legacy-game-cover-canvas {
-    visibility: hidden;
+    visibility: hidden !important;
 }
 #game-cover.graphics-modern-cover-ready #modernGameCover {
     display: block;

@@ -92,7 +92,39 @@ try {
     modernReady: false,
     appended: []
   };
-  const documentObject = {};
+  const legacyCanvasNode = {
+    attributes: {},
+    style: {
+      visibility: ''
+    },
+    getAttribute(name) {
+      return Object.prototype
+        .hasOwnProperty.call(
+          this.attributes,
+          name
+        )
+        ? this.attributes[name]
+        : null;
+    },
+    setAttribute(name, value) {
+      this.attributes[name] =
+        String(value);
+    }
+  };
+  const modernHostNode = {
+    attributes: {},
+    getAttribute:
+      legacyCanvasNode.getAttribute,
+    setAttribute:
+      legacyCanvasNode.setAttribute
+  };
+  const documentObject = {
+    getElementById(id) {
+      return id === 'modernGameCover'
+        ? modernHostNode
+        : null;
+    }
+  };
 
   function jquery(target) {
     return {
@@ -134,7 +166,7 @@ try {
   }
 
   const canvas = {
-    canvas: {},
+    canvas: legacyCanvasNode,
     elements: [],
     image(
       textureUrl,
@@ -221,6 +253,25 @@ try {
   assert(
     canvas.elements.length === 2,
     'Legacy cover no longer owns exactly two Raphael images'
+  );
+  assert(
+    legacyCanvasNode.getAttribute(
+      'id'
+    ) === 'legacyGameCover' &&
+      legacyCanvasNode.getAttribute(
+        'class'
+      ) ===
+        'legacy-game-cover-canvas' &&
+      legacyCanvasNode.getAttribute(
+        'data-cover-renderer'
+      ) === 'legacy' &&
+      legacyCanvasNode.getAttribute(
+        'data-cover-renderer-active'
+      ) === 'true' &&
+      legacyCanvasNode.getAttribute(
+        'aria-hidden'
+      ) === 'false',
+    'the Raphael root lacks its native Legacy renderer identity'
   );
   assert(
     canvas.elements[0].textureUrl ===
@@ -369,13 +420,35 @@ try {
 
   cover.setModernCoverReady(true);
   assert(
-    dom.modernReady === true,
-    'Modern-ready visual gate did not engage'
+    dom.modernReady === true &&
+      legacyCanvasNode.style
+        .visibility === 'hidden' &&
+      legacyCanvasNode.getAttribute(
+        'aria-hidden'
+      ) === 'true' &&
+      legacyCanvasNode.getAttribute(
+        'data-cover-renderer-active'
+      ) === 'false' &&
+      modernHostNode.getAttribute(
+        'data-cover-renderer-active'
+      ) === 'true',
+    'Modern-ready visual gate did not exclusively hide the Legacy paper'
   );
   cover.setModernCoverReady(false);
   assert(
-    dom.modernReady === false,
-    'Legacy cover was not restored'
+    dom.modernReady === false &&
+      legacyCanvasNode.style
+        .visibility === '' &&
+      legacyCanvasNode.getAttribute(
+        'aria-hidden'
+      ) === 'false' &&
+      legacyCanvasNode.getAttribute(
+        'data-cover-renderer-active'
+      ) === 'true' &&
+      modernHostNode.getAttribute(
+        'data-cover-renderer-active'
+      ) === 'false',
+    'Legacy cover was not restored exclusively'
   );
 
   let isolatedFailures = 0;

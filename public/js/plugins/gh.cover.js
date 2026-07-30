@@ -10,11 +10,13 @@ gh.cover.prototype = {
     graphics:   null,
     presentationSequence: 0,
     presentation: null,
+    legacyCanvasVisibility: '',
     
     initialize: function(wrapper) {
         var me = this;
         this.graphics = null;
         this.presentationSequence = 0;
+        this.legacyCanvasVisibility = '';
         this.presentation = this.buildPresentation(
             'closed',
             null,
@@ -26,15 +28,45 @@ gh.cover.prototype = {
             $(wrapper).append('<div id="game-cover" class="abs"></div>');
             
             me.canvas = Raphael("game-cover", 755, 562);
-            $(me.canvas.canvas).addClass(
-                'legacy-game-cover-canvas'
-            );
+            if (me.canvas.canvas &&
+                    me.canvas.canvas.setAttribute) {
+                var legacyCanvasClass =
+                    me.canvas.canvas.getAttribute('class') || '';
+                me.canvas.canvas.setAttribute(
+                    'id',
+                    'legacyGameCover'
+                );
+                me.canvas.canvas.setAttribute(
+                    'class',
+                    (legacyCanvasClass
+                        ? legacyCanvasClass + ' '
+                        : '') +
+                        'legacy-game-cover-canvas'
+                );
+                me.canvas.canvas.setAttribute(
+                    'data-cover-renderer',
+                    'legacy'
+                );
+                me.canvas.canvas.setAttribute(
+                    'data-cover-renderer-active',
+                    'true'
+                );
+                me.canvas.canvas.setAttribute(
+                    'aria-hidden',
+                    'false'
+                );
+                me.legacyCanvasVisibility =
+                    me.canvas.canvas.style.visibility || '';
+            }
             
             
             me.left = me.canvas.image('/images/left.png', 0, 0, 377, 562);
             me.right = me.canvas.image('/images/right.png', 376, 0, 378, 562);
             $('#game-cover').append(
-                '<div id="modernGameCover" aria-hidden="true"></div>'
+                '<div id="modernGameCover" ' +
+                    'data-cover-renderer="modern" ' +
+                    'data-cover-renderer-active="false" ' +
+                    'aria-hidden="true"></div>'
             );
             
         });
@@ -94,10 +126,42 @@ gh.cover.prototype = {
         this.notifyGraphics();
     },
     setModernCoverReady: function(ready) {
+        var modernReady = ready === true;
+        var legacyCanvas =
+            this.canvas && this.canvas.canvas;
+        var modernHost =
+            document.getElementById('modernGameCover');
         $('#game-cover').toggleClass(
             'graphics-modern-cover-ready',
-            ready === true
+            modernReady
         );
+        if (legacyCanvas &&
+                legacyCanvas.style) {
+            legacyCanvas.style.visibility =
+                modernReady
+                    ? 'hidden'
+                    : this.legacyCanvasVisibility;
+            legacyCanvas.setAttribute(
+                'aria-hidden',
+                modernReady
+                    ? 'true'
+                    : 'false'
+            );
+            legacyCanvas.setAttribute(
+                'data-cover-renderer-active',
+                modernReady
+                    ? 'false'
+                    : 'true'
+            );
+        }
+        if (modernHost) {
+            modernHost.setAttribute(
+                'data-cover-renderer-active',
+                modernReady
+                    ? 'true'
+                    : 'false'
+            );
+        }
     },
     notifyGraphics: function() {
         if (this.graphics &&

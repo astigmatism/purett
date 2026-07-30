@@ -108,6 +108,36 @@ test('projects the unchanged cover clock as two forward-hinged Three.js doors', 
         getComputedStyle(
           legacyCanvas
         ).visibility,
+      legacyId:
+        legacyCanvas &&
+        legacyCanvas.id,
+      legacyRenderer:
+        legacyCanvas &&
+        legacyCanvas.dataset
+          .coverRenderer,
+      legacyRendererActive:
+        legacyCanvas &&
+        legacyCanvas.dataset
+          .coverRendererActive,
+      rendererExclusive:
+        getComputedStyle(
+          legacyCanvas
+        ).visibility === 'hidden' &&
+        getComputedStyle(
+          modernHost
+        ).display === 'block' &&
+        legacyCanvas.dataset
+          .coverRendererActive ===
+          'false' &&
+        modernHost.dataset
+          .coverRendererActive ===
+          'true',
+      modernRenderer:
+        modernHost.dataset
+          .coverRenderer,
+      modernRendererActive:
+        modernHost.dataset
+          .coverRendererActive,
       modernSurface:
         modernCanvas &&
         modernCanvas.dataset
@@ -152,6 +182,12 @@ test('projects the unchanged cover clock as two forward-hinged Three.js doors', 
   expect(initial).toMatchObject({
     classReady: true,
     legacyVisibility: 'hidden',
+    legacyId: 'legacyGameCover',
+    legacyRenderer: 'legacy',
+    legacyRendererActive: 'false',
+    rendererExclusive: true,
+    modernRenderer: 'modern',
+    modernRendererActive: 'true',
     modernSurface: 'game-box-cover',
     modernHostDisplay: 'block',
     modernHostPointerEvents: 'none',
@@ -497,6 +533,10 @@ test('projects the unchanged cover clock as two forward-hinged Three.js doors', 
           '#game-cover .legacy-game-cover-canvas'
         )
       ).visibility,
+    legacyRendererActive:
+      document.querySelector(
+        '#game-cover .legacy-game-cover-canvas'
+      ).dataset.coverRendererActive,
     modernDisplay:
       getComputedStyle(
         document.getElementById(
@@ -509,6 +549,7 @@ test('projects the unchanged cover clock as two forward-hinged Three.js doors', 
   }))).toEqual({
     classReady: false,
     legacyVisibility: 'visible',
+    legacyRendererActive: 'true',
     modernDisplay: 'none',
     modernSuspended: true
   });
@@ -554,6 +595,11 @@ test('keeps healthy Modern graphics active when the cover factory fails', async 
               '#game-cover .legacy-game-cover-canvas'
             )
           ).visibility,
+        legacyRendererActive:
+          document.querySelector(
+            '#game-cover .legacy-game-cover-canvas'
+          ).dataset
+            .coverRendererActive,
         modernDisplay:
           getComputedStyle(
             document.getElementById(
@@ -567,6 +613,7 @@ test('keeps healthy Modern graphics active when the cover factory fails', async 
     surfacePreserved: true,
     classReady: false,
     legacyVisibility: 'visible',
+    legacyRendererActive: 'true',
     modernDisplay: 'none',
     state: {
       requestedMode: 'modern',

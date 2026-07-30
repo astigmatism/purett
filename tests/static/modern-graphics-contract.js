@@ -250,8 +250,23 @@ try {
   );
   assert(
     cover.includes(
-      '<div id="modernGameCover" aria-hidden="true"></div>'
+      "'data-cover-renderer=\"modern\" '"
     ) &&
+      cover.includes(
+        "'data-cover-renderer-active=\"false\" '"
+      ) &&
+      cover.includes(
+        "'legacyGameCover'"
+      ) &&
+      cover.includes(
+        "'legacy-game-cover-canvas'"
+      ) &&
+      cover.includes(
+        "legacyCanvas.style.visibility ="
+      ) &&
+      !cover.includes(
+        '$(me.canvas.canvas).addClass('
+      ) &&
       cover.includes(
         "me.publishTarget('open', 'cubic-in')"
       ) &&
@@ -279,6 +294,9 @@ try {
   );
   assert(
     boardCss.includes(
+      '#game-cover.graphics-modern-cover-ready #legacyGameCover'
+    ) &&
+      boardCss.includes(
       '#game-cover.graphics-modern-cover-ready .legacy-game-cover-canvas'
     ) &&
       boardCss.includes(

@@ -2,10 +2,10 @@
 
 | Field | Value |
 |---|---|
-| Status | Phase 0.14 renderer-local active-match turn-indicator coin and Motion Studio profile implemented; Phase 0.13 placement preview preserved as the current card-interaction baseline; Phase 0.9 lobby playbook verification remains in progress; Phase 0.7 visual baseline rejected |
-| Version | 1.12 |
-| Last updated | 2026-07-27 |
-| Scope | Active-match graphics roadmap plus renderer-local Modern player-card pickup/follow, invalid-return, valid-zone hover, one-placement-preview, and turn-indicator-coin studies, Modern match-hand rendering, Modern lobby-hand rendering, an application-bound lobby intro/exit playbook, Motion Studio card and coin authoring, renderer-neutral motion recipes, and bounded decorative experiments |
+| Status | Phase 0.15 parallel Modern hinged game-cover projection implemented with feature-deployment review pending; Phase 0.14 renderer-local active-match turn-indicator coin and Motion Studio profile implemented; Phase 0.13 placement preview preserved as the current card-interaction baseline; Phase 0.9 lobby playbook verification remains in progress; Phase 0.7 visual baseline rejected |
+| Version | 1.13 |
+| Last updated | 2026-07-30 |
+| Scope | Active-match graphics roadmap plus renderer-local Modern player-card pickup/follow, invalid-return, valid-zone hover, one-placement-preview, and turn-indicator-coin studies, a parallel full-stage Modern hinged game-cover projection, Modern match-hand rendering, Modern lobby-hand rendering, an application-bound lobby intro/exit playbook, Motion Studio card and coin authoring, renderer-neutral motion recipes, and bounded decorative experiments |
 | Modern renderer | Three.js `0.185.1` (`r185`) with `WebGLRenderer`, selected for Phase 0 and provisional for the playable renderer |
 
 > **Implementation status — 2026-07-27:** Phase 0 established the runtime Graphics switch, safe Legacy fallback, and inert active-match Modern surface. Phase 0.5 rendered only the five lobby-hand cards beneath the Play, Shop, and Tutorials bar. Phase 0.6 added the calibrated flat-table Three.js card model and independent decorative double flips. Phase 0.7 deployed a deterministic `casual-drop-left` implementation with a pure planner, bounded lifecycle, table-clearance safeguards, and exact settlement. Its current visible motion does **not** convincingly resemble cards being dropped or scattered by a player: it reads primarily as flat cards sliding in from the left. It therefore failed the human visual acceptance requirement in `AC-P07-003` and is **not an approved visual baseline**. Its parameter values, named gestures, cadence, scale policy, and apparent motion must not be copied into the lobby, shop, active match, or another surface as an accepted design. Phase 0.8 introduced the isolated one-card Motion Studio and deterministic renderer-neutral recipes. Phase 0.9 binds that authoring loop to a browser-local application playbook: five independently editable lobby-card intro targets land on runtime-owned fixed anchors, and one shared Gentle Wind exit compiles into five deterministic seeded variants with distinct lower-left offscreen endpoints. Its authoring refinement presents the entire 755 by 562 lobby board at true logical size, visually inherits the selected application scale, keeps every HTML control outside that stage, and can copy one intro card's shared motion character to selected or all other intro cards while preserving each destination's delay and travel placement. `Apply & Preview in Lobby` exercises the same production path used by normal lobby presentation and command exit while preserving the stored Legacy/Modern preference. Modern lobby commands wait for the exit or a fail-open watchdog; Tutorials Back replays the intro. A valid saved Modern choice is read in the document head and masks only the retained Raphael lobby-card elements before first paint; the normal ready gate takes ownership after the first complete Three.js hand frame, while every failure path removes the startup mask and reveals Legacy. Phase 0.10 is the first active-match card projection: while Modern is effective, the current player and opponent hands are rendered as passive, flat, portrait Three.js cards at the exact Legacy stack coordinates. The bridge contains only plain visible presentation data, preserves Closed-hand secrecy, has no match input or animation loop, and falls back to the intact live Legacy surface on required texture or context failure. Phase 0.11 advanced only the player hand into a renderer-local pickup/follow motion study. A primary click on the visually topmost eligible player card lifts that one card to the Legacy-equivalent `1.075` projected scale, keeps the original grab offset while it follows the pointer through the scaled 693 by 500 host, and applies bounded velocity-driven local-X/local-Y tilt that trails movement and damps back to a stable lifted pose. Phase 0.11 deliberately ended with no second-click behavior. Phase 0.12 now supersedes only that historical no-drop boundary: after the 300-millisecond pickup has armed the hold, a second primary click always means an invalid renderer-local drop because no drop zones exist. The card returns to its original hand anchor over 300 milliseconds with the live Legacy `cubic-out` timing character and one clockwise screen-space turn, then normalizes exactly to its canonical position, projected scale, rotation, render order, and unlocked pickup state. Clicks before arming or during return are ignored, reduced motion settles immediately, and lifecycle generation guards make late frames inert. This return still owns no drop-zone test, legal target, gameplay intent, controller state, turn rule, game mutation, or network request. Board cards, slots, scores, turn state, rules, and effects remain intentionally unrendered. The current generated artifact and loader cache identity is `0.185.1-match-return.1`.
@@ -13,6 +13,8 @@
 > **Phase 0.13 supersession — 2026-07-27:** The preceding implementation paragraph is retained as the complete historical Phase 0.12 record. Phase 0.13 supersedes only its zero-drop-zone and always-invalid-location boundary. The temporary game bridge now describes the nine Legacy board rectangles as plain presentation data. While a player card is carried, exactly one empty and currently valid rectangle may appear as the Legacy-equivalent black shadow at `0.3` opacity under the pointer. An armed second click over that rectangle begins one renderer-local placement preview: the carried card reverses the pickup pose over 300 milliseconds with `cubic-out` timing, lands at the exact slot center and table depth, and retains only one once-sampled screen-space residual roll in `[-2°, 2°]`. There is no position jitter. A click anywhere else still follows the unchanged Phase 0.12 invalid-return path. The preview does not call or mirror the Legacy drop routine, mutate game, hand, board, turn, or controller state, or submit a request. At most one preview placement is accepted for one unchanged hand/drop-zone snapshot; the placed card remains visible and inert until a revision or lifecycle boundary restores the canonical renderer projection. Reduced motion commits the same sampled endpoint immediately. The current generated artifact and loader cache identity is `0.185.1-match-placement.1`.
 
 > **Phase 0.14 supersession — 2026-07-27:** The preceding paragraph is retained as the complete historical Phase 0.13 record. Phase 0.14 preserves every Phase 0.13 card-interaction behavior and supersedes only its absent-Modern-turn-indicator boundary and current delivery identity. The temporary bridge now adds one plain, monotonically sequenced description of the live Legacy turn marker. A newly mounted Modern surface snaps its first description to the described Legacy location without replaying history. Each later accepted sequence change animates one true 3D circular coin between the exact Legacy player and opponent targets through a deterministic arc, height, flip, tumble, spin, shadow, and settle profile. The current Legacy-selected 41 by 41 dime image is applied to both circular faces for this phase; a lit metallic cylindrical edge makes edge-on motion physically legible, but no new heads/tails outcome is invented. The coin is renderer-only presentation: it does not decide whose turn it is, delay or invoke the Legacy turn callback, gate card input, progress the match, or issue a request. Motion Studio adds one application target that previews the same coin geometry, active-match 693 by 500 coordinate space, endpoints, camera, planner, sampler, and profile used in production. Its normalized version-1 profile persists under the separate local key `purett.turnMarkerMotion.v1`, independent of the Graphics preference and lobby playbook. Reduced motion snaps each accepted transition to its latest endpoint, and lifecycle invalidation makes late frames inert. The current generated artifact and loader cache identity is `0.185.1-match-turn-coin.1`.
+
+> **Phase 0.15 supersession — 2026-07-30:** Phase 0.15 preserves every Phase 0.14 active-match card and turn-coin behavior and supersedes only the earlier exclusion of `gh.cover` from Modern projection. Raphael remains loaded, `gh.cover` remains mounted and animated, and the existing Legacy `open()` and `close()` methods remain the sole owners of target state, callback invocation, callback timing, menu/game sequencing, and the full-stage pointer shield. While Modern is effective, one independent 755 by 562 Three.js surface may project the same two cover leaves as true outer-edge-hinged panels. The closed projection preserves the live `/images/left.png` and `/images/right.png` logical rectangles, including their one-pixel overlap and right-over-left seam order. Opening rotates both inner edges toward the camera and away from the center seam to a fixed 112-degree angle over 2,000 milliseconds with deterministic cubic-in timing; closing returns them to the exact closed pose over 2,000 milliseconds with deterministic cubic-out timing. Modern motion never calls, delays, replaces, or completes a Legacy continuation. Reduced motion snaps only the Modern visual projection and leaves Legacy timing and continuations unchanged. Any Modern cover initialization, texture, context, lifecycle, or projection failure leaves or restores the independently running Legacy cover atomically. The Phase 0.15 delivery identity is `0.185.1-game-cover-hinge.1`; `0.185.1-match-turn-coin.1` remains the historical Phase 0.14 identity.
 
 ## Contents
 
@@ -38,6 +40,7 @@
   - [12.15 Phase 0.12: renderer-local second-click invalid return](#1215-phase-012-renderer-local-second-click-invalid-return)
   - [12.16 Phase 0.13: renderer-local valid-zone hover and placement preview](#1216-phase-013-renderer-local-valid-zone-hover-and-placement-preview)
   - [12.17 Phase 0.14: renderer-local active-match turn-indicator coin](#1217-phase-014-renderer-local-active-match-turn-indicator-coin)
+  - [12.18 Phase 0.15: parallel Modern hinged game-cover projection](#1218-phase-015-parallel-modern-hinged-game-cover-projection)
 - [13. Target renderer contract](#13-target-renderer-contract)
 - [14. Renderer-neutral view state](#14-renderer-neutral-view-state)
 - [15. Three.js implementation constraints](#15-threejs-implementation-constraints)
@@ -55,7 +58,7 @@
 
 ## 1. Purpose of this document
 
-This document defines the intended outcome, constraints, phased delivery plan, and acceptance criteria for modernizing the active-match graphics in Pure Triple Triad. It also defines the deliberately narrow Phase 0.5 lobby-hand preview, Phase 0.6 lobby-card double-flip spike, Phase 0.7 entrance experiment, Phase 0.8 one-card Motion Studio, Phase 0.9 application-bound lobby intro/exit playbook, Phase 0.10 passive match-hand projection, Phase 0.11 renderer-local pickup/follow motion study, Phase 0.12 renderer-local second-click invalid return, Phase 0.13 renderer-local valid-zone hover and one-placement preview, and Phase 0.14 renderer-local turn-indicator coin and Motion Studio profile used to establish renderer seams and physical-object language before any playable match surface is converted.
+This document defines the intended outcome, constraints, phased delivery plan, and acceptance criteria for modernizing the active-match graphics in Pure Triple Triad. It also defines the deliberately narrow Phase 0.5 lobby-hand preview, Phase 0.6 lobby-card double-flip spike, Phase 0.7 entrance experiment, Phase 0.8 one-card Motion Studio, Phase 0.9 application-bound lobby intro/exit playbook, Phase 0.10 passive match-hand projection, Phase 0.11 renderer-local pickup/follow motion study, Phase 0.12 renderer-local second-click invalid return, Phase 0.13 renderer-local valid-zone hover and one-placement preview, Phase 0.14 renderer-local turn-indicator coin and Motion Studio profile, and Phase 0.15 parallel full-stage hinged game-cover projection used to establish renderer seams and physical-object language before any playable match surface is converted.
 
 It is deliberately more detailed than an implementation ticket. The modernization will cross a legacy rendering implementation, animation-driven control flow, input handling, tests, build and dependency delivery, accessibility, and failure recovery. Once reviewed and accepted, this document is intended to be the stable product and engineering reference for that work.
 
@@ -82,7 +85,7 @@ Pure Triple Triad should gain two selectable active-match graphics modes:
 1. **Legacy** uses the existing Raphael implementation and preserves the game as it currently behaves.
 2. **Modern** uses a new Three.js renderer in the same 693 by 500 logical active-match region.
 
-Raphael will remain loaded and usable. This project does not attempt to remove Raphael from the application as a whole. The cover, deck editor, shop, endgame screen, and the main-menu bar, commands, statistics, rules, and surrounding layout continue to depend on it. Phase 0.5 makes one explicit exception inside `gh.menu`: only the five decorative hand cards beneath the main command bar gain a parallel Three.js presentation.
+Raphael will remain loaded and usable. This project does not attempt to remove Raphael from the application as a whole. The deck editor, shop, endgame screen, and the main-menu bar, commands, statistics, rules, and surrounding layout continue to depend on it. Phase 0.5 makes one explicit exception inside `gh.menu`: only the five decorative hand cards beneath the main command bar gain a parallel Three.js presentation. Phase 0.15 makes a second bounded exception for `gh.cover`: its existing Raphael instance remains live and authoritative while a separate full-stage Three.js surface may mirror its presentation in Modern mode.
 
 The long-term design must place the match controller and authoritative client-side match state above a renderer-neutral boundary:
 
@@ -99,7 +102,7 @@ Server-approved match state and events
 
 After renderer extraction, exactly one active-match renderer must own the active-match mount, animation, and input at a time.
 
-The first implementation increment did **not** add functional Three.js card rendering. It added a persisted graphics-mode preference and immediate runtime selection, preserved fully functional Legacy behavior, and supplied an intentionally inert Modern preview. Phase 0.10 added passive active-match hand projection. Phase 0.11 added one deliberately non-authoritative player-card pickup/follow study. Phase 0.12 added a renderer-local always-invalid second-click return. Phase 0.13 added one non-authoritative valid-zone hover and placement preview. Phase 0.14 adds the live turn-indicator projection and its local Motion Studio profile while still not adding playable Three.js match rendering. The Modern bundle remains isolated, pinned, self-hosted, and loaded only when Modern is requested.
+The first implementation increment did **not** add functional Three.js card rendering. It added a persisted graphics-mode preference and immediate runtime selection, preserved fully functional Legacy behavior, and supplied an intentionally inert Modern preview. Phase 0.10 added passive active-match hand projection. Phase 0.11 added one deliberately non-authoritative player-card pickup/follow study. Phase 0.12 added a renderer-local always-invalid second-click return. Phase 0.13 added one non-authoritative valid-zone hover and placement preview. Phase 0.14 adds the live turn-indicator projection and its local Motion Studio profile while still not adding playable Three.js match rendering. Phase 0.15 adds only a parallel Modern projection of the application game cover and preserves the Legacy cover as the sole lifecycle and continuation authority. The Modern bundle remains isolated, pinned, self-hosted, and loaded only when Modern is requested.
 
 Phase 0 uses a presentation/input gate rather than a renderer reconstruction boundary. The active-match Raphael papers remain mounted, live, and synchronized while Modern is effective, but they are opacity-hidden, marked `aria-hidden`, and blocked from pointer input. Phase 0.10 evolves the initially blank, non-interactive Three.js surface to project only the two current hands. Phase 0.11 permits that Modern surface to own only card-bounded player-hand picking and pointer-follow presentation, with all resulting hold state confined to the renderer. Phase 0.12 permits the same renderer-local hold to consume one armed second click as an always-invalid return, without emitting a renderer-neutral or gameplay action. Selecting Legacy removes the gate and reveals the identical current Raphael state immediately, without a reload or renderer rebuild. This temporary coexistence must not be mistaken for the final architecture or a semantic gameplay-input boundary.
 
@@ -124,6 +127,8 @@ Phase 0.12 is a narrow superseding interaction study over that retained Phase 0.
 Phase 0.13 is a similarly narrow superseding study. It retains the complete Phase 0.12 invalid-return behavior for a second click outside a valid zone, but permits the Modern surface to consume plain descriptions of the nine currently live Legacy board rectangles and reveal one hover shadow for the carried card. This is not renderer-neutral legality or a playable move: the bridge supplies a fail-closed presentation validity bit, the surface accepts at most one local placement per unchanged snapshot, and no action crosses back into `gh.game`. A valid placement reverses the pickup pose to the exact Legacy slot center over 300 milliseconds with cubic-out timing and retains only a once-sampled `[-2°, 2°]` screen-space roll. Mode, view, visibility, hand/drop-zone revision, context, failure, replacement, and disposal boundaries discard the preview and restore the canonical renderer projection.
 
 Phase 0.14 extends that unchanged renderer-local card study with one renderer-local turn-indicator projection. The bridge clones the current Legacy marker's sequence, side, rectangle, selected dime texture, and visibility. The first description received by a surface establishes the settled coin directly; only a later sequence and target change starts motion. The 41-pixel circular marker uses two textured circular face meshes and a three-unit cylindrical edge under the existing calibrated active-match perspective camera. A pure versioned profile controls its deterministic quadratic screen path, physical height, three-axis rotations, landing settle, and analytic shadow. The same profile and production planner/sampler are exposed in Motion Studio against an exact 693 by 500 active-match inset with locked Legacy endpoints and a reversible direction selector. The profile may be saved only to its dedicated browser-local key. None of this makes the turn marker authoritative, changes Phase 0.13 card behavior, calls the Legacy turn continuation, or advances gameplay.
+
+Phase 0.15 adds one separate Outer UI projection rather than expanding the active-match renderer. The current `gh.cover` continues to construct and animate its two Raphael images, maintain `isopen`, shield the game while visible, and invoke every existing callback at the existing time. A new sibling 755 by 562 Modern cover surface observes only cloned presentation state and renders two physical leaves hinged at the outer vertical edges. The leaves reproduce the exact closed Legacy composition, then rotate their inner edges toward the camera and away from the center seam to 112 degrees using the same 2,000-millisecond cubic-in opening character and return with the same 2,000-millisecond cubic-out closing character. Because early exit and game over deactivate the active-match Modern surface before asking the cover to close, the cover surface has an independent lifecycle and failure boundary. It never becomes an application continuation, input handler, stored motion profile, or replacement for `gh.cover`.
 
 Legacy remains the default until the Modern renderer reaches the documented playability, parity, reliability, and fallback gates.
 
@@ -202,7 +207,7 @@ The hand and board arrays currently contain live Raphael handles. Some behavior 
 
 This means the Modern renderer cannot safely be implemented as a direct library substitution. A renderer-neutral state and transition boundary must be introduced deliberately.
 
-### 4.3 Raphael outside the match and the lobby-hand exception
+### 4.3 Raphael outside the match and the bounded projection exceptions
 
 Raphael is also used by:
 
@@ -216,6 +221,8 @@ Phase 0.5 brings one bounded part of `gh.menu` into scope: the five initially no
 
 The Modern implementation must therefore gate individual hand-card elements rather than the `gh.menu` Raphael paper. The bar, commands, statistics, next-rules content, and all menu navigation remain present and usable. `gh.cover`, `gh.deck`, `gh.shop`, `gh.endgame`, and every other part of `gh.menu` remain outside the Phase 0.5 through Phase 0.9 lobby-rendering slice. Phase 0.8 adds a separate authoring layer above that intact menu. Phase 0.9 adds only Modern lobby-hand intro/exit presentation and a short command-continuation wait; neither phase converts or takes rendering ownership of the surrounding Raphael surfaces.
 
+Phase 0.15 narrowly supersedes only the preceding exclusion of `gh.cover`. It does not convert, unload, replace, stop, or take callback authority from the Raphael cover. The existing cover remains the application lifecycle owner and continues to animate behind a parallel Modern projection. No other surrounding Raphael surface enters scope.
+
 Modern graphics mode must not unload, replace, delete, or globally disable `window.Raphael`.
 
 ### 4.4 Existing layout and protocol contracts
@@ -225,6 +232,7 @@ The following existing contracts remain authoritative unless a later requirement
 - The active-match logical region is 693 by 500.
 - The containing board and frame are 755 by 562.
 - The main-menu/lobby Raphael paper and the dedicated Modern lobby-hand host use a 755 by 562 logical region.
+- The game cover occupies the full 755 by 562 content stage above the game wrapper. Its live logical rectangles are `/images/left.png` at `(0, 0, 377, 562)` and `/images/right.png` at `(376, 0, 378, 562)`. The one-pixel overlap at x `376` and the right panel's later paint order are intentional compatibility facts.
 - The main-menu/lobby hand preview contains at most five cards at the existing x positions 72, 197, 322, 447, and 572 and y position 203; it remains decorative even when Phase 0.6 accepts the approved card-bounded click effect independently on each settled card.
 - Card art uses the current same-origin image paths and opaque image keys.
 - The application-level scale choices are 1, 1.5, 2, and 3.
@@ -242,7 +250,7 @@ The following existing contracts remain authoritative unless a later requirement
 | **Board frame** | The existing 755 by 562 CSS-backed `#board` element and its static background artwork. |
 | **Legacy renderer** | The current active-match implementation backed by the two Raphael papers. |
 | **Modern renderer** | The future active-match implementation backed by Three.js. |
-| **Modern preview** | The non-playable Phase 0 Modern mode. It began as an inert delivery and gating proof, gained passive active-match hands in Phase 0.10, renderer-local player-card pickup/follow presentation in Phase 0.11, an always-invalid renderer-local second-click return in Phase 0.12, a renderer-local valid-zone hover plus one-placement preview in Phase 0.13, and a renderer-local sequenced turn-indicator coin in Phase 0.14. It still cannot emit a gameplay intent, mutate authoritative state, decide the turn, or submit a move. |
+| **Modern preview** | The non-playable Phase 0 Modern mode. It began as an inert delivery and gating proof, gained passive active-match hands in Phase 0.10, renderer-local player-card pickup/follow presentation in Phase 0.11, an always-invalid renderer-local second-click return in Phase 0.12, a renderer-local valid-zone hover plus one-placement preview in Phase 0.13, a renderer-local sequenced turn-indicator coin in Phase 0.14, and a parallel full-stage game-cover projection in Phase 0.15. It still cannot emit a gameplay intent, mutate authoritative state, decide the turn, own an application continuation, or submit a move. |
 | **Lobby/main-menu viewport** | The first application screen containing the Play, Shop, and Tutorials command bar, statistics/rules content, and the five-card hand preview. It is not an active match or game state. |
 | **Lobby-hand preview** | The five current-hand card faces displayed below the main command bar. Phase 0.5 renders them as a non-interactive Three.js preview; Phase 0.6 adds a decorative click-to-double-flip spike; Phase 0.7 records the rejected seeded entrance; Phase 0.9 supplies application-bound intro and exit sequences while all surrounding menu UI remains unchanged. |
 | **Lobby-hand host** | The dedicated, transparent 755 by 562 DOM mount used only for the Modern lobby-hand preview. It is pointer-inert in Phase 0.5; Phase 0.6 may accept pointer activation only over a settled Modern card without blocking the surrounding menu. |
@@ -269,12 +277,17 @@ The following existing contracts remain authoritative unless a later requirement
 | **Turn-indicator descriptor** | The plain cloned Phase 0.14 presentation record containing monotonic sequence, side, logical rectangle, approved Legacy dime texture URL, and visibility. It reports what Legacy currently presents; it is not turn authority, an animation command callback, or controller state. |
 | **Turn-coin motion profile** | The version-1 deterministic plain-data profile for the Modern 3D turn-indicator transition. It contains only profile identity plus path, rotation, landing, and shadow values; endpoints, direction, texture, current turn, and sequence remain application-owned. Its applied value persists separately under `purett.turnMarkerMotion.v1`. |
 | **Turn-coin transition** | The renderer-local Phase 0.14 motion accepted only after an already initialized surface receives a later descriptor sequence at a different Legacy endpoint. It moves the same circular marker through authored screen-space path, height, local-X/local-Y/local-Z rotation, shadow, and exact flat settlement without changing the Legacy marker or match. |
+| **Legacy game cover** | The existing page-lifetime `gh.cover` Raphael instance. It owns the live left and right images, `isopen` target state, current animation, full-stage input shielding, every public `open()` and `close()` callback, and all timing-dependent application continuation behavior. Phase 0.15 does not transfer any of that authority. |
+| **Modern game-cover projection** | The independent Phase 0.15 Three.js surface that mirrors cloned Legacy cover presentation in a 755 by 562 full-stage host while Modern is effective. It is decorative, owns no callback or application state, and fails independently to the intact Legacy cover. |
+| **Game-cover descriptor** | The monotonic cloned Phase 0.15 plain-data record containing `schemaVersion`, sequence, target, observation timestamp, duration, easing, exact frame, and two exact panel descriptions. It contains no Raphael element, Three.js object, DOM node, callback, timer handle, function, request, or game object. |
+| **Cover leaf** | One physical Phase 0.15 Modern panel. The left leaf uses the live left image and pivots around x `0`; the right leaf uses the live right image and pivots around x `754`, the outside edge of its exact logical rectangle. Their inner edges rotate away from the center seam to the fixed 112-degree open pose. |
+| **Application continuation authority** | Ownership of when and how an existing callback advances menu, game-wrapper, tutorial, replay, early-exit, or game-over flow. For Phase 0.15 this authority remains exclusively with Legacy `gh.cover`; Modern presentation completion has no continuation semantics. |
 | **Flat-table perspective calibration** | A constrained head-on perspective projection whose settled cards retain the established screen rectangles and centered, position-neutral silhouette. Outer cards must not fan, lean, shear, or appear to rest on a curved surface merely because they are away from camera center. |
 | **Approved visual baseline** | A named recipe and reference capture that passed real-time review at the actual application size in addition to deterministic, lifecycle, and geometry checks. Structural test success alone does not confer this status. |
 | **Requested mode** | The value selected and persisted by the user. |
 | **Effective mode** | The mode currently presented to the user and permitted to own active-match pointer input. During the temporary Phase 0 bridge, the hidden Legacy implementation may remain mounted and synchronized even while Modern is effective. |
 | **Renderer host** | The positioned 693 by 500 DOM mount occupied by the effective renderer. |
-| **Outer UI** | Menus, cover, dialogs, deck editor, shop, endgame, title, footer, and other application UI outside the active-match renderer. The five-card lobby preview is a narrow rendering exception; its surrounding menu remains Outer UI. |
+| **Outer UI** | Menus, cover, dialogs, deck editor, shop, endgame, title, footer, and other application UI outside the active-match renderer. The five-card lobby preview and Phase 0.15 game-cover projection are narrow rendering exceptions; their surrounding application UI remains Outer UI. |
 | **Snapshot** | A renderer-neutral description of the current visible match state. |
 | **Semantic action** | A renderer-emitted intent such as selecting a card or dropping it on a slot, expressed without a Raphael or Three.js object. |
 | **Transition** | A renderer request such as lifting, moving, revealing, or flipping a card whose completion can be awaited. |
@@ -371,6 +384,16 @@ These decisions are part of the baseline requirements.
 | DEC-080 | The normalized applied turn-coin profile persists in `localStorage` under `purett.turnMarkerMotion.v1`, separate from `purett.graphicsMode.v1` and `purett.lobbyMotionPlaybook.v1`. Invalid, unsafe, or future-schema data falls back atomically to the application default without changing either other key. Studio session draft/view state may remain under its existing session key. No coin profile is account-synchronized, submitted, or promoted to source defaults implicitly. |
 | DEC-081 | Reduced motion snaps an accepted later sequence immediately to the same latest settled endpoint with no flight, rotation, or pending frame. Mode/view change, descriptor removal, visibility loss, context loss, suspension, replacement, fallback, and disposal cancel the current coin generation, settle or discard the latest descriptor as appropriate, detach ownership, and make every late callback inert. |
 | DEC-082 | The Phase 0.14 generated Modern artifact retains Three.js `0.185.1` (`r185`) and uses cache identity `0.185.1-match-turn-coin.1`. Source, generated bundle, loader URL, DOM dataset, diagnostics, browser/static contracts, Motion Studio contracts, deployment artifact, and this document must agree. Phase 0.13's `0.185.1-match-placement.1` remains historical evidence. |
+| DEC-083 | Phase 0.15 narrowly supersedes the earlier `gh.cover` exclusion by authorizing one parallel Modern projection. The existing Raphael cover remains constructed, mounted, animated, and authoritative in both graphics modes; Phase 0.15 does not replace or dispose it and does not authorize another Outer UI migration. |
+| DEC-084 | The closed Modern cover reproduces the live Legacy geometry exactly: a 755 by 562 logical stage, `/images/left.png` at `(0, 0, 377, 562)`, and `/images/right.png` at `(376, 0, 378, 562)`. The one-pixel overlap and right-over-left seam order are preserved rather than normalized. |
+| DEC-085 | The Modern representation is two true 3D leaves hinged on the outer vertical panel edges. The left pivot is x `0`, the right pivot is x `754`, and the leaves' inner edges rotate toward the camera and away from the center seam to a fixed 112-degree open angle. Translation-only, scale-only, CSS, billboard, backward-folding, center-seam-hinged, curved-surface, or single-lid substitutes do not satisfy this decision. |
+| DEC-086 | Modern opening lasts exactly 2,000 milliseconds and uses deterministic cubic-in `t^3`; Modern closing lasts exactly 2,000 milliseconds and uses deterministic cubic-out `1 - (1 - t)^3`. Both are sampled from explicit source and destination poses, contain no randomness, and settle at exact endpoints with zero idle frame. |
+| DEC-087 | Legacy remains the sole application continuation authority. Its current open callback remains synchronous after Legacy schedules opening; its normal close callback remains owned by the Legacy left-panel completion after the existing 2,000-millisecond close; already-targeted and interrupted Legacy calls retain their existing behavior. Modern never invokes, delays, awaits, replaces, suppresses, or duplicates any callback and never becomes a prerequisite for application flow. |
+| DEC-088 | The Modern cover uses an independent full-stage surface and lifecycle rather than the 693 by 500 active-match surface. This is required because early exit and game over deactivate active-match Modern presentation before calling Legacy close. Mode, lobby, match, tutorial, replay, cover, and failure transitions may therefore update the cover projection without reconstructing or reactivating the match surface. |
+| DEC-089 | The Legacy cover remains the visible fallback until both approved cover textures and one complete Modern cover frame are ready. A Modern initialization, texture, context, rendering, timeout, replacement, or disposal failure reveals or retains the intact independently running Legacy cover atomically; a late load or frame cannot reclaim presentation without a newer valid generation. |
+| DEC-090 | Reduced motion snaps only the Modern cover projection to the latest target pose with no continuous rotation or pending frame. It does not shorten, complete, reschedule, or otherwise change the Legacy cover animation, callback timing, `isopen`, full-stage input shield, or application continuation. |
+| DEC-091 | The Modern cover canvas is decorative and inaccessible: `aria-hidden`, absent from tab order, without a role, live announcement, keyboard action, or semantic pointer handler. The Legacy cover or an equivalent non-Modern layer remains the input shield for exactly the existing lifecycle interval. Full-stage ordering preserves game wrapper below cover and menus, dialogs, loading, endgame, deck, and shop above it as applicable. |
+| DEC-092 | The Phase 0.15 generated Modern artifact retains Three.js `0.185.1` (`r185`) and uses cache identity `0.185.1-game-cover-hinge.1`. Source, generated bundle, facade/ABI, coordinator URL, DOM metadata, diagnostics, static/browser contracts, deployment artifact, and this document must agree. Phase 0.14's `0.185.1-match-turn-coin.1` remains historical evidence. |
 
 ## 7. Goals
 
@@ -383,6 +406,7 @@ These decisions are part of the baseline requirements.
 - Establish a convincing active-match card pickup, pointer-follow, invalid-return, valid-zone feedback, and humanly imperfect placement language before adding playable rule authority.
 - Establish a clear Legacy-character invalid-return motion, exact valid-zone geometry, and intentionally askew placement preview without conflating either outcome with a submitted move.
 - Add a physically legible Modern turn-indicator coin that mirrors the already-decided Legacy endpoint without conflating presentation with turn authority.
+- Add a physically legible two-leaf Modern game cover that preserves the exact Legacy closed composition and application sequencing without transferring cover lifecycle or callback authority.
 - Give the user direct, repeatable control over one-card motion authoring before another five-card lobby entrance is promoted.
 - Let the user bind authored motion to visible lobby intro and exit consumers, evaluate it in finished application context, and retain the complete playbook locally.
 - Let the user tune the Modern turn-coin profile in the exact active-match coordinate space and apply it locally without altering the lobby playbook or Graphics preference.
@@ -399,6 +423,7 @@ These decisions are part of the baseline requirements.
 - Make all animation/transition completion deterministic and testable.
 - Represent authored card motion as versioned renderer-neutral data that can be sampled independently of Three.js and the authoring UI.
 - Represent authored turn-coin motion as a separate versioned deterministic profile/planner/sampler whose application endpoints and turn sequence remain outside the stored profile.
+- Represent fixed game-cover hinge motion with one pure deterministic planner/sampler whose presentation state remains subordinate to Legacy `gh.cover`.
 - Compile application-owned lobby anchors and seeded five-card variance outside the stored recipes so layout and data remain authoritative.
 - Centralize coordinate conversion and hit testing.
 - Validate that one player card can preserve its grab point through every supported application scale while depth lift and velocity-driven tilt remain renderer-local.
@@ -414,6 +439,7 @@ These decisions are part of the baseline requirements.
 - Establish measurable performance and resource budgets during the Three.js spike.
 - Support reduced motion.
 - Recover from Modern initialization and WebGL-context failures.
+- Fail the Modern cover projection independently without delaying or disrupting the Legacy cover or its continuation.
 - Prevent event-listener, animation-frame, texture, material, geometry, and WebGL-context leaks.
 - Maintain clear focus and keyboard semantics before Modern becomes the default.
 - Permit precise normal-speed, slowed, frame-stepped, and scrubbed review of an authored motion without leaving an idle animation loop.
@@ -423,7 +449,10 @@ These decisions are part of the baseline requirements.
 The following are outside this initiative unless separately approved:
 
 - removing Raphael from the application;
-- migrating the cover, main-menu bar or commands, statistics, next-rules content, deck editor, shop, or endgame UI to Three.js;
+- migrating the main-menu bar or commands, statistics, next-rules content, deck editor, shop, or endgame UI to Three.js; Phase 0.15 authorizes only the parallel `gh.cover` projection defined in Sections 11.20 and 12.18;
+- replacing, unloading, stopping, disposing, or transferring application continuation authority away from the Legacy Raphael cover;
+- changing Legacy `gh.cover.open()` or `gh.cover.close()` callback timing, duplicate-call behavior, `isopen` semantics, menu/game sequencing, or input-shield lifetime merely to simplify the Modern projection;
+- adding a stored or Motion Studio-editable game-cover profile, randomized Modern cover motion, a center-seam hinge, a single horizontal lid, or another cover topology beyond the fixed Phase 0.15 two-leaf outer-edge design;
 - making lobby-hand cards draggable, selectable, game-authoritative, or generally interactive; the Phase 0.6 click-to-double-flip renderer spike is the sole approved exception to Phase 0.5's no-interaction and no-animation boundary;
 - treating the lobby-hand preview as an in-match player hand or using it to submit a move;
 - changing the game rules, AI, scoring, rewards, economy, persistence, or move validation;
@@ -509,17 +538,23 @@ With Modern effective in an active match, the player sees one circular 41-pixel 
 
 The user may open Motion Studio, choose `Match turn coin — Transition`, select Player → AI or AI → Player, and tune the transition against the exact 693 by 500 match coordinate space. Applying saves only the normalized local coin profile. Returning to the match uses that profile on the next described side change. The Studio and production motion do not change whose turn it is, invoke or delay the Legacy turn callback, enable a board, move a card, or issue a request. With reduced motion enabled, each accepted side change appears immediately at its latest target.
 
+### 9.2.9 Player observing the Phase 0.15 hinged game cover
+
+With Modern effective, the player begins at the same exact closed cover composition used by Legacy. When the existing application starts a normal game or tutorial, the two cover leaves appear to swing away from their outside edges in real three-dimensional space, reaching a fixed 112-degree open pose while the current Legacy cover independently executes its established transition and control flow. On early exit, game over, or tutorial completion, the leaves return to the exact one-pixel-overlapped closed seam while Legacy alone decides when the application continuation runs.
+
+The Modern cover is not clickable, focusable, editable in Motion Studio, or authoritative. Selecting Legacy reveals the existing Raphael cover and its current state. If the Modern cover cannot initialize, load both textures, render, or retain its WebGL context, the player continues through the intact Legacy cover without a blocked menu, game, callback, or request. With reduced motion enabled, only the Modern leaves snap visually; the Legacy transition and application timing remain unchanged.
+
 ### 9.3 Player returning from the Phase 0 preview
 
-During the original Phase 0, the player selected Modern during an active match and saw a blank inert preview. Phase 0.10 replaces that blank frame with projections of the current player and opponent hands. Phases 0.11 through 0.13 add only the documented renderer-local card studies. Phase 0.14 additionally projects the current sequenced turn marker, but there is still no controller selection, authoritative drop, board occupancy, score/rule projection, turn decision, or move submission. The context menu and main-menu route remain usable. The player selects Legacy and immediately sees the same current Raphael match state that continued to synchronize while hidden. No reload, match resume, or renderer rebuild is required.
+During the original Phase 0, the player selected Modern during an active match and saw a blank inert preview. Phase 0.10 replaces that blank frame with projections of the current player and opponent hands. Phases 0.11 through 0.13 add only the documented renderer-local card studies. Phase 0.14 additionally projects the current sequenced turn marker, and Phase 0.15 separately projects the full-stage cover, but there is still no controller selection, authoritative drop, board occupancy, score/rule projection, turn decision, cover continuation authority, or move submission. The context menu and main-menu route remain usable. The player selects Legacy and immediately sees the same current Raphael match and cover state that continued to synchronize while hidden. No reload, match resume, or renderer rebuild is required.
 
 ### 9.4 Unsupported or failed Modern environment
 
-Modern initialization, asset loading, or context recovery fails. The application removes partial Modern ownership, activates Legacy exactly once, explains the effective fallback, and preserves the requested preference for later diagnosis unless a repeated-failure policy is explicitly adopted.
+Modern initialization, asset loading, or context recovery fails. The application removes partial Modern ownership, activates Legacy exactly once, explains the effective fallback, and preserves the requested preference for later diagnosis unless a repeated-failure policy is explicitly adopted. A cover-only failure may fall back only that parallel projection while leaving an otherwise ready Modern lobby or active-match surface effective; it must never delay the independently executing Legacy cover continuation.
 
 ### 9.5 Reduced-motion player
 
-The player has `prefers-reduced-motion` enabled. The same game information and actions are available, but spatial animation is shortened, replaced, or completed immediately. Controller sequencing still completes exactly once.
+The player has `prefers-reduced-motion` enabled. The same game information and actions are available, but renderer-owned spatial animation is shortened, replaced, or completed immediately. Controller sequencing still completes exactly once. The Phase 0.15 Modern cover snaps visually without changing the current Legacy cover's 2,000-millisecond timing or callback behavior.
 
 ### 9.6 Developer comparing renderers
 
@@ -580,12 +615,21 @@ The following invariants apply across every phase after the relevant seam exists
 49. The Phase 0.14 coin remains a true circular two-face/one-edge 3D object throughout motion. Both faces use the one Legacy-selected descriptor texture for now; the renderer cannot switch art as a simulated coin-toss result.
 50. Turn-coin presentation cannot call, delay, complete, or replace the Legacy turn callback; gate player input; mutate game, board, hand, score, rule, or turn state; emit a semantic action; or issue a request.
 51. The applied turn-coin profile is browser-local under `purett.turnMarkerMotion.v1`, isolated from Graphics and lobby-playbook persistence. Reduced motion and every lifecycle boundary settle or discard only renderer-owned coin state and leave no pending frame or stale callback.
+52. Phase 0.15 may consume only a cloned plain description of the current Legacy cover presentation. The description and Modern diagnostics cannot contain a Raphael element, Three.js object, DOM node, callback, timer handle, function, request, or game object.
+53. The closed Modern cover always preserves the exact 755 by 562 Legacy composition, including left rectangle `(0, 0, 377, 562)`, right rectangle `(376, 0, 378, 562)`, one-pixel overlap, right-over-left seam order, and approved same-origin textures.
+54. Each Modern cover leaf pivots only at its outer vertical edge, reaches exactly 112 degrees in the open pose, and returns to exactly zero degrees in the closed pose. Both leaves remain deterministic mirror counterparts and cannot fan, bow, translate, or imply a curved support surface.
+55. Modern cover opening and closing use one pure deterministic planner/sampler with fixed 2,000-millisecond durations and cubic-in/cubic-out timing respectively. No random value or frame-integrated simulation may influence the Modern path.
+56. Legacy `gh.cover` exclusively owns `isopen`, its Raphael animations, all public callbacks, callback timing, full-stage pointer shielding, and application sequencing. No Modern render, completion, cancellation, reduced-motion branch, failure, or fallback may invoke, delay, replace, suppress, or duplicate a Legacy continuation.
+57. The Modern cover surface has a lifecycle independent of the active-match surface. Active-match deactivation cannot remove a required closing projection, and cover-specific failure cannot disable an otherwise healthy Modern lobby or match surface.
+58. Legacy remains visible until the complete Modern cover frame is ready. Every failure or lifecycle boundary restores or retains Legacy cover presentation atomically, and stale frames or loads from an invalidated generation remain inert.
+59. Reduced motion snaps only the Modern cover projection to the latest target with no pending frame. It cannot alter Legacy cover timing, callback behavior, target state, or input-shield lifetime.
+60. The Modern cover is decorative, absent from the accessibility and tab trees, owns no semantic input, and requests no idle frame. The existing cover-layer stacking and underlying input barrier remain effective for the same application interval.
 
 ### 10.1 Phased applicability
 
 The invariants above describe the target architecture. Phase 0 is intentionally smaller and may retain the existing `gh.game` coupling behind the unchanged Legacy route.
 
-Phase 0.10 adds a deliberately shallow compatibility description and passive two-hand projection to that temporary bridge. Phase 0.11 adds one renderer-local pickup/follow study over the same plain presentation data. Phase 0.12 adds only a renderer-local always-invalid return over that hold. Phase 0.13 adds fail-closed drop-zone presentation and one renderer-local placement preview without move authority. Phase 0.14 adds only one plain sequenced turn-indicator description, one renderer-local 3D coin projection, and one separately persisted Studio profile. None expands the playable boundary, authorizes Modern semantic gameplay input or turn authority, or satisfies the complete renderer-neutral snapshot and renderer-extraction requirements deferred to Phase 1 and later.
+Phase 0.10 adds a deliberately shallow compatibility description and passive two-hand projection to that temporary bridge. Phase 0.11 adds one renderer-local pickup/follow study over the same plain presentation data. Phase 0.12 adds only a renderer-local always-invalid return over that hold. Phase 0.13 adds fail-closed drop-zone presentation and one renderer-local placement preview without move authority. Phase 0.14 adds only one plain sequenced turn-indicator description, one renderer-local 3D coin projection, and one separately persisted Studio profile. Phase 0.15 adds one independent full-stage cover description and parallel projection while leaving Legacy cover lifecycle and callback authority intact. None expands the playable boundary, authorizes Modern semantic gameplay input, turn authority, or application continuation authority, or satisfies the complete renderer-neutral snapshot and renderer-extraction requirements deferred to Phase 1 and later.
 
 In particular, Phase 0 does **not** require:
 
@@ -596,7 +640,7 @@ In particular, Phase 0 does **not** require:
 - renderer-neutral replay or Sudden Death reconstruction;
 - replacement of existing renderer-specific tests.
 
-Phase 0 may use a shallow runtime presentation/input gate around the unchanged Legacy path and the inert Modern preview. Phase 0.5 may add a dedicated lobby-hand projection and a hand-element-only presentation gate without expanding the playable renderer boundary. Phase 0.6 may add only the documented decorative lobby-card click and bounded animation. Phase 0.7 may add only the documented seeded menu-presentation arrival. Phase 0.8 may add only the isolated one-card authoring workbench and renderer-neutral recipe facility. Phase 0.9 may bind those recipes only to the five Modern lobby intro slots and one shared Modern Gentle Wind exit, including the bounded command-continuation wait and Tutorials Back replay. Phase 0.10 may project the two current match hands. Phase 0.11 may add only the documented player-card pickup/follow motion study and may not treat its renderer-local hold as game input. Phase 0.12 may supersede only the Phase 0.11 no-second-click boundary with the documented always-invalid renderer-local return. Phase 0.13 may supersede only Phase 0.12's zero-zone boundary with nine plain presentation zones, one hover, and one renderer-local placement preview; it still may not create semantic game input. Phase 0.14 may supersede only the absent-turn-indicator boundary with the documented sequenced 3D coin and its isolated Motion Studio profile; it may not derive or control the turn. None of these decorative, authoring, presentation, or motion-study slices expands the playable active-match renderer boundary. Each phase must meet every requirement and acceptance criterion explicitly assigned to it.
+Phase 0 may use a shallow runtime presentation/input gate around the unchanged Legacy path and the inert Modern preview. Phase 0.5 may add a dedicated lobby-hand projection and a hand-element-only presentation gate without expanding the playable renderer boundary. Phase 0.6 may add only the documented decorative lobby-card click and bounded animation. Phase 0.7 may add only the documented seeded menu-presentation arrival. Phase 0.8 may add only the isolated one-card authoring workbench and renderer-neutral recipe facility. Phase 0.9 may bind those recipes only to the five Modern lobby intro slots and one shared Modern Gentle Wind exit, including the bounded command-continuation wait and Tutorials Back replay. Phase 0.10 may project the two current match hands. Phase 0.11 may add only the documented player-card pickup/follow motion study and may not treat its renderer-local hold as game input. Phase 0.12 may supersede only the Phase 0.11 no-second-click boundary with the documented always-invalid renderer-local return. Phase 0.13 may supersede only Phase 0.12's zero-zone boundary with nine plain presentation zones, one hover, and one renderer-local placement preview; it still may not create semantic game input. Phase 0.14 may supersede only the absent-turn-indicator boundary with the documented sequenced 3D coin and its isolated Motion Studio profile; it may not derive or control the turn. Phase 0.15 may supersede only the earlier `gh.cover` exclusion with the documented two-leaf outer-edge-hinged projection; it cannot replace Legacy cover state, timing, callbacks, pointer shielding, or flow authority. None of these decorative, authoring, presentation, or motion-study slices expands the playable active-match renderer boundary. Each phase must meet every requirement and acceptance criterion explicitly assigned to it.
 
 Requirements become mandatory according to this table:
 
@@ -627,6 +671,7 @@ Requirements become mandatory according to this table:
 | `FR-MATCH-RETURN-*` | Phase 0.12 |
 | `FR-MATCH-PLACEMENT-PREVIEW-*` | Phase 0.13 |
 | `FR-MATCH-TURN-COIN-*` | Phase 0.14 |
+| `FR-GAME-COVER-*` | Phase 0.15 |
 
 ## 11. Functional requirements
 
@@ -1293,6 +1338,76 @@ No random value may be sampled during planning, animation, Studio replay, or pro
 
 **FR-MATCH-TURN-COIN-025** — The Phase 0.14 source and generated bundle must retain Three.js `0.185.1` (`r185`) and share cache identity `0.185.1-match-turn-coin.1`. The loader URL, source registration, generated artifact, DOM metadata, active-match and Studio diagnostics, static contract, browser contract, deployment artifact, and requirements must not disagree. `0.185.1-match-placement.1` remains the historical Phase 0.13 identity.
 
+### 11.20 Phase 0.15 parallel Modern hinged game-cover projection
+
+Phase 0.15 retains every Phase 0.14 lobby, active-match, card-interaction, turn-coin, and Motion Studio requirement. It supersedes only the earlier exclusion of `gh.cover` from Modern projection and the current generated-bundle identity in `FR-MATCH-TURN-COIN-025`. The Legacy Raphael cover remains live and authoritative; the following requirements authorize one parallel decorative projection rather than a renderer replacement or expansion of playable Modern authority.
+
+**FR-GAME-COVER-001** — `gh.cover` must expose a defensively cloned plain presentation descriptor with exactly these top-level fields: `schemaVersion`, `sequence`, `target`, `startedAtMs`, `durationMs`, `easing`, `frame`, and `panels`. Schema version must be `1`; sequence must be a nonnegative monotonic integer; target must be `open` or `closed`. The descriptor must contain no Raphael element, Three.js object, DOM node, jQuery object, callback, timer handle, function, event, game object, controller object, request, or network primitive.
+
+**FR-GAME-COVER-002** — The initial descriptor must be sequence `0`, target `closed`, `startedAtMs: null`, `durationMs: 0`, and `easing: null`. Its frame must be exactly `{x: 0, y: 0, width: 755, height: 562}`. Its two ordered panel records must be:
+
+```text
+left
+  textureUrl = /images/left.png
+  rect       = (0, 0, 377, 562)
+  hinge      = left
+  rotationSign = -1
+
+right
+  textureUrl = /images/right.png
+  rect       = (376, 0, 378, 562)
+  hinge      = right
+  rotationSign = +1
+```
+
+No alternative texture URL, natural image dimension, inferred crop, panel order, rectangle, hinge name, or rotation sign is valid in Phase 0.15.
+
+**FR-GAME-COVER-003** — Only an actual Legacy `isopen` target change may increment sequence and publish a transition descriptor. An accepted opening publishes target `open`, the current monotonic observation timestamp, duration `2000`, and easing `cubic-in`. An accepted closing publishes target `closed`, the current monotonic observation timestamp, duration `2000`, and easing `cubic-out`. A call that finds Legacy already targeted to the requested state must publish no new descriptor. `startedAtMs` is a presentation observation clock compatible with the animation-frame clock; it is never an application continuation clock.
+
+**FR-GAME-COVER-004** — The exact Legacy opening contract remains authoritative. When previously closed, `open()` sets `isopen = true`, publishes the new target without waiting for Modern, schedules the current two Raphael 2,000-millisecond `<` animations, invokes a supplied public callback synchronously after scheduling, and leaves the Legacy left-panel completion to hide `#game-cover`. When already targeted open, a supplied callback remains synchronous and no new descriptor is published.
+
+**FR-GAME-COVER-005** — The exact Legacy closing contract remains authoritative. When previously open, `close()` sets `isopen = false`, shows `#game-cover` immediately, stops the left Raphael panel, publishes the closed target without waiting for Modern, starts the left 2,000-millisecond `>` return, then stops and starts the right 2,000-millisecond `>` return. A supplied public callback is invoked only from the Legacy left-panel completion. When already targeted closed, a supplied callback remains synchronous and no new descriptor is published.
+
+**FR-GAME-COVER-006** — Phase 0.15 must preserve existing close-during-open, duplicate-during-flight, open-during-close, and stale Legacy callback behavior rather than silently repairing it in the Modern layer. Modern must never set `isopen`; start, stop, or inspect a Raphael animation; show or hide `#game-cover`; call, await, delay, replace, suppress, coalesce, or duplicate a public callback; or decide when menu, game wrapper, tutorial, replay, early exit, game over, or input flow advances. A Modern completion has zero application-continuation semantics.
+
+**FR-GAME-COVER-007** — The Modern cover must be a parallel page-lifetime Outer UI surface, not a lobby or active-match `surfaceKind` and not part of the 693 by 500 active-match host. Its 755 by 562 host and canvas must be a child sibling of the Legacy Raphael canvas inside the unchanged `#game-cover` parent. It may coexist with the one effective lobby or active-match Modern surface. Match activation/deactivation, lobby handoff, tutorial/replay flow, early exit, and game over must not dispose, reconstruct, or reactivate it. Graphics-mode suspension pauses its presentation while retaining reusable ownership; only component failure or replacement, coordinator teardown, or page teardown may end ownership.
+
+**FR-GAME-COVER-008** — The parent `#game-cover` remains the Legacy-owned visibility, z-order, and full-stage pointer barrier. Before Modern cover readiness, the Legacy Raphael canvas remains visible. Only after both approved textures decode, both leaves are built, the latest descriptor is applied, and one complete Modern frame renders may a cover-specific ready gate atomically hide the Legacy child and reveal the Modern child. The gate must never expose a partial one-panel state, blank cover, mixed Legacy/Modern seam, or input path through the parent.
+
+**FR-GAME-COVER-009** — Closed Modern geometry must reproduce the exact Legacy composition at logical scale: a 755 by 562 stage, the left 377 by 562 leaf beginning at x `0`, and the right 378 by 562 leaf beginning at x `376`. The one-logical-pixel overlap at x `376` must remain, and the right front must paint above the left front at that seam. The right leaf's outside hinge is x `754`, not the nominal stage width. At closed completion both leaf rotations are exactly zero and no gap, crop, stretch drift, dark seam, shimmer, or z-fighting may appear.
+
+**FR-GAME-COVER-010** — Each Modern leaf must be a true three-dimensional panel with logical thickness `10`. The left leaf pivots at x `0` with negative local-Y rotation; the right leaf pivots at x `754` with positive local-Y rotation. Their inner edges move toward the camera and away from the center seam until each reaches an absolute open angle of exactly `112` degrees. A translation, x-scale collapse, CSS transform, flat billboard, center-seam hinge, horizontal single lid, curved-surface fan, or camera orbit is not conforming.
+
+**FR-GAME-COVER-011** — The cover camera must be position-neutral and stage-centered, with a 40-degree vertical field of view and distance `(562 / 2) / tan(20°)` from logical center `(377.5, 281)`. Front materials must be unlit white, tone-map-independent, and use the approved textures as sRGB data without tinting or darkening. Backs and ten-unit edges may use restrained lit wood treatment. Hardware shadow maps remain disabled. Lighting, filtering, anisotropy, face offsets, and paint order must not alter the exact closed source-art appearance or introduce seam artifacts.
+
+**FR-GAME-COVER-012** — Planning and sampling must be implemented in one renderer-neutral deterministic module with no DOM, jQuery, Raphael, Three.js, storage, game-controller, network, clock, or random dependency. Its only motion inputs are finite `fromOpenness` and `toOpenness` values in `[0, 1]`. It must return immutable plain plan and pose data. Production and deterministic tests must import the same planner and sampler.
+
+**FR-GAME-COVER-013** — Every non-settled opening plan must last exactly 2,000 milliseconds even when it begins after an interrupted close. With raw normalized progress `t = clamp(elapsedMs / 2000, 0, 1)`, eased progress must be `t^3`, openness must interpolate from captured source openness to `1`, left local-Y rotation must be `-112° × openness`, and right local-Y rotation must be `+112° × openness`. Completion must normalize exactly to openness `1` and the signed 112-degree endpoints.
+
+**FR-GAME-COVER-014** — Every non-settled closing plan must last exactly 2,000 milliseconds even when it begins after an interrupted open. With the same raw normalized progress, eased progress must be `1 - (1 - t)^3`, openness must interpolate from captured source openness to `0`, and both leaf rotations must derive from that openness using the signs in `FR-GAME-COVER-013`. Completion must normalize exactly to openness `0`, zero rotations, and the exact closed seam.
+
+**FR-GAME-COVER-015** — A first sequence-0 closed descriptor must snap directly to the exact closed pose. A first later transition descriptor received after construction or delayed texture readiness must begin from the canonical opposite target and catch up using `now - startedAtMs`; if the Legacy interval has already elapsed, it snaps directly to the terminal target. A newer valid sequence during motion must sample the outgoing plan at the incoming descriptor's `startedAtMs`, use that exact openness as elapsed-zero for the replacement, cancel the prior generation, anchor the new full-duration plan to that same timestamp, and then catch up once to delivery `now`. This prevents both a transition-time discontinuity and double advancement on delayed delivery. A duplicate or older sequence is ignored. Visibility suspension, delayed readiness, and return from Legacy mode catch up to the newest descriptor timestamp rather than restarting or replaying motion.
+
+**FR-GAME-COVER-016** — The Modern cover must use one independent demand-driven scheduler with at most one pending cover animation-frame callback. Every callback must capture both frame identity and motion generation and verify both before clearing scheduler state or applying a pose. Supersession, completion, suspension, reduced motion, failure, replacement, and disposal must return the pending cover-frame count to zero. A settled, hidden, suspended, failed, Legacy-selected, or disposed cover owns no idle frame.
+
+**FR-GAME-COVER-017** — Selecting Legacy must first remove the Modern-ready gate and reveal the live Raphael child, then suspend the Modern cover and cancel its pending frame without changing the latest descriptor. Selecting Modern again may reuse a healthy cover surface and must catch up to the newest descriptor without callback or replay. Cover descriptor publication may continue while Modern presentation is suspended. Neither mode switch may change requested/effective mode beyond the user's existing Graphics selection rules or affect the lobby/active surface lifecycle.
+
+**FR-GAME-COVER-018** — Cover-specific synchronous construction, facade, host, initialization, malformed-descriptor, either-texture, partial-texture, timeout, render, context-loss, visibility-handler, replacement, or disposal failure must be component-local. It must atomically reveal or retain the Legacy cover child, remove the cover-ready gate, cancel Modern cover work, classify cover diagnostics, and leave requested/effective Modern mode plus any healthy lobby or active-match Modern surface unchanged. Only a shared bundle or capability failure that prevents Modern globally may use the global fallback policy.
+
+**FR-GAME-COVER-019** — Graphics-mode suspension must reveal Legacy and cancel the pending cover frame while preserving the latest descriptor, current pose, and reusable surface resources for catch-up under `FR-GAME-COVER-017`. Cover component failure/replacement, coordinator/page teardown, and disposal must instead invalidate the cover generation and reveal Legacy before releasing resources. Destructive cleanup must be idempotent and cancel the sole frame, pending texture timeout/load ownership, and visibility/context listeners; dispose partial and complete textures, face/body materials, both leaf geometries, lights and targets, renderer, context, and canvas; and make captured old frames and late texture completions inert. Neither suspension nor destructive cleanup may dispose or mutate the Legacy `gh.cover` instance.
+
+**FR-GAME-COVER-020** — With `prefers-reduced-motion: reduce`, each accepted Modern cover target must synchronously commit the same exact terminal pose, record one reduced-motion projection completion, and own no animation frame. The Legacy Raphael cover must continue its ordinary animation, `isopen`, parent show/hide, callback timing, wrapper visibility, and pointer-shield lifecycle unchanged. A snapped Modern visual remaining under a Legacy-owned blocker until the Legacy interval ends is intentional.
+
+**FR-GAME-COVER-021** — The Modern host and canvas are decorative: both must be `aria-hidden="true"`; the canvas must use `tabindex="-1"` and `pointer-events: none`; neither may expose a role, accessible name, live announcement, semantic action, pointer listener, keyboard listener, focus target, raycast target, or focus restoration behavior. The unchanged parent barrier must continue to prevent underlying game input for the Legacy-defined interval. Cover projection must not move, trap, hide, or announce the current DOM focus.
+
+**FR-GAME-COVER-022** — The full-stage logical geometry, seam, hinge pivots, camera, openness, angles, and timing must remain invariant at application scales `1`, `1.5`, `2`, and `3`, browser zoom, and supported device-pixel ratios. Scale is inherited from the existing content wrapper and must not be applied a second time. Drawing-buffer resolution may use the existing bounded pixel-ratio policy, capped at `3`, without changing CSS or logical coordinates. The cover remains above game wrapper z-index `1`, at its existing z-index `2`, and below snow, confetti, menu, endgame, deck, shop, loading, and dialog layers according to their existing application order.
+
+**FR-GAME-COVER-023** — The projection is presentation only. Its sole permitted Legacy-parent mutation is adding or removing the allowlisted `graphics-modern-cover-ready` child-presentation class under the atomic readiness, mode, and fallback rules above. It must not change `#game-cover` display, z-index, pointer-shield lifetime, Raphael attributes or animation, `isopen`, `#game-wrapper`, or application state; create a storage key or Motion Studio target; mutate Graphics preference, game, account, match, hand, board, score, rule, turn, menu, tutorial, replay, early-exit, or game-over state; emit a semantic action; submit a request; navigate; or transmit diagnostics. Its only approved texture URLs are the same-origin `/images/left.png` and `/images/right.png`.
+
+**FR-GAME-COVER-024** — Plain cloned diagnostics must expose cover policy, schema/cache identity, latest descriptor, readiness/fallback state, stage/camera/geometry/material policy, current openness and signed leaf poses, active plan, sequence, target, elapsed/raw/eased progress, motion generation, pending-frame state, reduced-motion and suspension state, accepted/completed/cancelled/ignored/failure counters, resource ownership, last outcome, `applicationContinuationAuthority: false`, and `gameplayAuthority: false`. They must expose no renderer, scene, camera, texture, material, geometry, Legacy handle, callback, timer, event, concealed data, or request object. User-facing status may say Modern projects a hinged 3D cover, but must continue to identify Legacy as available and Modern match play as incomplete.
+
+**FR-GAME-COVER-025** — The Phase 0.15 source and generated bundle must retain Three.js `0.185.1` (`r185`) and share cache identity `0.185.1-game-cover-hinge.1`. Source registration, generated artifact, facade and ABI, coordinator URL, DOM/canvas metadata, runtime diagnostics, pure/static/browser contracts, deployment artifact, and requirements must not disagree. `0.185.1-match-turn-coin.1` remains the historical Phase 0.14 identity.
+
 ## 12. Phase 0: graphics preference and inert Modern preview
 
 ### 12.1 Objective
@@ -1323,14 +1438,14 @@ Phase 0 must deliver:
 
 ### 12.3 Exact Phase 0 runtime bridge
 
-The Phase 0 bridge deliberately maintains both implementations in the DOM after Modern first initializes. Only one is presented as effective and neither the Modern presentation surface nor a hidden Legacy surface may submit gameplay input. Beginning in Phase 0.10, that Modern surface may project the two current hands. Through Phase 0.10 it remains pointer-inert; beginning in Phase 0.11 it may own the renderer-local player-card pickup/follow study, Phase 0.12 may add the always-invalid second-click return, Phase 0.13 may add only the documented valid-zone hover and one-placement preview over that hold, and Phase 0.14 may additionally mirror the plain sequenced turn indicator as a renderer-local 3D coin. It still cannot emit semantic gameplay input or derive turn authority.
+The Phase 0 bridge deliberately maintains both implementations in the DOM after Modern first initializes. Only one lobby or active-match surface is presented as effective and neither a Modern presentation surface nor a hidden Legacy surface may submit gameplay input. Beginning in Phase 0.10, the active-match Modern surface may project the two current hands. Through Phase 0.10 it remains pointer-inert; beginning in Phase 0.11 it may own the renderer-local player-card pickup/follow study, Phase 0.12 may add the always-invalid second-click return, Phase 0.13 may add only the documented valid-zone hover and one-placement preview over that hold, and Phase 0.14 may additionally mirror the plain sequenced turn indicator as a renderer-local 3D coin. Phase 0.15 separately permits one concurrent page-lifetime full-stage cover projection that owns no gameplay input, turn authority, or application continuation.
 
 When Legacy is effective:
 
 - The existing active-match board and rule Raphael papers are visible and interactive exactly as before.
 - Legacy game construction, state, timers, dialogs, review, replay, opponent work, and animation sequencing remain unchanged.
 - The Modern bundle is not requested unless Modern was requested earlier on the same page.
-- An already mounted Modern canvas may remain cached and hidden for later toggles, but it must be pointer-inert, `aria-hidden`, idle, and must not own an animation loop.
+- Already mounted Modern lobby, active-match, and cover canvases may remain cached and hidden for later toggles, but they must be pointer-inert, `aria-hidden`, idle, and must not own an animation loop.
 - Exactly one active-match board paper and one active-match rule paper exist.
 
 While Modern is being requested or initialized:
@@ -1343,7 +1458,7 @@ While Modern is being requested or initialized:
 When Modern preview is effective:
 
 - `window.Raphael` remains present and callable.
-- Surrounding Outer UI continues to create and use Raphael surfaces; Phase 0.5 may separately project only the lobby hand through Three.js.
+- Surrounding Outer UI continues to create and use Raphael surfaces; Phase 0.5 may separately project only the lobby hand through Three.js, and Phase 0.15 may separately project only the unchanged `gh.cover` through its independent full-stage surface.
 - The active-match board and rule Raphael papers remain mounted.
 - The existing `gh.game` match state, Raphael objects, timers, callbacks, review/replay state, and server-response sequencing remain live and synchronized.
 - The complete Legacy active-match presentation is opacity-hidden as one unit; selectively hiding card images is insufficient.
@@ -1352,11 +1467,13 @@ When Modern preview is effective:
 - A Modern host occupies the same 693 by 500 logical bounds, inset 30 pixels from the top and left of the board frame.
 - The Modern host contains one real Three.js WebGL canvas and may contain a renderer-neutral explanatory DOM message.
 - In the Phase 0.10 through Phase 0.14 active-match exception, the Three.js scene renders the current player and opponent hand cards. Phase 0.13 may additionally render only the one hovered valid-zone shadow and one settled renderer-local preview card. Phase 0.14 may additionally render the one plain-described sequenced turn coin. It renders no authoritative board occupancy, scores, rules, elements, bonuses, capture effects, or gameplay authority.
+- In the separate Phase 0.15 exception, a sibling Three.js cover canvas may mirror the full-stage Legacy cover while `gh.cover` remains mounted, animated, and authoritative over callbacks, parent visibility, and pointer shielding.
 - Through Phase 0.10 the Modern cards and canvas are non-interactive. In Phase 0.11 the host may accept only card-bounded player pickup and pointer-follow presentation. Phase 0.12 may accept an armed second click as renderer-local invalid return. Phase 0.13 may instead preview placement when that click is inside a currently valid plain-described rectangle while continuing to shield the blocked retained surface; neither surface can submit a human move.
 - The CSS board background and HTML dialog overlay retain their existing stacking roles.
 - The title, context menu, and route back to the main menu remain usable.
 - The Modern surface requests frames only when initialized, resized, updated, advancing bounded Phase 0.11 through Phase 0.13 card motion, or advancing one bounded Phase 0.14 turn-coin transition and has no unconditional animation loop.
 - At most one active-match WebGL context is owned by the application.
+- Phase 0.15 may additionally own one independent cover WebGL context and at most one cover frame only under the bounded rules in `NFR-PERF-020`.
 
 When Legacy becomes effective again:
 
@@ -1561,7 +1678,7 @@ Given Modern preview is effective:
 Given at least ten alternating same-page mode changes:
 
 - the page does not reload;
-- one board paper, one rule paper, one active-match Modern host, one lobby-hand Modern host, at most one current Three.js canvas, and at most one WebGL context exist;
+- one board paper, one rule paper, one active-match Modern host, one lobby-hand Modern host, and at most one current lobby-or-active Three.js canvas/context exist; beginning in Phase 0.15, one independent cover canvas/context may coexist under its separate lifecycle and resource budget;
 - input handlers do not multiply;
 - the non-effective surface remains pointer-inert;
 - delayed completion of an earlier Modern load cannot override a later Legacy request;
@@ -1772,7 +1889,7 @@ Given a ready Modern lobby hand, when Legacy is selected:
 
 Given repeated navigation between the lobby and another application surface:
 
-- at most one current Modern surface kind and one application-owned WebGL context remain;
+- at most one current lobby-or-active Modern surface kind and its one WebGL context remain; beginning in Phase 0.15, the independent page-lifetime cover surface may retain one additional context without becoming that surface kind;
 - leaving the lobby clears its ready gate and cannot leave hidden Raphael cards behind;
 - texture, material, geometry, canvas, and context resources are released when the lobby surface is disposed;
 - returning to the lobby renders the current hand rather than a stale earlier hand.
@@ -3661,9 +3778,313 @@ Phase 0.14 requires:
 
 Phase 0.14 is complete only when all `AC-P014-*` criteria and required evidence pass and a normal-speed actual-size review accepts that the marker reads as a circular coin leaving a flat table, exposing real thickness, and settling cleanly at the exact opposite Legacy target. Completion does not authorize turn authority, callback sequencing, score/rule rendering, board occupancy, capture effects, semantic match input, network requests, distinct face art, randomized coin outcomes, or promotion of Modern as playable.
 
+### 12.18 Phase 0.15: parallel Modern hinged game-cover projection
+
+#### 12.18.1 Objective, scope, and supersession
+
+Phase 0.15 gives Modern mode a physically legible game-cover opening and closing treatment without transferring any lifecycle or application-flow authority away from the existing Raphael cover. It is the narrow explicit exception to the cover exclusions recorded in Sections 4.3, 8, and 12.12. It preserves every earlier lobby, active-match, Motion Studio, fallback, and Legacy behavior.
+
+The delivered structure is deliberately parallel:
+
+```text
+Legacy gh.cover
+  owns isopen, Raphael motion, parent visibility,
+  pointer shielding, callbacks, and application flow
+                |
+                | cloned presentation descriptor
+                v
+Modern game-cover surface
+  owns only a decorative 755 × 562 Three.js projection,
+  one bounded scheduler, and disposable GPU resources
+```
+
+The projection is not a new active-match renderer, lobby `surfaceKind`, semantic transition, Motion Studio target, or continuation promise. It may coexist with the current lobby or active-match Modern surface. The reason is structural as well as conservative: early exit and game over deactivate the active-match presentation before the application asks `gh.cover` to close. A cover tied to that active-match lifecycle would disappear at exactly the point it is needed.
+
+Phase 0.15 supersedes:
+
+- the statement that `gh.cover` has no Modern projection;
+- the current generated-bundle identity from Phase 0.14;
+- only the cover-specific part of the general Outer UI migration exclusion.
+
+It does not supersede:
+
+- Raphael remaining loaded;
+- the page-lifetime `gh.cover` instance;
+- the existing `isopen` and Raphael animation behavior;
+- any callback timing, duplicate-call behavior, interruption behavior, or application continuation;
+- the existing parent show/hide and input-shield lifecycle;
+- the one-effective-lobby-or-active-surface rule;
+- the non-playable and zero-authority Phase 0 boundary;
+- exclusions for menu commands, statistics, rules, deck, shop, endgame, dialogs, or another Outer UI surface.
+
+#### 12.18.2 Exact Legacy source, descriptor, and continuation boundary
+
+The current cover uses one 755 by 562 Raphael paper and two opaque source images. Their live logical rectangles are normative:
+
+| Panel | Texture | Logical rectangle | Closed paint order |
+|---|---|---:|---:|
+| Left | `/images/left.png` | `(0, 0, 377, 562)` | 1 |
+| Right | `/images/right.png` | `(376, 0, 378, 562)` | 2 |
+
+The rectangles overlap by one logical pixel at x `376`. The right image was created second and therefore wins the seam. The source files' natural dimensions do not redefine these rectangles; Phase 0.15 must not replace them with archival variants, infer a different crop, divide the stage into two equal mathematical halves, or “correct” the apparent final coordinate.
+
+The initial cloned descriptor is:
+
+```json
+{
+  "schemaVersion": 1,
+  "sequence": 0,
+  "target": "closed",
+  "startedAtMs": null,
+  "durationMs": 0,
+  "easing": null,
+  "frame": {
+    "x": 0,
+    "y": 0,
+    "width": 755,
+    "height": 562
+  },
+  "panels": [
+    {
+      "id": "left",
+      "textureUrl": "/images/left.png",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "width": 377,
+        "height": 562
+      },
+      "hinge": "left",
+      "rotationSign": -1
+    },
+    {
+      "id": "right",
+      "textureUrl": "/images/right.png",
+      "rect": {
+        "x": 376,
+        "y": 0,
+        "width": 378,
+        "height": 562
+      },
+      "hinge": "right",
+      "rotationSign": 1
+    }
+  ]
+}
+```
+
+An actual target change increments sequence once, uses the same frame and panel records, and supplies the transition observation timestamp, 2,000-millisecond duration, and target-specific easing. A duplicate target call does not publish. Consumers reject malformed, same-sequence, and older delivery without attempting to infer intent from DOM or Raphael state.
+
+The public Legacy behavior remains the definitive control-flow trace:
+
+| Call state | Legacy action | Public callback | Modern authority |
+|---|---|---|---|
+| `open()` while closed | set `isopen=true`; publish; schedule both 2,000 ms `<` animations; hide parent on left completion | synchronous after scheduling | observe only |
+| `open()` while already targeted open | no new Legacy target or descriptor | synchronous | none |
+| `close()` while open | set `isopen=false`; show parent; stop left; publish; start left 2,000 ms `>` return; stop and start right 2,000 ms `>` return | Legacy left completion | observe only |
+| `close()` while already targeted closed | no new Legacy target or descriptor | synchronous | none |
+
+Close-during-open, duplicate calls during flight, and open-during-close retain all existing Legacy effects, including current stale Legacy completion behavior. Phase 0.15 does not use Modern to regularize those application semantics. The new descriptor gives Modern enough information to supersede its own projection safely; it does not become an abstraction that owns or “fixes” Legacy callbacks.
+
+#### 12.18.3 Full-stage Three.js representation
+
+The host hierarchy is:
+
+```text
+#game-cover                         existing 755 × 562 parent and barrier
+├── .legacy-game-cover-canvas      existing Raphael child
+└── #modernGameCover               new decorative sibling host
+    └── canvas.modern-game-cover-canvas
+```
+
+The parent retains its existing positioning and z-index. The Modern child never replaces the parent, never controls its display property, and never becomes an input barrier by itself. The ready gate switches only the two children after the Modern frame is complete.
+
+The physical model contains two independent pivot groups:
+
+- left pivot at logical `(0, 281, 0)`;
+- right pivot at logical `(754, 281, 0)`;
+- left panel center offset `+188.5` from its pivot;
+- right panel center offset `-189` from its pivot;
+- each panel has logical height `562` and thickness `10`;
+- the front plane is separated slightly from the body to prevent coplanar artifacts;
+- the right front retains higher render order at the closed overlap.
+
+At openness `0`, both local-Y rotations are exactly zero and the projected fronts reproduce the Legacy rectangles. At openness `1`, the left rotation is exactly `-112°` and the right rotation is exactly `+112°`. Those signs move both inner edges toward the camera while swinging them away from the center seam. Positive physical inner-edge depth and visible backs/edges make the motion unmistakably three-dimensional. The fixed angle intentionally carries both inner edges beyond perpendicular rather than stopping at an ambiguous edge-on disappearance.
+
+The stage-centered camera uses:
+
+```text
+logical center = (377.5, 281)
+vertical FOV   = 40°
+distance       = (562 / 2) / tan(20°)
+```
+
+The camera does not orbit, pan, or vary by leaf position. This prevents a fanned or curved-surface reading and preserves exact closed alignment. Front faces use unlit, untinted, tone-map-independent sRGB texture presentation. The body and back may use one restrained, rough, nonmetallic wood material with bounded hemisphere and directional light. Hardware shadow mapping is disabled. No lighting may darken the source fronts.
+
+#### 12.18.4 Deterministic plan, sampling, catch-up, and reversal
+
+The renderer-neutral motion coordinate is scalar `openness`:
+
+```text
+closed = 0
+open   = 1
+```
+
+For a plan from source openness `a` to target openness `b`, raw progress and interpolation are:
+
+```text
+t = clamp(elapsedMs / 2000, 0, 1)
+
+opening:
+  e = t^3
+
+closing:
+  e = 1 - (1 - t)^3
+
+openness = a + ((b - a) × e)
+leftY    = -112° × openness
+rightY   = +112° × openness
+```
+
+Every non-settled plan lasts the full 2,000 milliseconds, including a reversal from a partial pose. Distance changes angular speed but does not shorten the observed Legacy-character interval. A settled source and identical target create a zero-duration settled plan.
+
+Canonical endpoint-to-endpoint samples are:
+
+| Elapsed | Raw `t` | Opening eased/openness | Opening angle magnitude | Closing eased progress | Closing openness | Closing angle magnitude |
+|---:|---:|---:|---:|---:|---:|---:|
+| 0 ms | 0 | 0 | 0° | 0 | 1 | 112° |
+| 500 ms | 0.25 | 0.015625 | 1.75° | 0.578125 | 0.421875 | 47.25° |
+| 1,000 ms | 0.5 | 0.125 | 14° | 0.875 | 0.125 | 14° |
+| 1,500 ms | 0.75 | 0.421875 | 47.25° | 0.984375 | 0.015625 | 1.75° |
+| 2,000 ms | 1 | 1 | 112° | 1 | 0 | 0° |
+
+Sampling depends only on the frozen plan and elapsed time. An irregular frame schedule and a dense fixed schedule produce the same pose at the same elapsed time. No random value, wall-clock integration, velocity accumulator, physics engine, DOM measurement, previous rendered matrix, or frame count enters the formula.
+
+When a new sequence arrives during motion, the surface first samples the old plan at the new descriptor's observation timestamp, captures that exact openness, invalidates the old generation, and constructs the full-duration replacement plan from the captured pose. Elapsed zero of the replacement must equal the last visible old pose.
+
+When textures or the renderer become ready after a transition began, or when a hidden/suspended surface resumes, the surface samples against `now - startedAtMs`. It does not restart the interval. If the timestamp is at least 2,000 milliseconds old, it commits the target immediately. A sequence-0 initial descriptor snaps closed without inventing opening history.
+
+#### 12.18.5 Scheduler, mode, lifecycle, failure, and reduced motion
+
+The Modern cover owns no unconditional render loop. One accepted moving target may own one cover-specific animation-frame callback. A frame is valid only when both its captured callback identity and its motion generation still match. Normal completion samples the exact endpoint, clears motion, records completion, and returns the pending count to zero.
+
+Mode and readiness rules are:
+
+1. Legacy is visible while the Modern bundle, facade, cover factory, host, context, textures, geometry, descriptor, or first frame is not ready.
+2. A complete first Modern frame atomically applies the cover-ready child gate.
+3. Selecting Legacy reveals the Raphael child before suspending Modern work.
+4. Selecting Modern may resume a healthy surface and catch up to the latest descriptor without replay.
+5. Lobby-to-match, match-to-lobby, tutorial/replay, early-exit, and game-over transitions do not dispose the page-lifetime cover surface.
+6. Active-match deactivation does not cancel a closing cover merely because the match surface is no longer effective.
+
+Cover failure is component-local. Synchronous construction failure, absent host/factory, malformed descriptor, either texture rejecting, one texture succeeding while the other rejects or times out, a late partial completion, rendering error, WebGL context loss, visibility race, replacement, or disposal must:
+
+- reveal or retain the complete Legacy child;
+- remove the Modern cover-ready gate;
+- cancel the cover frame and invalidate the generation;
+- dispose every partial and complete Modern cover resource;
+- make old frames and late loads inert;
+- preserve Legacy cover identity, animation, callback, parent visibility, and pointer shielding;
+- preserve the requested/effective Modern selection and a healthy Modern lobby or active-match surface.
+
+Only a shared capability or bundle failure that prevents Modern as a whole may invoke the global Modern-to-Legacy fallback. Conversely, a lobby or active-match surface failure does not corrupt the cover descriptor or Legacy cover.
+
+Reduced motion is intentionally asymmetric because authority remains Legacy-owned. The Modern projection immediately samples its target endpoint and owns no frame. The Legacy cover continues its existing 2,000-millisecond Raphael animation and continuation timing. The parent may therefore continue to block input even though the decorative Modern leaves have visually snapped. This preserves flow correctness and is not a reason to accelerate the callback.
+
+Disposal and replacement reveal Legacy first and then release frame, timeout, pending-load, listener, texture, material, geometry, light, renderer, context, and canvas ownership idempotently. Fifty repeated lifecycle cycles must return each count to its documented baseline. The Legacy `gh.cover` instance and Raphael objects are never part of Modern cleanup.
+
+#### 12.18.6 Accessibility, stacking, diagnostics, and delivery
+
+The Modern cover is decorative duplication of an existing visual transition:
+
+- host and canvas are `aria-hidden`;
+- canvas is excluded from tab order;
+- canvas receives no role or accessible name;
+- canvas and host install no semantic pointer or keyboard input;
+- canvas uses `pointer-events: none`;
+- no cover event moves or restores focus;
+- no cover state is announced through a live region.
+
+The existing `#game-cover` remains above `#game-wrapper` and below the application's higher menus, loading UI, dialogs, endgame, deck, and shop layers. Snow and confetti retain their established relative order. The title and footer remain outside the covered stage. Application scale is inherited once from the existing content wrapper; logical coordinates, camera, hinge angle, and timing do not change at scales `1`, `1.5`, `2`, or `3`, browser zoom, or device-pixel ratio.
+
+Diagnostics are cloned plain data. They include descriptor, cache identity, policy, ready/fallback/suspension state, current openness, signed angles, projected inner-edge positions and depth, plan, raw/eased progress, generation, pending-frame state, counters, resource summary, reduced-motion state, and last outcome. They explicitly report:
+
+```text
+applicationContinuationAuthority = false
+gameplayAuthority = false
+```
+
+They contain no object that could invoke Legacy, retain the renderer, reveal hidden match information, or issue a request. No cover profile is persisted; no Motion Studio target is added.
+
+The generated delivery remains Three.js `0.185.1` (`r185`) and changes current cache identity to:
+
+```text
+0.185.1-game-cover-hinge.1
+```
+
+Source, pure planner, surface, facade, ABI, loader, DOM metadata, generated artifact, diagnostics, static/browser contracts, deployment, and this document must agree.
+
+#### 12.18.7 Acceptance criteria
+
+**AC-P015-001 — Exact Legacy source and closed composition**
+
+A fresh cover produces the exact schema-version-1 sequence-0 descriptor in Section 12.18.2. Static and browser evidence proves one 755 by 562 stage, only the two approved texture URLs, exact rectangles `(0, 0, 377, 562)` and `(376, 0, 378, 562)`, one-pixel overlap, right-over-left seam order, hinge coordinates `0` and `754`, and zero closed rotations. Actual-size closed captures at every application scale show the same source brightness and composition with no gap, crop drift, mixed child state, seam shimmer, or darkening.
+
+**AC-P015-002 — True outer-edge-hinged 3D representation**
+
+Runtime and generated-artifact evidence proves two independent pivot groups, ten-unit physical thickness, position-neutral stage-centered perspective, left negative and right positive local-Y rotation, positive camera-facing inner-edge depth, and exact signed 112-degree open endpoints. Mid-motion and open captures visibly expose restrained wood edges/backs while the fronts retain unlit sRGB source color. Translation-only, scale-only, CSS, billboard, center-seam, backward-folding, single-lid, radial-fan, and curved-table implementations fail.
+
+**AC-P015-003 — Deterministic canonical and irregular-clock samples**
+
+Pure tests verify the exact values in Section 12.18.4 at 0, 500, 1,000, 1,500, and 2,000 milliseconds and at no fewer than 1,000 dense samples. Opening and closing are monotonic, left/right magnitudes match with opposite signs, inner-edge positions and depths are finite, endpoints normalize exactly, and repeated or irregular schedules yield identical poses. Invalid, non-finite, and out-of-range inputs are rejected. The planner/sampler and generated motion path contain no random dependency.
+
+**AC-P015-004 — Unchanged Legacy callbacks and continuation authority**
+
+Controlled real-`gh.cover` traces prove accepted opening sets target and schedules Legacy work before invoking its callback synchronously; accepted closing shows the parent and invokes its callback only through the Legacy left completion after the existing 2,000-millisecond path; already-targeted calls retain synchronous callbacks and publish no sequence. Play, early exit, game over, tutorial/replay, and duplicate/interrupted calls produce the same Legacy callback counts, ordering, wrapper/menu state, request counts, and `isopen` behavior with Modern enabled, disabled, reduced, failed, and absent. Modern diagnostics always report zero continuation authority.
+
+**AC-P015-005 — Reversal, catch-up, and stale-generation rejection**
+
+At representative early, quarter, midpoint, late, and completion observation timestamps, a newer opposite target samples the outgoing plan exactly at the incoming `startedAtMs`; replacement elapsed zero equals that sampled openness and the new plan runs one full 2,000-millisecond interval. Delivery at the same time produces no first-frame jump. Delayed delivery samples the replacement once at `now - startedAtMs` rather than advancing the outgoing and replacement plans across the same interval. Delayed readiness, hidden-tab resume, and mode return catch up from the descriptor timestamp and do not replay elapsed motion. Duplicate and stale descriptors change no pose or accepted count. Manually invoked cancelled frames and late texture completions cannot change a newer pose, child gate, counters, Legacy state, or application flow.
+
+**AC-P015-006 — Reduced motion, accessibility, and input shielding**
+
+Reduced motion snaps the Modern projection synchronously to the exact latest target with zero pending frame while the ordinary Legacy animation, callback clock, parent visibility, wrapper state, and input shield continue unchanged. Accessibility inspection shows the host/canvas absent from the accessible and tab trees, no role/live announcement/action handler, no focus movement, and `pointer-events: none`. Pointer probing cannot reach the underlying game while the Legacy parent barrier is shown and cannot be blocked by the Modern canvas after Legacy exposes the game.
+
+**AC-P015-007 — Scale, device-pixel ratio, stacking, and real flows**
+
+At application scales `1`, `1.5`, `2`, and `3`, representative browser zoom, and supported device-pixel ratios, logical rectangles, seam, hinge coordinates, projected openness, signed angles, camera framing, and timing are invariant while backing resolution remains bounded. The cover remains above the game wrapper and below higher application UI. Real Play, normal game open, early exit, game over, tutorial/replay open and close, mode switching, lobby/match handoff, and parent show/hide flows complete without losing, duplicating, or prematurely exposing UI.
+
+**AC-P015-008 — Component-local fail-open and zero authority**
+
+Forced synchronous factory/host/renderer failure; malformed descriptor; left failure; right failure; one-success/one-reject; one-success/other-timeout; partial late completion; render exception; context loss; visibility race; replacement; and disposal each reveal or retain the intact Legacy cover exactly once and dispose partial Modern resources. Requested/effective Modern mode and healthy lobby/active surface identity remain unchanged. Game, controller, hand, board, score, rule, turn, menu, cover callback, semantic-action, navigation, storage, and request snapshots remain unchanged except for independently executing Legacy flow.
+
+**AC-P015-009 — Diagnostics, cache identity, scheduler, and resource cleanup**
+
+Diagnostics expose every permitted plain field in Section 12.18.6, bounded counters, no live object, and both authority flags false. Normal, reduced, suspended, settled, failed, and disposed states own at most one cover frame while moving and zero otherwise. Fifty cycles spanning open, close, duplicate calls, both reversal directions, delayed readiness, mode switch, visibility, scale, reduced motion, partial texture failure, context loss, replacement, and disposal return frames, timers, loads, listeners, textures, materials, geometries, lights, canvases, and cover WebGL contexts to baseline; captured stale work remains inert. Source, generated bundle, facade/ABI, loader, DOM metadata, diagnostics, tests, deployment, and requirements all report `0.185.1-game-cover-hinge.1`.
+
+#### 12.18.8 Required evidence and definition of done
+
+Phase 0.15 requires:
+
+- static characterization of `gh.cover` construction, initial state, exact assets/rectangles, target changes, descriptor sequencing, parent show/hide, left-owned completions, public callbacks, interruption behavior, and unchanged application call sites;
+- pure planner/sampler tests for schema identity, immutability, bounds, exact defaults, 1,000-sample monotonic opening/closing, mirrored signs, positive depth, canonical timestamps, irregular cadence, exact endpoints, interrupted-source continuity, and invalid input;
+- source and generated-artifact checks for full-stage factory/ABI registration, independent lifecycle, exact hinges, 112-degree endpoints, ten-unit thickness, stage-centered camera, sRGB unlit fronts, lit wood body, no hardware shadow, ready gate, scheduler/generation guards, local fallback, authority flags, and cache identity;
+- controlled browser-clock traces at canonical samples and representative irregular times for ordinary opening, ordinary closing, partial reversal in both directions, duplicate and stale descriptors, first-snapshot closed state, delayed ready catch-up, hidden-tab catch-up, and mode resume;
+- real Legacy callback/order traces for Play, early exit, game over, tutorial/replay, duplicate open/close, close-during-open, and open-during-close, with Modern ordinary, reduced, failed, and absent;
+- component-local failure injection for synchronous factory/host/renderer construction, each texture independently, one fulfilled texture followed by sibling rejection or timeout, late partial loads, malformed descriptor, rendering exception, context loss, replacement, and disposal;
+- proof that partial-load failure disposes the texture that already succeeded and that stale loads or frames cannot reapply the Modern child gate;
+- accessibility, focus, tab-order, pointer-shield, z-order, application-scale, browser-zoom, device-pixel-ratio, and bounded-backing-resolution evidence;
+- actual-size normal-speed and slowed captures at exact closed, representative mid-open, exact 112-degree open, representative mid-close, and exact reclosed poses, proving true forward hinge depth and clean art;
+- unchanged requested/effective Graphics state, active lobby/match surface identity, Legacy cover/callback identity, controller, hand, board, score, rule, turn, semantic-action, storage, navigation, and request evidence;
+- fifty-cycle cleanup evidence with manually invoked stale frames and late texture completions;
+- current Phase 0.9 lobby, Phase 0.10 hand secrecy/fallback, Phases 0.11 through 0.13 card studies, Phase 0.14 coin/Studio, Graphics persistence, scaling, dialogs, smoke flows, and applicable Legacy regressions;
+- a generated Modern artifact matching reviewed source and pinned Three.js `0.185.1` with cache identity `0.185.1-game-cover-hinge.1`.
+
+Phase 0.15 is complete only when all `AC-P015-*` criteria and required evidence pass and normal-speed actual-size review accepts that the familiar cover remains exact when closed, both leaves visibly hinge toward the camera from their outside edges, the fixed 112-degree opening reads as physical rather than flat, and closing restores the seam cleanly. Completion does not authorize replacement or removal of the Legacy cover, callback or application continuation authority, a cover interaction, Motion Studio cover target, stored cover profile, another Outer UI migration, playable Modern match status, or any game/network behavior.
+
 ## 13. Target renderer contract
 
-This is a target-state contract beginning in Phase 1. It is not a Phase 0 deliverable; the first increment may use the documented shallow runtime presentation/input gate, Phase 0.10 hand description, Phase 0.11 renderer-local pickup/follow exception, Phase 0.12 always-invalid renderer-local return, Phase 0.13 renderer-local valid-zone/placement preview, and Phase 0.14 renderer-local turn-indicator coin without claiming this semantic contract.
+This is a target-state contract beginning in Phase 1. It is not a Phase 0 deliverable; the first increment may use the documented shallow runtime presentation/input gate, Phase 0.10 hand description, Phase 0.11 renderer-local pickup/follow exception, Phase 0.12 always-invalid renderer-local return, Phase 0.13 renderer-local valid-zone/placement preview, and Phase 0.14 renderer-local turn-indicator coin without claiming this semantic contract. Phase 0.15's parallel Outer UI cover projection is governed separately by `FR-GAME-COVER-*`; it neither implements nor becomes part of the future active-match `apply()` contract, and its render completion cannot be treated as an application continuation.
 
 The exact syntax may change to match the legacy JavaScript environment, but the responsibility boundary should be semantic and comparable to:
 
@@ -3771,7 +4192,7 @@ The permanent contract must not imitate Raphael's `image`, `rect`, `attr`, `anim
 
 ## 14. Renderer-neutral view state
 
-The complete renderer-neutral snapshot becomes mandatory in Phase 1 and expands as later parity work exposes additional state. Phase 0.10 adds one deliberately shallow compatibility description containing only current hand presentation data. Phase 0.11 consumes that same description and adds no hold, pointer, selection, or motion field to it; all pickup/follow state remains disposable inside the Modern surface. Phase 0.12 keeps arming, invalid-return motion, counters, and generation state equally private. Phase 0.13 permits nine cloned drop-zone presentation rectangles and validity bits while keeping hover, random roll, placement, and counters private. Phase 0.14 permits one cloned sequenced turn-indicator presentation descriptor while keeping the coin mesh, pose, plan, scheduler, counters, and local profile revision private. None satisfies the complete snapshot contract below, and the descriptor's `side` cannot replace the future authoritative `activePlayerId`.
+The complete renderer-neutral snapshot becomes mandatory in Phase 1 and expands as later parity work exposes additional state. Phase 0.10 adds one deliberately shallow compatibility description containing only current hand presentation data. Phase 0.11 consumes that same description and adds no hold, pointer, selection, or motion field to it; all pickup/follow state remains disposable inside the Modern surface. Phase 0.12 keeps arming, invalid-return motion, counters, and generation state equally private. Phase 0.13 permits nine cloned drop-zone presentation rectangles and validity bits while keeping hover, random roll, placement, and counters private. Phase 0.14 permits one cloned sequenced turn-indicator presentation descriptor while keeping the coin mesh, pose, plan, scheduler, counters, and local profile revision private. Phase 0.15 separately permits one cloned Outer UI game-cover descriptor that is not match view state and cannot enter `MatchViewSnapshot`; Modern cover pose, resources, counters, and readiness remain component-local. None satisfies the complete snapshot contract below, and neither turn-marker `side` nor cover `target` can replace future authoritative match or application lifecycle state.
 
 A renderer-neutral snapshot should be plain data and should contain enough information to rebuild a settled scene:
 
@@ -3847,7 +4268,7 @@ This is illustrative rather than a mandated field-for-field schema. The implemen
 - Modern code must be lazy-loaded or otherwise excluded from the forced-Legacy startup path.
 - A fresh page load with Legacy forced must issue no Modern resource request, import, or preload and must evaluate zero Modern bytes. Switching back to Legacy after Modern was explicitly loaded on that page may retain the idle cached surface.
 - Phase 0 originally rendered one blank transparent frame with the pinned Three.js `WebGLRenderer`, without card geometry, texture assets, picking targets, or a continuous animation loop.
-- Phase 0.5 adds the first pre-Phase-2 exception to that blank-frame rule: the dedicated lobby-hand factory may create shared 117 by 146 card geometry, up to five card objects, and only the current lobby hand's same-origin face textures. Phase 0.6 additionally permits the shared canonical card-back texture, a side-only lit shared card slab, unlit mipmapped/anisotropic face materials, a calibrated perspective lobby camera, shared analytic-shadow geometry/texture with one independently controlled mesh/material per lobby card, hardware shadow mapping disabled, card-bounded hit testing, and one re-entry lock per active card. Phase 0.7 permits the same bounded shared animation-frame scheduler while at least one entrance or double flip is active, plus the pure seeded destination-driven arrival planner and sampler; its current entrance is implemented but not visually approved. Phase 0.8 permits a separate one-card study factory, deterministic renderer-neutral recipe planner/sampler, and one isolated demand-driven Studio scheduler. Phase 0.9 permits a pure application playbook compiler, five destination-locked intro entries, one origin-locked Gentle Wind exit compiled into five deterministic variants, and reuse of the lobby surface's existing sole scheduler. Phase 0.10 permits the active-match factory to create one shared plane geometry, zero to ten passive current-hand meshes, current visible same-origin hand textures, and a demand-rendered orthographic projection, with no active-match picking target, input listener, or motion scheduler. Phase 0.11 supersedes that last camera/input clause only: it permits a calibrated active-match perspective camera, player-card-bounded picking, one renderer-local hold, pointer-follow state, and one demand-driven frame request while lift/follow settling is active. Phase 0.12 permits arming state, one renderer-local always-invalid return, a local-Z turn, return diagnostics, and generation checks while reusing that same sole pending card frame. Phase 0.13 permits nine plain slot descriptions, one hover-shadow mesh, and one local placement preview. Phase 0.14 additionally permits two circular coin faces, one cylindrical edge, one approved current marker texture, restrained edge lights, one analytic coin shadow, one independent bounded coin frame, one pure turn-coin profile/planner/sampler, and the corresponding exact-space Studio subject. It still permits no opponent pickup, semantic action, gameplay request, turn authority, or unconditional animation loop.
+- Phase 0.5 adds the first pre-Phase-2 exception to that blank-frame rule: the dedicated lobby-hand factory may create shared 117 by 146 card geometry, up to five card objects, and only the current lobby hand's same-origin face textures. Phase 0.6 additionally permits the shared canonical card-back texture, a side-only lit shared card slab, unlit mipmapped/anisotropic face materials, a calibrated perspective lobby camera, shared analytic-shadow geometry/texture with one independently controlled mesh/material per lobby card, hardware shadow mapping disabled, card-bounded hit testing, and one re-entry lock per active card. Phase 0.7 permits the same bounded shared animation-frame scheduler while at least one entrance or double flip is active, plus the pure seeded destination-driven arrival planner and sampler; its current entrance is implemented but not visually approved. Phase 0.8 permits a separate one-card study factory, deterministic renderer-neutral recipe planner/sampler, and one isolated demand-driven Studio scheduler. Phase 0.9 permits a pure application playbook compiler, five destination-locked intro entries, one origin-locked Gentle Wind exit compiled into five deterministic variants, and reuse of the lobby surface's existing sole scheduler. Phase 0.10 permits the active-match factory to create one shared plane geometry, zero to ten passive current-hand meshes, current visible same-origin hand textures, and a demand-rendered orthographic projection, with no active-match picking target, input listener, or motion scheduler. Phase 0.11 supersedes that last camera/input clause only: it permits a calibrated active-match perspective camera, player-card-bounded picking, one renderer-local hold, pointer-follow state, and one demand-driven frame request while lift/follow settling is active. Phase 0.12 permits arming state, one renderer-local always-invalid return, a local-Z turn, return diagnostics, and generation checks while reusing that same sole pending card frame. Phase 0.13 permits nine plain slot descriptions, one hover-shadow mesh, and one local placement preview. Phase 0.14 additionally permits two circular coin faces, one cylindrical edge, one approved current marker texture, restrained edge lights, one analytic coin shadow, one independent bounded coin frame, one pure turn-coin profile/planner/sampler, and the corresponding exact-space Studio subject. Phase 0.15 additionally permits one concurrent page-lifetime full-stage cover factory, two ten-unit-thick outer-hinged leaves, two approved cover textures, restrained cover-body lights, and one independent bounded cover frame. This is the explicit exception allowing one additional cover WebGL context alongside the mutually exclusive lobby or active-match context. It still permits no opponent pickup, semantic action, gameplay request, turn authority, cover continuation authority, or unconditional animation loop.
 - Lazy-load failure before input ownership must follow the initialization-fallback policy.
 - Source-map publication, generated-file review, and third-party license-notice policy must be explicit.
 - A lockfile, upgrade procedure, and license record must accompany the dependency.
@@ -3896,11 +4317,14 @@ Phase 0.12 reuses that camera and transform hierarchy. Its return interpolates t
 
 Phase 0.13 reuses the same flat-table calibration for the hover plane and placement endpoint. Phase 0.14 adds a separate circular coin hierarchy under that exact active-match camera. Its two face circles and cylindrical edge rotate physically around local X, Y, and Z while analytic height supplies perspective depth. A face-anchored off-axis neutralizer may preserve the same position-neutral flat table, but it must not erase the coin's own foreshortening, edge exposure, or shadow response. The Studio coin inset must use the same active-match camera and coordinate mapping rather than the lobby camera.
 
+Phase 0.15 uses a distinct full-stage scene centered on `(377.5, 281)` with the fixed 40-degree perspective and distance in Section 12.18. It contains only two outer-edge pivot groups and their front/body meshes. Its camera and pivots do not inherit the active-match or lobby camera, and its lifecycle does not replace either scene. At zero openness the result must be a position-neutral exact Legacy composition; at positive openness the fixed signed local-Y rotations must move both inner edges toward the camera.
+
 ### 15.4 Texture policy
 
 - Only textures needed by the current lobby hand or current match, its card backs, board elements, and immediate effects should be loaded.
 - The Phase 0.6 lobby card back is exactly `/images/cards/cardBack.png`. It is shared by all five lobby cards and has no player-color, opponent-color, ownership, captured-state, or purchased-card path variant.
 - The Phase 0.14 turn-coin texture is exactly the current descriptor-selected `/images/dime-heads.png` or `/images/dime-tails.png`. The same one texture is used on both coin faces. The renderer must not request a catalog, ownership, player-color, or generated reverse-face variant.
+- The Phase 0.15 cover textures are exactly `/images/left.png` and `/images/right.png`. They use their explicit logical rectangles rather than natural image dimensions, are loaded atomically, and remain cover-local. One fulfilled load followed by sibling rejection or timeout must dispose the fulfilled texture before component-local fallback.
 - Texture color-space handling must preserve card-art appearance.
 - Phase 0.6 front and back orientation must be tested at both same-direction local-X edge passages, at the `-π` upright-back milestone, at the `-2π` upright-front endpoint, and after exact normalization to zero.
 - Phase 0.6 lobby card textures must generate mipmaps, use trilinear minification and linear magnification, and set anisotropy to the lesser of four and the renderer capability.
@@ -3908,7 +4332,7 @@ Phase 0.13 reuses the same flat-table calibration for the hover plane and placem
 - Shared textures must use reference counting or equivalent ownership if several meshes use them.
 - Disposal must release textures no longer retained by the renderer.
 - Texture-load failures must not hang renderer-application promises.
-- A required card face, card back, or core renderer asset that fails before input ownership must receive at most one bounded same-origin retry and then trigger Legacy initialization fallback.
+- A required card face, card back, or core renderer asset that fails before input ownership must receive at most one bounded same-origin retry and then trigger Legacy initialization fallback. Phase 0.15 cover assets instead follow their component-local fallback contract and must not demote a healthy lobby or active-match Modern surface.
 - An optional decorative asset may be omitted after failure without making the scene unplayable.
 - A required asset failure after input ownership must suspend affected input, settle outstanding renderer applications, attempt at most one bounded retry, and then use the controlled-reload/fallback policy.
 
@@ -3941,6 +4365,8 @@ For Phase 0.13, the matrix must additionally probe just inside and outside all n
 
 For Phase 0.14, the matrix must additionally project the initial, player, and opponent coin centers; sample both mirrored endpoint directions; and compare production with the Studio's 693 by 500 inset at application scales `1`, `1.5`, `2`, and `3`. CSS stage offset `(30, 30)`, device-pixel ratio, drawing-buffer ratio, and Studio application scale must not alter logical endpoints, path samples, height, rotations, or settlement.
 
+For Phase 0.15, a separate full-stage matrix must project the exact 755 by 562 frame, both panel rectangles, hinges x `0` and x `754`, the one-pixel seam, and the fixed signed 112-degree endpoints at application scales `1`, `1.5`, `2`, and `3`. Browser zoom, device-pixel ratio, drawing-buffer ratio, child gating, and parent visibility must not alter logical geometry, openness, angle, timing, or layer order. The cover has no pointer-coordinate mapping because it accepts no input.
+
 The logical coordinate space remains 693 by 500 regardless of CSS application scale. `#content-wrapper` remains the owner of the application scale.
 
 The provisional drawing-buffer ratio is:
@@ -3950,6 +4376,8 @@ effectiveBufferRatio = min(devicePixelRatio × applicationScale, 3)
 ```
 
 At the provisional cap, the drawing buffer may not exceed 2079 by 1500, or 3,118,500 pixels, without a documented Phase 2 budget change. Browser zoom affects the browser-reported pixel ratio and must not be multiplied a second time. The spike must compare sharpness at scale 3 against GPU cost and may revise the ratio or cap through this document's change-control process.
+
+The Phase 0.15 full-stage cover uses the same ratio formula and cap value but a distinct 755 by 562 logical size. Its maximum drawing buffer is therefore 2265 by 1686, or 3,818,790 pixels. This bounded additional buffer and context are permitted only for the parallel cover projection and must be idle or suspended whenever no cover motion requires a frame.
 
 ## 16. Nonfunctional requirements
 
@@ -3968,7 +4396,7 @@ Performance evidence must use two named deterministic fixtures:
 
 **NFR-PERF-004** — Once all visible transitions and approved ambient effects settle, the Modern renderer must stop requesting continuous frames.
 
-**NFR-PERF-005** — Drawing-buffer ratio and dimensions must obey the provisional formula and 3,118,500-pixel maximum in Section 15.5 unless Phase 2 approves and records a replacement budget.
+**NFR-PERF-005** — Active-match drawing-buffer ratio and dimensions must obey the provisional formula and 3,118,500-pixel maximum in Section 15.5 unless Phase 2 approves and records a replacement budget. Separately authorized full-stage surfaces use the same ratio cap with their documented logical dimensions; the Phase 0.15 cover maximum is governed by `NFR-PERF-020`.
 
 **NFR-PERF-006** — Only one active WebGL context may be owned by the active-match renderer.
 
@@ -3997,6 +4425,8 @@ Performance evidence must use two named deterministic fixtures:
 **NFR-PERF-018** — Phase 0.12 invalid return must reuse the Phase 0.11 active-match scheduler and own at most one pending callback during its fixed 300-millisecond interval. It must allocate no geometry, material, texture, raycaster, listener, drop target, or scheduler per second click or frame. Normal completion, reduced-motion completion, ignored input, cancellation, failure, and disposal must return pending-frame count to zero.
 
 **NFR-PERF-019** — Phase 0.14 turn-coin motion may own at most one pending coin animation-frame callback in addition to the retained bounded card scheduler. It must allocate no geometry, material, texture, light, shadow, listener, or planner per sampled frame. The default transition lasts 760 milliseconds; every normalized profile is bounded to 2,600 milliseconds before any separately validated instance delay. Normal completion, reduced-motion completion, duplicate rejection, supersession, cancellation, failure, suspension, and disposal must return the coin pending-frame count to zero. Paused or settled Studio coin preview and a settled production marker must own no frame.
+
+**NFR-PERF-020** — Phase 0.15 may own exactly one additional full-stage cover canvas and WebGL context concurrently with the mutually exclusive lobby or active-match Modern context. Cover motion may own at most one independent pending animation-frame callback and must allocate no GPU resource, geometry, material, texture, light, listener, scheduler, or plan per sampled frame and retain no unbounded per-frame allocation. The bounded ephemeral immutable plain pose returned by the shared pure sampler is permitted. Every non-settled transition lasts exactly 2,000 milliseconds; required cover texture readiness must use one bounded timeout no longer than 6,000 milliseconds. Normal completion, reduced-motion completion, duplicate/stale rejection, supersession, Graphics-mode suspension, visibility suspension, component-local failure, replacement, and disposal must return the cover pending-frame count to zero. Settled, parent-hidden, Legacy-selected, suspended, failed, and disposed covers own no idle frame. The cover drawing buffer obeys the ratio cap in Section 15.5 and may not exceed 2265 by 1686 pixels without an explicit budget revision.
 
 ### 16.2 Reliability and cleanup
 
@@ -4030,6 +4460,8 @@ Performance evidence must use two named deterministic fixtures:
 
 **NFR-REL-015** — Fifty Phase 0.14 cycles spanning first snapshots at all three descriptor sides, both transition directions, duplicates, stale/same-target notifications, normal and reduced motion, mid-flight supersession, simultaneous card/coin motion, visibility loss, Legacy toggles, descriptor removal, texture failure, context loss, surface replacement, Studio open/edit/apply/import/export/reset/close, storage denial, and disposal must return coin plans, generations, frames, textures, face/edge/shadow materials, geometry references, Studio subject state, listeners, canvases, and WebGL-context ownership to baseline. At least one cycle must invoke a cancelled frame and late texture completion after a newer sequence and prove both inert. Every cycle must show unchanged Phase 0.13 card behavior, Graphics/lobby storage identity, Legacy marker/callback behavior, game state, semantic-action count, and request count.
 
+**NFR-REL-016** — Fifty Phase 0.15 cycles spanning initial closed state, opening, closing, already-targeted duplicate calls, close-during-open, open-during-close, both mid-motion reversal directions, delayed descriptor delivery, delayed readiness, hidden-tab catch-up, Legacy/Modern toggles, every application scale, normal and reduced motion, synchronous construction failure, malformed descriptor, each texture failing independently, one texture succeeding before the other rejects or times out, late partial completion, rendering error, context loss, component replacement, coordinator teardown, and disposal must return cover plans, generations, frames, timeouts, pending loads, visibility/context listeners, partial and complete textures, face/body materials, both leaf geometries, lights and targets, canvases, and cover WebGL-context ownership to baseline. Fulfilled partial textures must be disposed when their sibling fails. At least one cycle must manually invoke a cancelled frame and late texture completion after a newer sequence and prove both inert. Every cycle must preserve Legacy cover identity, callback counts/timing/order, parent show/hide and pointer shielding, requested/effective Graphics state, healthy lobby/active surface identity, game state, navigation, semantic-action count, storage, and request count.
+
 ### 16.3 Security and privacy
 
 **NFR-SEC-001** — Modern assets and scripts must be same-origin.
@@ -4045,6 +4477,8 @@ Performance evidence must use two named deterministic fixtures:
 **NFR-SEC-006** — External telemetry requires a separate privacy and product decision.
 
 **NFR-SEC-007** — The turn-indicator descriptor and local profile must remain same-origin presentation data. The applied profile and Studio draft must not be transmitted, attached to an account, or used to expose turn, card, or match information beyond what the current user can already see.
+
+**NFR-SEC-008** — The Phase 0.15 descriptor, textures, diagnostics, and failure information must remain same-origin presentation data. Only `/images/left.png` and `/images/right.png` are approved cover texture URLs. No cover profile, descriptor, pose, callback, timing record, failure record, or diagnostic may be sent to a server, attached to an account or match, stored under a new browser key, used as a navigation or request payload, or expose information beyond the already visible Legacy cover.
 
 ### 16.4 Compatibility
 
@@ -4076,14 +4510,17 @@ Performance evidence must use two named deterministic fixtures:
 
 **NFR-MAINT-007** — The Phase 0.14 turn-coin profile, planner, and sampler must remain in a renderer-neutral module with no DOM, jQuery, Raphael, Three.js, storage, game-controller, or network dependency. Production and Studio must import the same API rather than duplicate motion math.
 
+**NFR-MAINT-008** — The Phase 0.15 game-cover planner and sampler must remain in one renderer-neutral module with no DOM, jQuery, Raphael, Three.js, storage, clock, random, game-controller, continuation, or network dependency. Production and pure tests must import the same API. The `gh.cover` descriptor adapter, graphics coordinator, cover surface, and generated facade must remain separate owners so renderer objects cannot enter Legacy state and Modern cannot acquire callback authority.
+
 ## 17. Behavior and parity matrix
 
-In the Phase 0 through Phase 0.14 column, “not rendered” or “disabled” means not rendered or operable by Three.js on the active-match surface except for the explicitly identified Phase 0.11 renderer-local pickup/follow study, Phase 0.12 always-invalid renderer-local return, Phase 0.13 valid-zone/placement preview, and Phase 0.14 turn-indicator projection. The corresponding Legacy match objects remain live and synchronized behind the opacity and pointer gate so they can be revealed immediately. Lobby motion remains decorative rather than playable input. Phase 0.13 may describe and hover the nine empty/currently valid rectangles and place one local projection; Phase 0.14 may mirror one already-decided turn-marker sequence as a local 3D coin. Modern still has no semantic selection, committed board state, turn authority, turn progression, or move submission.
+In the Phase 0 through Phase 0.15 column, “not rendered” or “disabled” means not rendered or operable by Three.js on the active-match surface except for the explicitly identified Phase 0.11 renderer-local pickup/follow study, Phase 0.12 always-invalid renderer-local return, Phase 0.13 valid-zone/placement preview, and Phase 0.14 turn-indicator projection. The corresponding Legacy match objects remain live and synchronized behind the opacity and pointer gate so they can be revealed immediately. Lobby motion remains decorative rather than playable input. Phase 0.13 may describe and hover the nine empty/currently valid rectangles and place one local projection; Phase 0.14 may mirror one already-decided turn-marker sequence as a local 3D coin. Phase 0.15 separately mirrors the Legacy game cover as a full-stage decorative projection while Legacy retains continuation authority. Modern still has no semantic selection, committed board state, turn authority, application continuation authority, turn progression, or move submission.
 
-| Capability | Legacy requirement | Phase 0 through 0.14 Modern preview | Playable Modern requirement |
+| Capability | Legacy requirement | Phase 0 through 0.15 Modern preview | Playable Modern requirement |
 |---|---|---|---|
 | Lobby/main-menu hand | Five non-interactive Raphael card faces beneath the command bar; commands remain immediate | Phase 0.5 renders up to five Three.js card faces; Phase 0.6 permits per-card lift/back/front/settle effects; Phase 0.7's entrance remains rejected; Phase 0.9 provides five fixed-anchor intros, one seeded five-instance Gentle Wind exit, command waits with fail-open continuation, and Tutorials Back intro replay | Remains a separate decorative menu projection |
-| Motion Studio | Not present; Legacy state remains unchanged beneath it | Phase 0.8 provides one isolated, non-authoritative authoring surface; Phase 0.9 binds six lobby targets to one local playbook; Phase 0.14 adds one exact-match-space turn-coin target backed by a separate local profile, without changing stored Graphics preference | May remain an internal authoring tool; it is not match input |
+| Motion Studio | Not present; Legacy state remains unchanged beneath it | Phase 0.8 provides one isolated, non-authoritative authoring surface; Phase 0.9 binds six lobby targets to one local playbook; Phase 0.14 adds one exact-match-space turn-coin target backed by a separate local profile, without changing stored Graphics preference; Phase 0.15 adds no cover target or profile | May remain an internal authoring tool; it is not match input |
+| Game cover | Two page-lifetime Raphael image panels own parent visibility, pointer shielding, `isopen`, animation, callbacks, and application flow | Phase 0.15 adds an independent full-stage two-leaf Three.js projection with exact closed art, outer-edge hinges, fixed 112-degree open pose, and deterministic 2,000-millisecond cubic-in/out motion; Legacy remains mounted, animated, and solely authoritative | May remain a parallel Outer UI projection; it is not part of the active-match renderer contract |
 | Board frame | Unchanged | Visible | Preserved or deliberately redesigned later |
 | Player hand | Fully functional | Phase 0.10 renders the current zero-to-five-card hand at exact Legacy coordinates; Phase 0.11 permits one renderer-local player card to lift and follow the pointer; Phase 0.12 can return it; Phase 0.13 can leave one inert local projection over a valid slot until reset | Rendered and interactive |
 | Opponent hand | Fully functional | Phase 0.10 renders the current zero-to-five-card hand at exact Legacy coordinates and preserves the server-resolved Open/Closed art; display-only | Correct open/closed state |
@@ -4106,9 +4543,9 @@ In the Phase 0 through Phase 0.14 column, “not rendered” or “disabled” m
 | Review/replay | Fully functional | Modern is non-playable; hidden Legacy state may continue synchronizing | Renderer-neutral reconstruction |
 | Tutorials | Fully functional | Modern is non-playable; hidden Legacy state may continue synchronizing | Same selection and parity contract |
 | Dialog dimming | Fully functional | Remains DOM-owned | Remains DOM-owned |
-| Application scaling | Fully functional | Host remains aligned; pickup/follow, invalid return, Phase 0.13 slot hit testing and exact placement, and Phase 0.14 coin endpoints/path use the same logical coordinates at scales 1, 1.5, 2, and 3; Studio coin preview uses the exact match inset | Full interaction and visual parity |
-| Reduced motion | No new regression | Phase 0.6 uses a bounded back/front proof with no lift or continuous rotation; Phase 0.7 commits arrivals directly at their destinations; Phase 0.8 opens paused and requires explicit full-motion preview; Phase 0.9 commits intro/exit terminal states and releases command flow exactly once; Phase 0.11 immediately enters the held pose and follows without velocity tilt; Phase 0.12 commits return immediately; Phase 0.13 commits the exact sampled placement endpoint immediately; Phase 0.14 snaps an accepted turn sequence to its latest exact endpoint | Required before default |
-| Context loss | Not applicable | Restore effective Legacy and explain the reason | Recover or fall back |
+| Application scaling | Fully functional | Host remains aligned; pickup/follow, invalid return, Phase 0.13 slot hit testing and exact placement, and Phase 0.14 coin endpoints/path use the same logical coordinates at scales 1, 1.5, 2, and 3; Studio coin preview uses the exact match inset; Phase 0.15 inherits scale once while preserving full-stage cover geometry and hinges | Full interaction and visual parity |
+| Reduced motion | No new regression | Phase 0.6 uses a bounded back/front proof with no lift or continuous rotation; Phase 0.7 commits arrivals directly at their destinations; Phase 0.8 opens paused and requires explicit full-motion preview; Phase 0.9 commits intro/exit terminal states and releases command flow exactly once; Phase 0.11 immediately enters the held pose and follows without velocity tilt; Phase 0.12 commits return immediately; Phase 0.13 commits the exact sampled placement endpoint immediately; Phase 0.14 snaps an accepted turn sequence to its latest exact endpoint; Phase 0.15 snaps only the Modern cover visual while Legacy timing and callbacks remain unchanged | Required before default |
+| Context loss | Not applicable | Lobby/active loss follows the existing effective-Legacy policy; Phase 0.15 cover-only loss reveals its Legacy child locally without demoting a healthy Modern lobby or match surface | Recover or fall back |
 | Main-menu escape | Fully functional | Must remain available | Must remain available |
 
 ## 18. Phased delivery plan
@@ -4298,6 +4735,25 @@ Exit gate:
 - Diagnostics, status communication, source, generated bundle, loader, active-match and Studio contracts, and deployment agree on `0.185.1-match-turn-coin.1`.
 - Pure unit, static, browser/harness, storage-isolation, Studio parity, all-scale, reduced-motion, supersession, lifecycle/resource, actual-size visual, Phase 0.13, Graphics persistence, lobby, and Legacy regressions pass.
 
+### Phase 0.15 — Parallel Modern hinged game-cover projection
+
+Deliver the exact scope and acceptance criteria in Section 12.18.
+
+Exit gate:
+
+- `gh.cover` publishes only the exact cloned schema-version-1 descriptor and remains the sole owner of `isopen`, Raphael motion, parent visibility, input shielding, callbacks, and application continuation timing.
+- The Modern cover is one independent page-lifetime 755 by 562 Outer UI surface inside unchanged `#game-cover`, may coexist with the current lobby or active-match Modern surface, and survives lobby/match/tutorial/replay/early-exit/game-over handoffs without coupling to active-match lifecycle.
+- Closed Modern composition uses only `/images/left.png` at `(0, 0, 377, 562)` and `/images/right.png` at `(376, 0, 378, 562)`, preserving the one-pixel overlap and right-over-left seam exactly.
+- Two ten-unit-thick physical leaves pivot toward the camera around outside x coordinates `0` and `754`, with mirrored signed local-Y rotations and exact 112-degree open endpoints under the fixed stage-centered camera.
+- One pure deterministic planner/sampler produces full 2,000-millisecond cubic-in opening and cubic-out closing, exact endpoints, timestamp catch-up, and interruption continuity without randomness or idle work.
+- Ordinary, duplicate, interrupted, and already-targeted Legacy calls retain existing callback counts, ordering, timing, parent visibility, wrapper/menu state, and stale-callback behavior. Modern completion owns no continuation.
+- Legacy remains visible until both textures and one complete Modern frame are ready. Every cover-specific construction, descriptor, partial texture, timeout, render, context, replacement, or disposal failure reveals Legacy locally without changing requested/effective Modern mode or a healthy lobby/active surface.
+- Reduced motion snaps only the Modern projection and leaves all Legacy motion, callback timing, parent visibility, and pointer-shield lifecycle unchanged.
+- Cover host/canvas remain decorative, inaccessible, unfocusable, pointer-inert, correctly stacked, and scale/DPR invariant.
+- Scheduler, generation, partial-load cleanup, stale-work rejection, and fifty-cycle resource evidence pass with at most one cover frame and one explicitly permitted additional cover WebGL context.
+- Diagnostics, status communication, source, generated bundle, facade/ABI, loader, DOM metadata, pure/static/browser contracts, and deployment agree on `0.185.1-game-cover-hinge.1`.
+- Phase 0.14 coin/Studio, Phase 0.13 card behavior, lobby playbook, Graphics persistence, scale, dialog, smoke, and applicable Legacy regressions pass unchanged.
+
 ### Phase 1 — Characterization and Legacy renderer boundary
 
 Deliverables:
@@ -4478,7 +4934,7 @@ Ongoing gate:
 | Dimension | Required cases |
 |---|---|
 | Renderer | Legacy, Modern, forced Modern initialization failure, forced context loss |
-| Surface | lobby-hand preview, active-match preview, transition between those surface kinds |
+| Surface | lobby-hand preview, active-match preview, transition between those surface kinds, independent full-stage Modern cover coexisting with each |
 | Preference | unset, Legacy, Modern, invalid value, unavailable storage, kill switch, active/expired failure backoff, explicit retry |
 | Lobby hand | zero through five cards, purchased and standard image paths, delayed texture, failed texture, hand replacement while loading, repeated show/hide |
 | Motion Studio | open from Legacy and Modern, every built-in card preset plus `match-turn-coin-transition`, exact match-space inset/camera/locked endpoints in both coin directions, target-applicable controls, synchronized drag/numeric edits, play/pause/rate/loop/frame-step/scrub, Auto Replay, strict valid/invalid import, export round trip, isolated Apply behavior, session restore, reduced-motion entry, close and context loss |
@@ -4486,14 +4942,15 @@ Ongoing gate:
 | Match state | initial hand, resumed match, occupied board, Open, Closed, Elemental, final turn |
 | Match pickup study | every player-card index, exposed and overlapped hit, opponent/empty rejection, lift midpoint/endpoint, horizontal/vertical/diagonal follow, stationary convergence, repeated ignored click, pointer departure/re-entry, hand revision, selected-card removal |
 | Match turn coin | exact initial/player/opponent descriptors and approved assets, first-snapshot snap, duplicate/stale/same-target suppression, controlled canonical samples in both mirrored directions, visible circular edge and same-face art, mid-flight supersession, exact settlement, reduced motion, profile normalization/import/export, storage isolation, descriptor removal, view/mode/context/disposal cancellation, zero authority/callback/request effects |
+| Game cover | exact schema/sequence/targets/assets/frame/panels, initial closed snap, one-pixel overlap and paint order, outer hinges x 0/754, signed 112-degree endpoints, canonical and dense deterministic samples, delayed-delivery catch-up, duplicate/stale suppression, both reversal directions, real Legacy callbacks/order, normal/reduced motion, ready child gate, local partial-texture/context failure, mode/visibility/scale/DPR/stacking, disposal, zero continuation/game/request authority |
 | Capture | Basic, Same, Same Wall, Plus, Combo, multiple simultaneous captures |
 | Flow | normal play, invalid drop, request pending, dialog, endgame, Sudden Death, review, replay, tutorial |
 | Scale | 1, 1.5, 2, 3 |
 | Pixel density | DPR 1, 2, and capped higher DPR |
 | Input | mouse; `KB-PLAY-01` keyboard and accessible-tree coverage before beta; Chromium/VoiceOver manual smoke; touch/pen when declared supported |
 | Motion | normal, reduced motion, interrupted, fast-forwarded, disposed |
-| Lifecycle | first mount, rebuild, repeated toggle/build, background restore, resize, cleanup |
-| Failure | missing texture, renderer init error, context loss, storage error |
+| Lifecycle | first mount, rebuild, repeated toggle/build, background restore, resize, independent page-lifetime cover suspension/replacement, cleanup |
+| Failure | missing texture, renderer init error, context loss, storage error, cover-only synchronous construction failure, either/partial/late cover texture failure, cover render failure, proof that cover fallback does not demote a healthy Modern lobby or match |
 
 ### 19.2 Renderer-neutral assertions
 
@@ -4508,6 +4965,7 @@ Tests should assert:
 - selection and lock state;
 - move-request count and payload;
 - renderer-application settlement;
+- Legacy cover callback count, callback order, parent visibility, pointer-shield state, and Modern continuation-authority flag;
 - final score and turn state;
 - cleanup and input ownership.
 
@@ -4529,12 +4987,13 @@ SVG node order and Three.js mesh identity may be inspected in renderer-specific 
 - Phase 0.12 controlled invalid-return samples at elapsed 0/150/300 milliseconds, arming and return-lock traces, all-scale exact-settlement evidence, reduced-motion and stale-generation lifecycle proof, unchanged Legacy/controller/request snapshots, actual-size captures, and `0.185.1-match-return.1` source/bundle/cache-identity proof;
 - Phase 0.13 exact nine-zone geometry and validity-gate fixtures, hover-only shadow captures, controlled 0/150/300-millisecond and `-2°`/`0°`/`2°` placement samples, all-scale hit-test evidence, one-preview and invalid-fallback traces, reduced-motion/lifecycle proof, unchanged Legacy/controller/hand/board/turn/request snapshots, actual-size captures, and `0.185.1-match-placement.1` source/bundle/cache-identity proof;
 - Phase 0.14 exact descriptor/sequence/target/asset fixtures; pure profile normalization, limit, deterministic-sampling, terminal-settlement, and bidirectional mirror tests; first-snapshot, duplicate-suppression, controlled-clock, mid-flight-supersession, reduced-motion, and stale-generation traces; true-circle/edge/same-face/sRGB actual-size captures; exact Motion Studio match-space/camera/endpoint parity and strict import/export evidence; `purett.turnMarkerMotion.v1` storage-isolation and malformed/future-schema fallback proof; repeated lifecycle/resource cleanup; unchanged Legacy callback/controller/hand/board/turn/request snapshots; and `0.185.1-match-turn-coin.1` source/bundle/loader/diagnostic/deployment identity proof;
+- Phase 0.15 exact descriptor/sequence/target/frame/panel fixtures; one-pixel seam and paint-order evidence; pure 1,000-sample cubic-in/out, mirror-sign, positive-depth, endpoint, irregular-clock, catch-up, and reversal tests; true outer-hinge/ten-unit-thickness/unlit-sRGB-front actual-size captures; real Legacy open/close/duplicate/interruption callback and parent-visibility traces; component-local synchronous/partial-texture/timeout/render/context failure proof; reduced-motion/accessibility/input-shield/stacking/all-scale evidence; repeated lifecycle/resource cleanup with fulfilled-partial-texture disposal and stale-work rejection; unchanged Graphics/lobby/active/Legacy/controller/request snapshots; and `0.185.1-game-cover-hinge.1` source/bundle/facade/loader/DOM/diagnostic/deployment identity proof;
 - tested Modern-default environment matrix;
 - current known limitations.
 
 ### 19.4 Requirements-to-phase traceability
 
-Phase 0 through Phase 0.14 requirements and acceptance criteria are the authorized engineering baseline as of 2026-07-27. Phase 0.7's deployed implementation has not passed its visual acceptance gate and is not an approved motion baseline. Phase 0.8 established the authoring workbench; Phase 0.9 established the authorized application-bound lobby integration; Phase 0.10 established passive active-match hand projection; Phase 0.11 remains the historical renderer-local player-card pickup/follow study; Phase 0.12 remains the historical always-invalid second-click baseline; and Phase 0.13 remains the preserved renderer-local valid-zone hover and one-placement-preview baseline. Phase 0.14 is the current authorized renderer-local active-match turn-indicator coin and exact Motion Studio profile target; it supersedes only Phase 0.13's absent-Modern-turn-indicator boundary and does not expand Modern game authority. Later requirements describe the intended target and gates; each later phase must begin with a short entry review that resolves its open questions, confirms its fixtures, and converts any remaining provisional numerical budget into an accepted measurement contract.
+Phase 0 through Phase 0.15 requirements and acceptance criteria are the authorized engineering baseline as of 2026-07-30. Phase 0.7's deployed implementation has not passed its visual acceptance gate and is not an approved motion baseline. Phase 0.8 established the authoring workbench; Phase 0.9 established the authorized application-bound lobby integration; Phase 0.10 established passive active-match hand projection; Phase 0.11 remains the historical renderer-local player-card pickup/follow study; Phase 0.12 remains the historical always-invalid second-click baseline; and Phase 0.13 remains the preserved renderer-local valid-zone hover and one-placement-preview baseline. Phase 0.14 remains the authorized renderer-local active-match turn-indicator coin and exact Motion Studio profile target. Phase 0.15 is the current authorized parallel Modern game-cover projection; it supersedes only the earlier cover exclusion and current delivery identity, keeps Legacy cover callbacks and timing authoritative, and does not expand Modern game or application-continuation authority. Later requirements describe the intended target and gates; each later phase must begin with a short entry review that resolves its open questions, confirms its fixtures, and converts any remaining provisional numerical budget into an accepted measurement contract.
 
 | Requirement family | First owning phase | Primary owner | Required evidence | Blocks Modern default |
 |---|---|---|---|---|
@@ -4558,14 +5017,19 @@ Phase 0 through Phase 0.14 requirements and acceptance criteria are the authoriz
 | `FR-MATCH-RETURN-*` / `AC-P012-*` | Phase 0.12 | Modern active-match surface and graphics coordinator; temporary game bridge remains presentation-only | Arming and early-click rejection, location-independent always-invalid return with zero drop zones, controlled 300-millisecond cubic-out clockwise-turn samples, exact canonical settlement, input lock, all-scale mapping, reduced motion, lifecycle generation/stale-frame rejection, unchanged Legacy/controller/request state, diagnostics, visual review, and `0.185.1-match-return.1` bundle evidence | Yes |
 | `FR-MATCH-PLACEMENT-PREVIEW-*` / `AC-P013-*` | Phase 0.13 | Modern active-match surface and graphics coordinator; temporary game bridge remains presentation-only | Exact nine-zone geometry, fail-closed validity, hover-only 30-percent Legacy shadow, armed valid/invalid branching, controlled 300-millisecond cubic-out reverse-pickup samples, exact slot-center settlement, once-sampled `[-2°, 2°]` roll, one-preview guard, reduced motion, lifecycle/stale-frame rejection, unchanged Legacy/controller/hand/board/turn/request state, diagnostics, visual review, and `0.185.1-match-placement.1` bundle evidence | Yes |
 | `FR-MATCH-TURN-COIN-*` / `AC-P014-*` | Phase 0.14 | Modern active-match surface, renderer-neutral turn-coin motion module, graphics coordinator, and Motion Studio; temporary game bridge remains presentation-only | Exact descriptor/sequence/Legacy targets and selected asset, first-snapshot snap and replay guards, true circular same-face 3D geometry, deterministic profile/planner/sampler and mirrored paths, exact settlement and bounded scheduler, mid-flight supersession, reduced motion, lifecycle/resource cleanup, storage isolation, exact Studio-production coordinate/camera/endpoint parity, unchanged Legacy callback/controller/turn/request state, diagnostics, actual-size visual review, and `0.185.1-match-turn-coin.1` identity proof | Yes |
+| `FR-GAME-COVER-*` / `AC-P015-*` | Phase 0.15 | Legacy `gh.cover` descriptor adapter, graphics coordinator, independent Modern full-stage cover surface, and renderer-neutral cover-motion module; Legacy remains continuation authority | Exact descriptor/assets/rectangles/one-pixel seam, full-stage child gate, true ten-unit outer hinges at x 0/754, fixed signed 112-degree endpoints, deterministic 2,000-millisecond cubic-in/out sampling, timestamp catch-up and reversal, unchanged Legacy callbacks/timing/input shield, reduced motion, accessibility, all-scale/stacking, component-local fallback, lifecycle/resource cleanup, diagnostics, visual review, and `0.185.1-game-cover-hinge.1` identity proof | Yes |
 | `NFR-PERF-019` | Phase 0.14 | Modern active-match and Motion Studio surfaces | Default/max-duration, no-per-frame-allocation, one-coin-frame, coexistence, reduced-motion, cancellation, failure, and zero-idle-frame evidence | Yes |
+| `NFR-PERF-020` | Phase 0.15 | Independent Modern cover surface and build owners | One additional bounded context/canvas, one cover frame, no per-frame GPU allocation, readiness timeout, backing-buffer cap, component-local failure, and zero-idle-frame evidence | Yes |
 | Remaining `NFR-PERF-*` | Phase 2 | Modern build and renderer | GM-P100/GM-P200 performance and bundle report | Yes |
 | `NFR-REL-015` | Phase 0.14 | Modern active-match surface, Motion Studio, and graphics coordinator | Fifty-cycle coin/Studio lifecycle, stale-frame/load rejection, resource-baseline, storage-isolation, and zero-authority report | Yes |
+| `NFR-REL-016` | Phase 0.15 | Legacy cover adapter, graphics coordinator, and Modern cover surface | Fifty-cycle open/close/duplicate/reversal/mode/visibility/failure/replacement/dispose lifecycle, fulfilled-partial-texture disposal, stale-work rejection, resource baseline, unchanged Legacy callbacks, and component-isolation report | Yes |
 | Remaining `NFR-REL-*` | Phase 1/5 | Both renderers and controller | Repeated lifecycle, heap/resource, stale-revision, and severity report | Yes |
 | `NFR-SEC-007` | Phase 0.14 | Graphics coordinator and same-origin storage boundary | Same-origin descriptor/profile, no-account/no-network, and visible-information-only audit | Yes |
+| `NFR-SEC-008` | Phase 0.15 | Legacy cover adapter, graphics coordinator, and cover asset boundary | Exact same-origin asset allowlist, plain descriptor, no new storage/account/network payload, and visible-information-only audit | Yes |
 | Remaining `NFR-SEC-*` | Phase 2 | Build/deployment boundary | CSP, same-origin, dependency, and network audit | Yes |
 | `NFR-COMP-*` | Phase 2/6 | Browser test matrix | Tested Modern-default matrix | Yes |
 | `NFR-MAINT-007` | Phase 0.14 | Renderer-neutral turn-coin motion module owners | Dependency-boundary audit and identical production/Studio planner-sampler contract | Yes |
+| `NFR-MAINT-008` | Phase 0.15 | Renderer-neutral cover-motion module and adapter/facade owners | Pure dependency-boundary audit, shared production/test planner-sampler contract, and separation of Legacy continuation from Modern objects | Yes |
 | Remaining `NFR-MAINT-*` | Phase 1 | Renderer contract owners | Boundary review, upgrade procedure, shared tests | Yes |
 
 ## 20. Rollout and preference precedence
@@ -4605,6 +5069,8 @@ else:
 A valid force-mode override may replace `requested` only in an automated test or explicit local diagnostic context. It must be visible in diagnostics and must not write `localStorage`. Tests may bypass `modernEnabled` only when deliberately testing disabled Modern code; normal users may not.
 
 Motion Studio is outside this selection state machine. It may load the Modern dependency and own a temporary isolated study context, but it never writes the Graphics preference and never satisfies a capability check on behalf of the production Modern renderer. Phase 0.9 Apply & Preview may temporarily request effective Modern through a non-persisting preview path, records the prior selection as a restoration target, and restores it on every completion or failure unless the user explicitly chooses another mode during preview. Studio session storage and lobby-playbook local storage use distinct keys and lifetimes from Graphics preference.
+
+The Phase 0.15 cover projection is also outside the selection decision itself. It follows the selected mode after Modern is otherwise available, but a cover-only failure removes only the cover child gate and reveals Legacy cover presentation. It must not change requested mode, effective mode, failure-backoff state, or the identity of a healthy lobby/active Modern surface. Selecting Legacy suspends the reusable cover projection under `FR-GAME-COVER-017`; it does not create a failure record.
 
 The selection state machine must preserve these properties:
 
@@ -4648,9 +5114,13 @@ The preference should survive browser restarts. It is intentionally browser/orig
 | Risk | Consequence | Required mitigation |
 |---|---|---|
 | Animation callbacks currently advance control flow | A missing callback can stall or corrupt a match | Revisioned renderer-application contract that settles exactly once, plus fast-forward/cancel tests |
+| Modern cover completion is mistaken for the Legacy continuation | Play, early exit, game over, tutorial, or replay advances twice, too early, or not at all | Keep every callback inside `gh.cover`; publish cloned presentation only; report `applicationContinuationAuthority: false`; verify exact Legacy counts/order/timing across normal, duplicate, interruption, reduced-motion, failure, and absent-Modern traces |
+| The cover is attached to active-match lifecycle | Early exit or game over disposes the Modern cover before its closing projection, or lobby/match handoff reconstructs an unnecessary context | Use one independent page-lifetime 755 by 562 Outer UI surface that coexists with the active lobby/match surface and is suspended only by mode or cover-specific lifecycle |
+| A partial Modern cover becomes visible or its failure demotes all Modern presentation | One leaf, a blank seam, or mixed renderers flash; a decorative failure removes an otherwise healthy Modern match | Gate children only after both textures and a complete first frame; make construction/texture/render/context fallback component-local; dispose a texture whose sibling failed; retain requested/effective mode and lobby/active identity |
+| The hinged cover folds backward, normalizes the seam, or darkens the source art | The motion reads as a flat or incorrect lid and closed state no longer matches the archival game | Fix pivots at x 0/754, signs at left negative/right positive, inner-edge depth toward the camera, 112-degree endpoints, one-pixel right-over-left seam, unlit sRGB fronts, ten-unit body, and actual-size closed/mid/open/reclosed review |
 | Visual state is read as model state | Modern cannot reproduce or recover correctly | Explicit snapshot fields for face, zone, position, ownership, lock, and order |
 | Z-order is functional | Wrong card is selected or capture/hand overlap is incorrect | Canonical semantic depth and deterministic raycast sorting |
-| Phase 0 suppresses the complete Legacy match presentation | Scores, rules, targets, and authoritative turn state remain intentionally absent even after hands and the renderer-local studies appear; Phase 0.14's coin is only a mirror of Legacy presentation | Keep Raphael live and synchronized behind a complete opacity, accessibility, and pointer gate; label Modern non-playable, identify the coin as non-authoritative, and provide immediate Legacy return |
+| Phase 0 suppresses the complete Legacy match presentation | Scores, rules, targets, and authoritative turn state remain intentionally absent even after hands and the renderer-local studies appear; Phase 0.14's coin and Phase 0.15's cover are only mirrors of Legacy presentation | Keep Raphael live and synchronized behind complete presentation and pointer gates; label Modern non-playable, identify the coin and cover as non-authoritative, preserve cover continuation ownership, and provide immediate Legacy return |
 | Two renderers remain supported | Behavior can drift and maintenance cost can grow | One conformance suite, one snapshot/action contract, documented ownership |
 | CSS application scaling conflicts with camera picking | Pointer and cards diverge | One tested client-to-world coordinate pipeline |
 | Texture orientation, color, or minification is wrong | Mirrored backs, darkened art, seams, or motion shimmer | Use unlit sRGB faces, mipmaps, trilinear minification, bounded anisotropy, and both same-direction edge-on tests |
@@ -4735,6 +5205,7 @@ The graphics-modernization initiative is complete when:
 10. No open P0 or P1 renderer defect remains at the Modern-default decision.
 11. The Modern default can be reverted without a server, database, or protocol migration.
 12. Three.js ownership, upgrade procedure, and ongoing two-renderer test responsibilities are documented.
+13. The parallel Modern cover, if retained, preserves exact Legacy continuation authority, component-local fallback, decorative accessibility, and repeated-lifecycle resource bounds.
 
 ## 24. Change control
 
@@ -4750,7 +5221,7 @@ Changes to any of the following require an explicit update to this document or a
 - weakening same-origin or Content Security Policy requirements;
 - adding external telemetry;
 - making the WebGL canvas the sole accessible interaction surface;
-- expanding the initiative to application Raphael surfaces beyond the explicitly approved lobby-hand projection and Phase 0.14 renderer-only turn-indicator projection;
+- expanding the initiative to application Raphael surfaces beyond the explicitly approved lobby-hand projection, Phase 0.14 renderer-only turn-indicator projection, and Phase 0.15 parallel `gh.cover` projection;
 - promoting a Motion Studio draft or playbook beyond the five Phase 0.9 lobby intro targets, shared Gentle Wind exit, and exact Phase 0.14 `match-turn-coin-transition` target, including into the shop or any other active-match subject;
 - changing the Motion Studio recipe, lobby-playbook, or turn-coin profile schema; changing the six lobby-target entries plus one locked coin-target entry; serializing application anchors; or moving persistence from browser-local state to account/server state;
 - expanding the historical Phase 0.11 scope beyond one renderer-local player-card hold, except for the explicit second-click supersession defined by Phase 0.12;
@@ -4761,6 +5232,8 @@ Changes to any of the following require an explicit update to this document or a
 - changing Phase 0.13's exact slot geometry, black opacity-`0.3` hover-only cue, fail-closed validity gates, 300-millisecond cubic-out reverse-pickup motion, exact-center/no-position-jitter endpoint, once-sampled `[-2°, 2°]` screen-roll range, one-preview guard, lifecycle reset, reduced-motion endpoint, authority boundary, diagnostics, or `0.185.1-match-placement.1` cache identity without corresponding visual, geometry, timing, authority, lifecycle, and bundle evidence;
 - expanding Phase 0.14 beyond one renderer-local active-match turn-indicator coin and one exact Motion Studio coin target, including deciding whose turn it is, delaying or invoking the Legacy continuation, gating card input, progressing the match, mutating score/rule/controller state, emitting a semantic action, issuing a request, selecting a random coin outcome, or introducing distinct semantic face art;
 - changing Phase 0.14's descriptor fields or sequence semantics; exact initial/player/opponent targets; approved 41 by 41 asset behavior; same-texture-on-both-faces policy; diameter, thickness, segment counts, material/color policy, flat-table camera convention, profile schema/defaults/limits, deterministic planner/sampler equations, first-snapshot/replay/supersession rules, settle/reduced-motion/lifecycle behavior, exact Studio viewport/camera/endpoints, `purett.turnMarkerMotion.v1` isolation, diagnostics, or `0.185.1-match-turn-coin.1` cache identity without corresponding geometry, timing, visual, authority, storage, lifecycle, Studio-parity, and bundle evidence;
+- expanding Phase 0.15 beyond one parallel decorative two-leaf `gh.cover` projection, including replacing, stopping, disposing, or bypassing the Legacy Raphael cover; moving `isopen`, parent visibility, pointer shielding, callback timing, callback invocation, menu/game/tutorial/replay/early-exit/game-over sequencing, navigation, semantic action, game state, storage, or request authority into Modern; adding a cover interaction, Motion Studio target, stored cover profile, or another Outer UI migration;
+- changing Phase 0.15's schema-version-1 descriptor fields or sequencing; exact 755 by 562 frame; `/images/left.png` and `/images/right.png` allowlist; `(0, 0, 377, 562)` and `(376, 0, 378, 562)` rectangles; one-pixel right-over-left seam; x `0`/`754` outer hinges; left-negative/right-positive camera-facing rotation; ten-unit thickness; 40-degree stage-centered camera; unlit sRGB fronts; fixed 112-degree open pose; full 2,000-millisecond cubic-in/out plans; timestamp catch-up/reversal semantics; child readiness gate; component-local fallback; reduced-motion projection-only rule; accessibility/input/stacking/lifecycle/diagnostics contract; or `0.185.1-game-cover-hinge.1` cache identity without corresponding geometry, timing, visual, authority, failure-isolation, accessibility, lifecycle, resource, and bundle evidence;
 
 Each revision should record:
 
@@ -4780,12 +5253,15 @@ Each revision should record:
 - [Standalone setup and tests](../README-STANDALONE.md)
 - [Triple Triad rules](rules.md)
 - Active-match implementation: `public/js/plugins/gh.game.js`
+- Legacy game-cover implementation and Phase 0.15 descriptor adapter: `public/js/plugins/gh.cover.js`
 - Lobby/main-menu implementation and five-card hand projection: `public/js/plugins/gh.menu.js`
 - Graphics-mode and surface-kind coordinator: `public/js/plugins/gh.graphics.js`
 - Modern active-match and lobby-hand source: `frontend/src/modern-graphics.js`
 - Renderer-neutral Motion Studio recipe/planner source: `frontend/src/card-motion.js`
 - Renderer-neutral application lobby playbook, seeded batch compiler, and sampler: `frontend/src/lobby-motion-playbook.js`
 - Renderer-neutral active-match turn-coin profile, planner, and sampler: `frontend/src/turn-marker-motion.js`
+- Renderer-neutral game-cover planner and sampler: `frontend/src/game-box-cover-motion.js`
+- Independent Modern full-stage game-cover surface: `frontend/src/game-box-cover-surface.js`
 - Isolated Motion Studio Three.js surface source: `frontend/src/motion-studio-surface.js`
 - Legacy-shell Motion Studio coordinator/UI: `public/js/plugins/gh.motionstudio.js`
 - Application manager and scaling: `public/js/default/index.js`
@@ -4799,6 +5275,8 @@ Each revision should record:
 - Modern active-match hand, pickup, invalid-return, valid-zone hover, renderer-local placement-preview, and turn-indicator-coin browser coverage: `tests/browser/active-match-modern-hands.spec.js`
 - Motion and application-playbook static contracts: `tests/static/card-motion-contract.mjs` and the Phase 0.9 lobby-playbook contract
 - Active-match turn-coin profile/planner/sampler static contract: `tests/static/turn-marker-motion-contract.mjs`
+- Game-cover motion and generated/runtime static contracts: `tests/static/game-box-cover-motion-contract.mjs` and `tests/static/modern-graphics-contract.js`
+- Modern game-cover browser coverage: `tests/browser/game-box-cover.spec.js`
 - Modern lobby and Motion Studio browser coverage: `tests/browser/lobby-modern-hand.spec.js` and `tests/browser/motion-studio.spec.js`
 - Legacy browser coverage: `tests/browser/smoke.spec.js`, `tests/browser/scale-interactions.spec.js`, `tests/browser/dialog-scale.spec.js`, and `tests/browser/endgame-protection.spec.js`
 

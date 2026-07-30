@@ -7,6 +7,7 @@ gh.graphics.prototype = {
 
         this.game = options.game;
         this.menu = options.menu;
+        this.cover = options.cover;
         this.modernEnabled = options.modernEnabled !== false;
         this.getContentScale = options.getContentScale || function() { return 1; };
         this.closeMenu = options.closeMenu || function() {};
@@ -17,7 +18,7 @@ gh.graphics.prototype = {
             'purett.turnMarkerMotion.v1';
         this.threePackageVersion = '0.185.1';
         this.threeRevision = '185';
-        this.modernScriptUrl = '/js/modern/purett-modern-graphics.min.js?v=0.185.1-match-turn-coin.1';
+        this.modernScriptUrl = '/js/modern/purett-modern-graphics.min.js?v=0.185.1-game-cover-hinge.1';
         this.requestedMode = 'legacy';
         this.effectiveMode = 'legacy';
         this.loadState = 'idle';
@@ -27,6 +28,11 @@ gh.graphics.prototype = {
         this.surface = null;
         this.surfaceKind = null;
         this.surfaceDisposing = false;
+        this.gameCoverSurface = null;
+        this.gameCoverSurfaceDisposing = false;
+        this.gameCoverReady = false;
+        this.gameCoverPresentation = null;
+        this.gameCoverFallbackReason = null;
         this.studioSurface = null;
         this.studioOpen = false;
         this.studioGeneration = 0;
@@ -114,6 +120,9 @@ gh.graphics.prototype = {
         }
         if (this.game && this.game.setGraphicsCoordinator) {
             this.game.setGraphicsCoordinator(this);
+        }
+        if (this.cover && this.cover.setGraphicsCoordinator) {
+            this.cover.setGraphicsCoordinator(this);
         }
 
         this.setMode(storedMode, false);
@@ -263,6 +272,14 @@ gh.graphics.prototype = {
             this.modernGraphics = modernGraphics;
             this.ensureLobbyPlaybook(modernGraphics);
             this.ensureTurnMarkerMotionProfile(modernGraphics);
+            try {
+                this.ensureGameCoverSurface();
+            } catch (coverError) {
+                this.handleGameCoverFailure(
+                    coverError,
+                    'initialization-failed'
+                );
+            }
             surfaceKind = this.lobbyVisible
                 ? 'lobby-hand'
                 : (this.activeMatchVisible
@@ -296,6 +313,7 @@ gh.graphics.prototype = {
         }
         this.effectiveMode = 'modern';
         this.fallbackReason = null;
+        this.syncGameCoverMode('modern');
         if (!this.studioOpen) {
             try {
                 this.renderCurrentSurface();
@@ -314,6 +332,7 @@ gh.graphics.prototype = {
     },
     activateLegacy: function(error, reason) {
         this.releaseStartupModernGate();
+        this.syncGameCoverMode('legacy');
         this.effectiveMode = 'legacy';
         this.game.setGraphicsMode('legacy');
         if (this.menu && this.menu.setGraphicsMode) {
@@ -534,6 +553,199 @@ gh.graphics.prototype = {
         }
         if (this.studioSurface) {
             this.studioSurface.setContentScale(scale);
+        }
+        if (this.gameCoverSurface) {
+            try {
+                this.gameCoverSurface.setContentScale(scale);
+            } catch (error) {
+                this.handleGameCoverFailure(
+                    error,
+                    'rendering-failed'
+                );
+            }
+        }
+    },
+    updateGameCover: function(presentation) {
+        this.gameCoverPresentation =
+            this.clonePlain(presentation);
+        if (this.gameCoverSurface &&
+                typeof this.gameCoverSurface.setPresentation ===
+                    'function') {
+            try {
+                this.gameCoverSurface.setPresentation(
+                    this.gameCoverPresentation
+                );
+            } catch (error) {
+                this.handleGameCoverFailure(
+                    error,
+                    'presentation-failed'
+                );
+            }
+        }
+    },
+    ensureGameCoverSurface: function() {
+        var me = this;
+        var host;
+        var createdSurface;
+
+        if (this.gameCoverSurfaceDisposing) {
+            return;
+        }
+        if (this.gameCoverSurface) {
+            this.gameCoverSurface.setContentScale(
+                this.getContentScale()
+            );
+            if (this.gameCoverPresentation) {
+                this.gameCoverSurface.setPresentation(
+                    this.gameCoverPresentation
+                );
+            }
+            return;
+        }
+        if (!this.modernGraphics ||
+                typeof this.modernGraphics
+                    .createGameBoxCoverSurface !== 'function') {
+            throw new Error(
+                'The Modern game-box cover facade is unavailable.'
+            );
+        }
+
+        host = document.getElementById(
+            'modernGameCover'
+        );
+        if (!host) {
+            throw new Error(
+                'The Modern game-box cover host is unavailable.'
+            );
+        }
+        this.gameCoverReady = false;
+        this.gameCoverFallbackReason = null;
+        createdSurface =
+            this.modernGraphics.createGameBoxCoverSurface(
+                host,
+                {
+                    contentScale:
+                        this.getContentScale(),
+                    onReady: function() {
+                        if (me.gameCoverSurface !==
+                                createdSurface) {
+                            return;
+                        }
+                        me.gameCoverReady = true;
+                        me.gameCoverFallbackReason = null;
+                        me.syncGameCoverMode(
+                            me.effectiveMode
+                        );
+                        me.updateModernStatus();
+                    },
+                    onError: function(error) {
+                        if (me.gameCoverSurface ===
+                                createdSurface) {
+                            me.handleGameCoverFailure(
+                                error,
+                                'initialization-failed'
+                            );
+                        }
+                    },
+                    onContextLost: function(error) {
+                        if (me.gameCoverSurface ===
+                                createdSurface) {
+                            me.handleGameCoverFailure(
+                                error,
+                                'context-lost'
+                            );
+                        }
+                    }
+                }
+            );
+        this.gameCoverSurface = createdSurface;
+        if (this.gameCoverPresentation) {
+            createdSurface.setPresentation(
+                this.gameCoverPresentation
+            );
+        }
+        if (this.effectiveMode !== 'modern' &&
+                typeof createdSurface.suspend ===
+                    'function') {
+            createdSurface.suspend();
+        }
+    },
+    syncGameCoverMode: function(mode) {
+        var useModern =
+            mode === 'modern' &&
+            this.gameCoverReady &&
+            this.gameCoverSurface;
+
+        if (this.cover &&
+                this.cover.setModernCoverReady) {
+            if (!useModern) {
+                this.cover.setModernCoverReady(false);
+            }
+        }
+        if (!this.gameCoverSurface) {
+            return;
+        }
+        try {
+            if (useModern) {
+                this.gameCoverSurface.setContentScale(
+                    this.getContentScale()
+                );
+                if (this.gameCoverPresentation) {
+                    this.gameCoverSurface.setPresentation(
+                        this.gameCoverPresentation
+                    );
+                }
+                if (typeof this.gameCoverSurface.resume ===
+                        'function') {
+                    this.gameCoverSurface.resume();
+                }
+                if (this.cover &&
+                        this.cover.setModernCoverReady) {
+                    this.cover.setModernCoverReady(true);
+                }
+            } else if (
+                typeof this.gameCoverSurface.suspend ===
+                    'function'
+            ) {
+                this.gameCoverSurface.suspend();
+            }
+        } catch (error) {
+            this.handleGameCoverFailure(
+                error,
+                'rendering-failed'
+            );
+        }
+    },
+    handleGameCoverFailure: function(error, reason) {
+        if (this.cover &&
+                this.cover.setModernCoverReady) {
+            this.cover.setModernCoverReady(false);
+        }
+        this.gameCoverReady = false;
+        this.gameCoverFallbackReason =
+            reason || 'initialization-failed';
+        this.disposeGameCoverSurface();
+        if (this.effectiveMode === 'modern') {
+            this.updateModernStatus();
+        }
+    },
+    disposeGameCoverSurface: function() {
+        var surface = this.gameCoverSurface;
+        if (this.cover &&
+                this.cover.setModernCoverReady) {
+            this.cover.setModernCoverReady(false);
+        }
+        this.gameCoverSurface = null;
+        this.gameCoverReady = false;
+        if (surface) {
+            this.gameCoverSurfaceDisposing = true;
+            try {
+                surface.dispose();
+            } catch (cleanupError) {
+                // The intact Raphael cover remains the fallback.
+            } finally {
+                this.gameCoverSurfaceDisposing = false;
+            }
         }
     },
     setActiveMatch: function(active) {
@@ -1290,6 +1502,9 @@ gh.graphics.prototype = {
     },
     updateModernStatus: function() {
         var surfaceState;
+        var coverStatus = this.gameCoverFallbackReason
+            ? ' The game-box cover remains on its intact Legacy renderer.'
+            : ' The hinged 3D game-box cover mirrors the existing open and close sequence.';
 
         if (this.effectiveMode !== 'modern') {
             return;
@@ -1299,22 +1514,22 @@ gh.graphics.prototype = {
                 ? this.surface.getDebugState()
                 : null;
             if (surfaceState && surfaceState.ready) {
-                this.setStatus('Three.js ' + this.threePackageVersion + ' match placement and mirrored 3D turn-coin studies active. The coin reflects the existing turn marker; it does not control the turn. Hover an available board space while carrying a card, then click to place it visually. Modern match rendering remains incomplete and non-playable; moves are not submitted.');
+                this.setStatus('Three.js ' + this.threePackageVersion + ' match placement and mirrored 3D turn-coin studies active.' + coverStatus + ' The coin reflects the existing turn marker; it does not control the turn. Hover an available board space while carrying a card, then click to place it visually. Modern match rendering remains incomplete and non-playable; moves are not submitted.');
             } else {
-                this.setStatus('Three.js ' + this.threePackageVersion + ' is preparing the Modern match hands and turn coin\u2026');
+                this.setStatus('Three.js ' + this.threePackageVersion + ' is preparing the Modern match hands and turn coin\u2026' + coverStatus);
             }
             return;
         }
         if (!this.lobbyVisible) {
-            this.setStatus('Three.js ' + this.threePackageVersion + ' is ready. Modern match hands appear when a match starts.');
+            this.setStatus('Three.js ' + this.threePackageVersion + ' is ready. Modern match hands appear when a match starts.' + coverStatus);
             return;
         }
 
         surfaceState = this.surface ? this.surface.getDebugState() : null;
         if (surfaceState && surfaceState.ready) {
-            this.setStatus('Three.js ' + this.threePackageVersion + ' lobby hand active. Click a card to flip it; matches still require Legacy.');
+            this.setStatus('Three.js ' + this.threePackageVersion + ' lobby hand active.' + coverStatus + ' Click a card to flip it; matches still require Legacy.');
         } else {
-            this.setStatus('Three.js ' + this.threePackageVersion + ' is preparing the Modern lobby hand\u2026');
+            this.setStatus('Three.js ' + this.threePackageVersion + ' is preparing the Modern lobby hand\u2026' + coverStatus);
         }
     },
     updateModeUi: function() {
@@ -1375,6 +1590,19 @@ gh.graphics.prototype = {
                 this.clonePlain(this.matchDropZones),
             matchTurnIndicator:
                 this.clonePlain(this.matchTurnIndicator),
+            gameCoverPresentation:
+                this.clonePlain(
+                    this.gameCoverPresentation
+                ),
+            gameCoverReady:
+                this.gameCoverReady,
+            gameCoverFallbackReason:
+                this.gameCoverFallbackReason,
+            gameCover:
+                this.gameCoverSurface
+                    ? this.gameCoverSurface
+                        .getDebugState()
+                    : null,
             turnMarkerMotionRevision:
                 this.turnMarkerMotionRevision,
             turnMarkerMotionProfile:

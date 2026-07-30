@@ -125,6 +125,32 @@ body::before {
     left: 0px;
     z-index: 2;
 }
+#modernGameCover {
+    position: absolute;
+    z-index: 1;
+    top: 0;
+    left: 0;
+    display: none;
+    width: 755px;
+    height: 562px;
+    overflow: hidden;
+    pointer-events: none;
+}
+#modernGameCover .modern-game-cover-canvas {
+    display: block;
+    width: 755px !important;
+    height: 562px !important;
+    pointer-events: none;
+}
+#game-cover.graphics-modern-cover-ready {
+    pointer-events: auto;
+}
+#game-cover.graphics-modern-cover-ready .legacy-game-cover-canvas {
+    visibility: hidden;
+}
+#game-cover.graphics-modern-cover-ready #modernGameCover {
+    display: block;
+}
 #confetti {
     z-index: 9;
 }

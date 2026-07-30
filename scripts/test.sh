@@ -41,6 +41,10 @@ run_static() {
     node tests/static/card-arrival-contract.mjs
     node tests/static/card-motion-contract.mjs
     node tests/static/lobby-motion-playbook-contract.mjs
+    node tests/static/turn-marker-motion-contract.mjs
+    node tests/static/game-box-cover-motion-contract.mjs
+    node tests/static/game-box-cover-bridge-contract.js
+    node tests/static/game-box-cover-lifecycle-contract.mjs
     compose run --rm -T \
         -v "$project_dir/library:/var/www/app/library:ro" \
         -v "$project_dir/tests:/var/www/app/tests:ro" \

@@ -37,12 +37,19 @@ try {
   const turnMarkerMotionSource = read(
     'frontend/src/turn-marker-motion.js'
   );
+  const gameBoxCoverMotionSource = read(
+    'frontend/src/game-box-cover-motion.js'
+  );
+  const gameBoxCoverSurfaceSource = read(
+    'frontend/src/game-box-cover-surface.js'
+  );
   const motionStudioSurfaceSource = read(
     'frontend/src/motion-studio-surface.js'
   );
   const modernBundle = read('public/js/modern/purett-modern-graphics.min.js');
   const layout = read('application/views/layouts/standalone.phtml');
   const game = read('public/js/plugins/gh.game.js');
+  const cover = read('public/js/plugins/gh.cover.js');
   const boardCss = read('public/css/default/index.css');
   const contextMenu = read('application/views/partials/overlays.phtml');
   const bootController = read('library/Standalone/Controller/Action.php');
@@ -82,14 +89,26 @@ try {
       ),
     'generated modern graphics bundle omits the turn-coin planner, Studio subject, or active-match renderer'
   );
+  assert(
+    modernBundle.includes(
+      'purett-game-box-cover-motion-plan'
+    ) &&
+      modernBundle.includes(
+        'two-outer-edge-hinged-doors'
+      ) &&
+      modernBundle.includes(
+        'game-box-cover'
+      ),
+    'generated modern graphics bundle omits the hinged game-box cover'
+  );
   assert(!/window\.THREE\s*=/.test(modernSource + modernBundle), 'modern bundle overwrites the legacy snow THREE global');
   assert(fs.existsSync(path.join(root, 'public/js/modern/THREE-LICENSE.txt')), 'distributed Three.js license is missing');
 
   assert(
     coordinator.includes(
-      '/js/modern/purett-modern-graphics.min.js?v=0.185.1-match-turn-coin.1'
+      '/js/modern/purett-modern-graphics.min.js?v=0.185.1-game-cover-hinge.1'
     ),
-    'coordinator does not use the match-turn-coin bundle cache revision'
+    'coordinator does not use the game-cover-hinge bundle cache revision'
   );
   assert(!/https?:\/\//.test(coordinator), 'coordinator references a third-party graphics URL');
   assert(coordinator.includes("this.storageKey = 'purett.graphicsMode.v1'"), 'graphics preference does not have a stable storage key');
@@ -172,6 +191,106 @@ try {
       game.includes('this.graphics.setActiveMatch(true)') &&
       application.includes('me.graphics.setActiveMatch(false)'),
     'graphics coordinator does not explicitly scope the match-hand bridge to an active match'
+  );
+  assert(
+    application.includes('cover: me.cover') &&
+      coordinator.includes(
+        'this.cover = options.cover'
+      ) &&
+      coordinator.includes(
+        'ensureGameCoverSurface: function()'
+      ) &&
+      coordinator.includes(
+        'updateGameCover: function(presentation)'
+      ) &&
+      coordinator.includes(
+        'syncGameCoverMode: function(mode)'
+      ) &&
+      coordinator.includes(
+        'disposeGameCoverSurface: function()'
+      ) &&
+      coordinator.includes(
+        'createGameBoxCoverSurface'
+      ) &&
+      coordinator.includes(
+        'gameCoverFallbackReason:'
+      ) &&
+      coordinator.includes(
+        "} catch (coverError) {\n" +
+        "                this.handleGameCoverFailure("
+      ),
+    'the independent full-stage game-box cover is not coordinated outside the active-match surface'
+  );
+  const compatibilityPredicate =
+    coordinator.slice(
+      coordinator.indexOf(
+        'isExpectedModernGraphics: function('
+      ),
+      coordinator.indexOf(
+        'completeModernLoad: function('
+      )
+    );
+  assert(
+    !compatibilityPredicate.includes(
+      'createGameBoxCoverSurface'
+    ) &&
+      coordinator.includes(
+        "'The Modern game-box cover facade is unavailable.'"
+      ) &&
+      coordinator.includes(
+        "'initialization-failed'"
+      ) &&
+      coordinator.includes(
+        "'presentation-failed'"
+      ) &&
+      coordinator.includes(
+        "'rendering-failed'"
+      ),
+    'a cover-only capability or construction failure can still downgrade the whole Modern renderer'
+  );
+  assert(
+    cover.includes(
+      '<div id="modernGameCover" aria-hidden="true"></div>'
+    ) &&
+      cover.includes(
+        "me.publishTarget('open', 'cubic-in')"
+      ) &&
+      cover.includes(
+        "me.publishTarget('closed', 'cubic-out')"
+      ) &&
+      cover.includes(
+        '// Modern presentation cannot interrupt Legacy flow.'
+      ) &&
+      cover.includes(
+        'me.left.animate({ translation: [-450, 0], rotation: rotation}, 2000,'
+      ) &&
+      cover.includes(
+        "me.left.animate({ translation: [Math.abs(me.left.attr('x')), 0], rotation: 0 }, 2000, '>', function()"
+      ) &&
+      !cover.slice(
+        cover.indexOf(
+          'describePresentation: function()'
+        ),
+        cover.indexOf(
+          'setModernCoverReady: function('
+        )
+      ).includes('callback'),
+    'the cover does not publish plain targets while retaining the unchanged Raphael callback clock'
+  );
+  assert(
+    boardCss.includes(
+      '#game-cover.graphics-modern-cover-ready .legacy-game-cover-canvas'
+    ) &&
+      boardCss.includes(
+        '#game-cover.graphics-modern-cover-ready #modernGameCover'
+      ) &&
+      boardCss.includes(
+        '#modernGameCover .modern-game-cover-canvas'
+      ) &&
+      boardCss.includes(
+        'pointer-events: auto;'
+      ),
+    'the Modern cover does not preserve the full-stage visual and pointer shield'
   );
   assert(
     coordinator.includes(
@@ -1058,6 +1177,102 @@ try {
     'the turn-coin profile is not a DOM-free, versioned motion API'
   );
   assert(
+    gameBoxCoverMotionSource.includes(
+      'export const GAME_BOX_COVER_MOTION_SCHEMA_VERSION = 1'
+    ) &&
+      gameBoxCoverMotionSource.includes(
+        "export const GAME_BOX_COVER_CACHE_IDENTITY"
+      ) &&
+      gameBoxCoverMotionSource.includes(
+        'export const GAME_BOX_COVER_STAGE'
+      ) &&
+      gameBoxCoverMotionSource.includes(
+        'export function createGameBoxCoverMotionPlan'
+      ) &&
+      gameBoxCoverMotionSource.includes(
+        'export function sampleGameBoxCoverMotion'
+      ) &&
+      !/\b(?:window|document|HTMLElement|WebGLRenderer|from ['"]three['"])\b/
+        .test(gameBoxCoverMotionSource),
+    'the game-box cover planner is not a deterministic renderer-neutral API'
+  );
+  assert(
+    gameBoxCoverSurfaceSource.includes(
+      'export class GameBoxCoverSurface'
+    ) &&
+      gameBoxCoverSurfaceSource.includes(
+        "surface: 'game-box-cover'"
+      ) &&
+      gameBoxCoverSurfaceSource.includes(
+        "'two-outer-edge-hinged-doors'"
+      ) &&
+      gameBoxCoverSurfaceSource.includes(
+        'new PerspectiveCamera('
+      ) &&
+      gameBoxCoverSurfaceSource.includes(
+        'new BoxGeometry('
+      ) &&
+      gameBoxCoverSurfaceSource.includes(
+        'new PlaneGeometry('
+      ) &&
+      gameBoxCoverSurfaceSource.includes(
+        'pendingFrameCount:'
+      ) &&
+      gameBoxCoverSurfaceSource.includes(
+        'gameplayAuthority: false'
+      ) &&
+      gameBoxCoverSurfaceSource.includes(
+        'semanticActionCount: 0'
+      ) &&
+      gameBoxCoverSurfaceSource.includes(
+        'requestCount: 0'
+      ) &&
+      gameBoxCoverSurfaceSource.includes(
+        "continuationAuthority:\n" +
+        "        'legacy-raphael'"
+      ) &&
+      gameBoxCoverSurfaceSource.includes(
+        'legacyContinuationAuthority:'
+      ) &&
+      gameBoxCoverSurfaceSource.includes(
+        'normalized.startedAtMs === null'
+      ) &&
+      gameBoxCoverSurfaceSource.includes(
+        "status: 'fulfilled'"
+      ) &&
+      gameBoxCoverSurfaceSource.includes(
+        'entry.texture.dispose()'
+      ) &&
+      gameBoxCoverSurfaceSource.includes(
+        'resources: {'
+      ) &&
+      gameBoxCoverSurfaceSource.includes(
+        'failureReason:'
+      ) &&
+      gameBoxCoverSurfaceSource.includes(
+        'modernCacheIdentity'
+      ) &&
+      gameBoxCoverSurfaceSource.includes(
+        'applicationContinuationAuthority:'
+      ) &&
+      gameBoxCoverSurfaceSource.includes(
+        'this.readyReported'
+      ) &&
+      gameBoxCoverSurfaceSource.includes(
+        'Math.min(\n' +
+        '            requestedTextureTimeout,\n' +
+        '            COVER_TEXTURE_TIMEOUT_MS'
+      ) &&
+      gameBoxCoverSurfaceSource.includes(
+        'this.beginPresentation(\n' +
+        '        normalized'
+      ) &&
+      gameBoxCoverSurfaceSource.includes(
+        'this.reportError(error);'
+      ),
+    'the game-box cover surface lacks true hinge geometry, exact supersession, partial-load cleanup, or authority diagnostics'
+  );
+  assert(
     motionStudioSurfaceSource.includes('export class MotionStudioSurface') &&
       motionStudioSurfaceSource.includes("surface: 'motion-studio'") &&
       motionStudioSurfaceSource.includes('getDebugState()') &&
@@ -1086,6 +1301,15 @@ try {
       modernSource.includes('serializePreset(') &&
       modernSource.includes('parsePreset(') &&
       modernSource.includes('coin: Object.freeze({') &&
+      modernSource.includes(
+        'gameBoxCover: Object.freeze({'
+      ) &&
+      modernSource.includes(
+        'GAME_BOX_COVER_CACHE_IDENTITY'
+      ) &&
+      modernSource.includes(
+        'createGameBoxCoverSurface(host, options)'
+      ) &&
       motionStudioController.includes(
         'applyCoinPresetToSurface: function('
       ) &&

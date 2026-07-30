@@ -70,6 +70,18 @@ import {
   serializeTurnMarkerMotionProfile
 } from './turn-marker-motion.js';
 import {
+  GAME_BOX_COVER_CACHE_IDENTITY,
+  GAME_BOX_COVER_DOORS,
+  GAME_BOX_COVER_MOTION_DEFAULTS,
+  GAME_BOX_COVER_MOTION_SCHEMA_VERSION,
+  GAME_BOX_COVER_STAGE,
+  createGameBoxCoverMotionPlan,
+  sampleGameBoxCoverMotion
+} from './game-box-cover-motion.js';
+import {
+  GameBoxCoverSurface
+} from './game-box-cover-surface.js';
+import {
   MOTION_STUDIO_CAMERA,
   MotionStudioSurface,
   validateMotionStudioPreset
@@ -7370,6 +7382,27 @@ window.gh.modernGraphics = {
     })
   }),
   lobbyPlaybook: lobbyPlaybookApi,
+  gameBoxCover: Object.freeze({
+    cacheIdentity:
+      GAME_BOX_COVER_CACHE_IDENTITY,
+    schemaVersion:
+      GAME_BOX_COVER_MOTION_SCHEMA_VERSION,
+    stage: GAME_BOX_COVER_STAGE,
+    doors: GAME_BOX_COVER_DOORS,
+    defaults:
+      GAME_BOX_COVER_MOTION_DEFAULTS,
+    createPlan(options) {
+      return createGameBoxCoverMotionPlan(
+        options
+      );
+    },
+    samplePlan(plan, elapsedMs) {
+      return sampleGameBoxCoverMotion(
+        plan,
+        elapsedMs
+      );
+    }
+  }),
   createSurface(host, options) {
     return new ModernGraphicsSurface(host, options);
   },
@@ -7378,5 +7411,11 @@ window.gh.modernGraphics = {
   },
   createMotionStudioSurface(host, options) {
     return new MotionStudioSurface(host, options);
+  },
+  createGameBoxCoverSurface(host, options) {
+    return new GameBoxCoverSurface(
+      host,
+      options
+    );
   }
 };
